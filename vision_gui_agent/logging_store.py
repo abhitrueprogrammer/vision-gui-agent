@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import json
+import sqlite3
+import time
+from pathlib import Path
+
+from .models import ActionDecision, Element, Observation
+
+
+class RunLogger:
+    """SQLite run data, deliberately denormalized enough for future policy training."""
+
+    def __init__(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.connection = sqlite3.connect(path)
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS runs (
+            run_id TEXT PRIMARY KEY, goal TEXT NOT NULL, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            model TEXT, completed INTEGER, steps INTEGER, final_node TEXT, error TEXT)""")
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS transitions (
+            id INTEGER PRIMARY KEY, run_id TEXT NOT NULL, step INTEGER NOT NULL, source_node TEXT,
+            target_node TEXT, action_json TEXT NOT NULL, success INTEGER NOT NULL, error TEXT,
+            observation_json TEXT NOT NULL, graph_context_json TEXT NOT NULL,
+            observe_ms REAL NOT NULL DEFAULT 0, model_ms REAL NOT NULL DEFAULT 0,
+            execute_ms REAL NOT NULL DEFAULT 0, persist_ms REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        existing = {row[1] for row in self.connection.execute("PRAGMA table_info(transitions)")}
+        for name, definition in {"observation_json": "TEXT NOT NULL DEFAULT '{}'", "graph_context_json": "TEXT NOT NULL DEFAULT '{}'",
+                                 "observe_ms": "REAL NOT NULL DEFAULT 0", "model_ms": "REAL NOT NULL DEFAULT 0",
+                                 "execute_ms": "REAL NOT NULL DEFAULT 0", "persist_ms": "REAL NOT NULL DEFAULT 0"}.items():
+            if name not in existing:
+                self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
+        run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
+        if "model" not in run_columns:
+            self.connection.execute("ALTER TABLE runs ADD COLUMN model TEXT")
+        self.connection.commit()
+
+    def start_run(self, run_id: str, goal: str, model: str) -> None:
+        self.connection.execute("INSERT INTO runs(run_id, goal, model) VALUES(?, ?, ?)", (run_id, goal, model))
+        self.connection.commit()
+
+    def log(self, run_id: str, step: int, source: str | None, target: str | None, decision: ActionDecision,
+            success: bool, observation: Observation, graph_context: dict, error: str | None = None,
+            timings: dict[str, float] | None = None) -> None:
+        timings = timings or {}
+        cursor = self.connection.execute(
+            "INSERT INTO transitions(run_id,step,source_node,target_node,action_json,success,error,observation_json,graph_context_json,observe_ms,model_ms,execute_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (run_id, step, source, target, json.dumps(decision.to_dict()), int(success), error,
+             json.dumps(observation.to_dict()), json.dumps(graph_context), timings.get("observe_ms", 0),
+             timings.get("model_ms", 0), timings.get("execute_ms", 0)),
+        )
+        started = time.perf_counter()
+        self.connection.commit()
+        self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))
+        self.connection.commit()
+
+    def finish_run(self, run_id: str, completed: bool, steps: int, final_node: str, error: str | None) -> None:
+        self.connection.execute("UPDATE runs SET completed=?, steps=?, final_node=?, error=? WHERE run_id=?",
+                                (int(completed), steps, final_node, error, run_id))
+        self.connection.commit()
+
+    def metrics(self) -> dict[str, float | int]:
+        run_count, completed, average_steps = self.connection.execute(
+            "SELECT COUNT(*), COALESCE(SUM(completed), 0), COALESCE(AVG(steps), 0) FROM runs WHERE completed IS NOT NULL"
+        ).fetchone()
+        return {"runs": run_count, "completed": completed, "success_rate": completed / run_count if run_count else 0.0,
+                "average_steps": average_steps}
+
+    def model_metrics(self) -> list[dict[str, float | int | str]]:
+        rows = self.connection.execute("""
+            SELECT COALESCE(r.model, 'unknown'), COUNT(DISTINCT r.run_id), AVG(t.model_ms)
+            FROM runs r LEFT JOIN transitions t ON t.run_id = r.run_id
+            WHERE r.completed IS NOT NULL GROUP BY r.model ORDER BY AVG(t.model_ms)
+        """).fetchall()
+        return [{"model": model, "runs": runs, "average_model_ms": average or 0.0}
+                for model, runs, average in rows]
+
+    def completed_workflows(self, goal: str) -> dict[str, list[tuple[ActionDecision, Observation]]]:
+        rows = self.connection.execute("""
+            SELECT t.run_id, t.action_json, t.observation_json FROM transitions t
+            JOIN runs r ON r.run_id = t.run_id
+            WHERE r.goal=? AND r.completed=1 AND t.success=1 ORDER BY t.run_id, t.step
+        """, (goal,)).fetchall()
+        workflows: dict[str, list[tuple[ActionDecision, Observation]]] = {}
+        for run_id, action, observation in rows:
+            raw = json.loads(observation)
+            if not Path(raw["screenshot_path"]).exists():
+                continue
+            item = Observation(raw["screenshot_path"], raw["marked_screenshot_path"],
+                               [Element(**element) for element in raw["elements"]], raw["url"], raw["title"])
+            workflows.setdefault(run_id, []).append((ActionDecision.from_dict(json.loads(action)), item))
+        return workflows
+
+    def training_examples(self) -> list[dict]:
+        """Export action-selection examples without coupling data collection to a model vendor."""
+        rows = self.connection.execute("SELECT observation_json, graph_context_json, action_json, success, error FROM transitions ORDER BY id").fetchall()
+        return [{"observation": json.loads(observation), "graph_context": json.loads(context), "action": json.loads(action), "success": bool(success), "error": error}
+                for observation, context, action, success, error in rows]
+
+    def close(self) -> None:
+        self.connection.close()

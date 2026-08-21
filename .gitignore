@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+# Added by code-review-graph
+.code-review-graph/
+
+# Generated run data and local checkouts
+artifacts/
+tmp/
+the-internet/
