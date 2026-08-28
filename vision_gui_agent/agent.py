@@ -10,9 +10,10 @@ from playwright.async_api import Page
 from .decision import Policy
 from .executor import execute
 from .logging_store import RunLogger
-from .models import ActionDecision, ActionRecord, Observation, RunResult
+from .models import ActionDecision, ActionRecord, EvidenceRecord, GoalConstraint, Observation, RunResult
 from .perception import observe
 from .state_graph import StateGraph
+from .verification import verify
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class AgentConfig:
     max_steps: int = 12
     hash_threshold: int = 6
     max_action_attempts: int = 2
+    verbose: bool = False
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,68 @@ class Agent:
                 break
             plan.append(following)
         return plan
+
+    @staticmethod
+    def _comparison_constraint(goal: str) -> GoalConstraint | None:
+        if any(word in goal.casefold() for word in ("latest", "newest", "oldest", "cheapest", "nearest", "largest", "smallest", "highest-rated", "highest rated")):
+            return GoalConstraint("goal-ordering", "The requested ordering or comparison is observably established")
+        return None
+
+    @staticmethod
+    def _valid_evidence(evidence: EvidenceRecord, observation: Observation, download_paths: list[str]) -> bool:
+        expected = Agent._normal(evidence.expected or "")
+        if evidence.source == "url": return bool(expected and expected in Agent._normal(observation.url))
+        if evidence.source == "title": return bool(expected and expected in Agent._normal(observation.title))
+        if evidence.source == "file": return any(Path(path).is_file() and Path(path).stat().st_size for path in download_paths)
+        if evidence.source == "comparison":
+            comparison = evidence.comparison or {}; values = comparison.get("candidates", []); selected = comparison.get("selected")
+            direction, attribute = comparison.get("direction"), comparison.get("attribute")
+            if not isinstance(values, list) or len(values) < 2 or selected is None or direction not in {"min", "max"} or not isinstance(attribute, str): return False
+            try:
+                numbers = [(item["id"], float(item["value"])) for item in values if isinstance(item, dict)]
+                chosen = next(value for ident, value in numbers if ident == selected)
+            except (KeyError, TypeError, ValueError, StopIteration): return False
+            fields = {"element_text": "text", "value": "value", "href": "href", "aria_label": "aria_label"}
+            if attribute not in fields or len(numbers) != len(values): return False
+            if any(str(item["value"]) not in getattr(next((element for element in observation.elements if element.id == item["id"]), None), fields[attribute], "") for item in values): return False
+            return chosen == (min if direction == "min" else max)(value for _, value in numbers)
+        element = next((item for item in observation.elements if item.id == evidence.element_id), None)
+        if not element: return False
+        fields = {"element_text": element.text, "aria_label": element.aria_label, "placeholder": element.placeholder,
+                  "role": element.role, "tag": element.tag, "href": element.href, "type": element.input_type,
+                  "value": element.value, "download": element.download, "selected": str(element.selected), "checked": str(element.checked)}
+        return evidence.source in fields and expected in Agent._normal(fields[evidence.source])
+
+    @staticmethod
+    def _is_high_impact(decision: ActionDecision, observation: Observation) -> bool:
+        if decision.impact == "high" or decision.action == "done" or decision.verify and decision.verify.kind == "download_created": return True
+        element = next((item for item in observation.elements if item.id == decision.element_id), None)
+        if not element: return False
+        words = " ".join((element.text, element.aria_label, element.value)).casefold()
+        if "search" in words: return bool(element.download)
+        return bool(element.download or any(word in words for word in ("submit", "delete", "remove", "purchase", "pay", "checkout")))
+
+    @staticmethod
+    def _merge_constraints(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
+                           download_paths: list[str]) -> None:
+        for proposed in decision.constraints:
+            old = ledger.get(proposed.id)
+            # A model cannot turn prose into proof: promote only currently checkable evidence.
+            evidence = tuple(item for item in proposed.evidence if Agent._valid_evidence(item, observation, download_paths))
+            status = proposed.status
+            if status == "proven" and not evidence: status = "unproven"
+            if old and old.material and not proposed.material: proposed = GoalConstraint(proposed.id, proposed.description, True, status, evidence, proposed.unavailable_reason)
+            ledger[proposed.id] = GoalConstraint(proposed.id, proposed.description, proposed.material, status, evidence, proposed.unavailable_reason)
+
+    @staticmethod
+    def _guard(decision: ActionDecision, observation: Observation, ledger: dict[str, GoalConstraint]) -> None:
+        if decision.element_id is not None and Agent._is_high_impact(decision, observation):
+            target_evidence = [item for item in decision.grounding if item.element_id == decision.element_id]
+            if not target_evidence or not any(Agent._valid_evidence(item, observation, []) for item in target_evidence):
+                raise ValueError("High-impact action lacks valid target grounding")
+        if Agent._is_high_impact(decision, observation):
+            unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven"]
+            if unproven: raise ValueError(f"High-impact action deferred; unproven constraints: {', '.join(unproven)}")
 
     @staticmethod
     def _normal(value: str) -> str:
@@ -87,7 +151,9 @@ class Agent:
             return None
         return ActionDecision(action=template.decision.action, element_id=matches[0].id, text=template.decision.text,
                               current_label=current_label, next_label=template.decision.next_label,
-                              rationale="Reuse verified action on a compatible page")
+                              rationale="Reuse verified action on a compatible page", verify=template.decision.verify,
+                              impact=template.decision.impact, grounding=template.decision.grounding,
+                              constraints=template.decision.constraints)
 
     @staticmethod
     def _reuse_workflow(templates: list[ReusableAction], observation, current_label: str) -> list[ReusableAction] | None:
@@ -102,14 +168,14 @@ class Agent:
                 continue
             for index, (decision, source) in enumerate(records):
                 if decision.action == "done":
-                    node, _ = self.graph.add_observation(source, decision.current_label)
+                    node, _ = self.graph.add_observation(source)
                     self.graph.add_transition(node, node, decision, True, goal, run_id)
                     continue
                 if index + 1 >= len(records):
                     continue
                 _, target = records[index + 1]
-                source_node, _ = self.graph.add_observation(source, decision.current_label)
-                target_node, _ = self.graph.add_observation(target, decision.next_label)
+                source_node, _ = self.graph.add_observation(source)
+                target_node, _ = self.graph.add_observation(target)
                 self.graph.add_transition(source_node, target_node, decision, True, goal, run_id)
             self.graph.mark_run_completed(run_id)
 
@@ -119,11 +185,15 @@ class Agent:
         self._hydrate_completed_workflows(logger.completed_workflows(goal), goal)
         logger.start_run(run_id, goal, getattr(self.policy, "model", type(self.policy).__name__))
         history: list[ActionRecord] = []
+        download_paths: list[str] = []
         path: list[str] = []
         planned: list[ActionDecision] = []
         templates: list[ReusableAction] = []
         workflow: list[ReusableAction] = []
         action_attempts: dict[str, int] = {}
+        ledger: dict[str, GoalConstraint] = {}
+        comparison = self._comparison_constraint(goal)
+        if comparison: ledger[comparison.id] = comparison
         current_node = ""
         observed_at = perf_counter()
         observation = await observe(page, self.config.artifact_dir / run_id, 0)
@@ -133,6 +203,8 @@ class Agent:
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
+                graph_context.update({"url": observation.url, "title": observation.title,
+                                      "constraints": [item.to_dict() for item in ledger.values()]})
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
                 try:
                     decision: ActionDecision | None = None
@@ -144,8 +216,6 @@ class Agent:
                             workflow.clear()
                         else:
                             decision = candidate
-                    if decision is None and planned and planned[0].current_label and planned[0].current_label != current_label:
-                        planned.clear()
                     if decision is None and planned:
                         candidate = planned.pop(0)
                         try:
@@ -171,6 +241,8 @@ class Agent:
                             planned = self._safe_plan(list(response) if isinstance(response, list) else [response])
                             decision = planned.pop(0)
                     decision.validate_for(observation)
+                    self._merge_constraints(ledger, decision, observation, download_paths)
+                    self._guard(decision, observation, ledger)
                     key = self.graph.replay_key(decision)
                     if action_attempts.get(key, 0) >= self.config.max_action_attempts:
                         raise ValueError("Retry limit reached for action")
@@ -178,32 +250,59 @@ class Agent:
                     error = f"Decision rejected: {exc}"
                     invalid = ActionDecision(action="done", rationale=error)
                     logger.log(run_id, step, current_node, None, invalid, False, observation, graph_context, error, timings)
-                    result = RunResult(run_id, False, step, current_node, error, history)
+                    result = RunResult(run_id, False, step, current_node, error, history, constraints=list(ledger.values()))
                     logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, result.error)
                     return result
 
-                self.graph.set_label(current_node, decision.current_label)
+                if self.config.verbose:
+                    print(f"[step {step}] current: {current_label!r} ({observation.url})")
+                    print(f"[step {step}] proposed: {decision.to_dict()}")
+                    print(f"[step {step}] expected verification: {decision.verify.to_dict() if decision.verify else 'not requested'}")
                 if decision.action == "done":
-                    history.append(ActionRecord(decision, True))
-                    logger.log(run_id, step, current_node, current_node, decision, True, observation, graph_context, timings=timings)
-                    self.graph.add_transition(current_node, current_node, decision, True, goal, run_id)
-                    self.graph.mark_run_completed(run_id)
-                    result = RunResult(run_id, True, step, current_node, history=history)
-                    logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, None)
-                    return result
+                    verification = await verify(page, observation, observation, decision.verify, self.config.hash_threshold)
+                    success = verification.status != "failed"
+                    error = None if success else verification.reason
+                    history.append(ActionRecord(decision, success, error, verification))
+                    logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification)
+                    self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error)
+                    if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
+                    if success:
+                        self._merge_constraints(ledger, decision, observation, download_paths)
+                        self.graph.mark_run_completed(run_id)
+                        result = RunResult(run_id, True, step, current_node, history=history, download_paths=download_paths,
+                                           constraints=list(ledger.values()))
+                        logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, None)
+                        return result
+                    planned.clear(); workflow.clear()
+                    continue
 
                 try:
                     action_attempts[key] = action_attempts.get(key, 0) + 1
                     started = perf_counter()
-                    await execute(page, observation, decision)
+                    download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads")
                     timings["execute_ms"] = (perf_counter() - started) * 1000
                     observed_at = perf_counter()
                     next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
+                    verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold, download_path=download_path)
+                    # Verification may poll while a SPA settles; persist its final live state, not the first snapshot.
+                    next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
                     next_observe_ms = (perf_counter() - observed_at) * 1000
+                    target_node, created = self.graph.add_observation(next_observation)
+                    success = verification.status != "failed"
+                    error = None if success else verification.reason
+                    self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
+                    if self.config.verbose:
+                        status = "new" if created else "existing"
+                        print(f"[step {step}] execution: success; verification: {verification.status}; {verification.reason}; observed: {next_observation.title!r} "
+                              f"({next_observation.url}); graph node: {target_node} ({status})")
+                        if verification.download_path: print(f"[step {step}] download: {verification.download_path}")
+                    if not success:
+                        history.append(ActionRecord(decision, False, error, verification))
+                        logger.log(run_id, step, current_node, target_node, decision, False, next_observation, graph_context, error, timings, verification)
+                        planned.clear(); workflow.clear(); observation = next_observation; observe_ms = next_observe_ms
+                        continue
                     if next_observation.url != observation.url:
                         planned.clear()
-                    target_node, _ = self.graph.add_observation(next_observation, decision.next_label)
-                    self.graph.add_transition(current_node, target_node, decision, True, goal, run_id)
                     template = self._action_template(observation, next_observation, decision)
                     if template and template not in templates:
                         templates.append(template)
@@ -212,20 +311,31 @@ class Agent:
                         if (self._page_signature(next_observation) != expected.post_page or
                                 any(self._target_signature(item) == expected.target for item in next_observation.elements) != expected.target_present_after):
                             workflow.clear()
-                    history.append(ActionRecord(decision, True))
-                    logger.log(run_id, step, current_node, target_node, decision, True, observation, graph_context, timings=timings)
+                    history.append(ActionRecord(decision, True, verification=verification))
+                    logger.log(run_id, step, current_node, target_node, decision, True, next_observation, graph_context, timings=timings, verification=verification)
+                    if verification.download_path: download_paths.append(verification.download_path)
+                    self._merge_constraints(ledger, decision, next_observation, download_paths)
                     observation = next_observation
                     observe_ms = next_observe_ms
                 except Exception as exc:
                     error = str(exc)
+                    if self.config.verbose:
+                        print(f"[step {step}] execution: failed; error: {error}")
+                    try:
+                        next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
+                        # Failure labels come only from the observed page; never from a prediction.
+                        target_node, _ = self.graph.add_observation(next_observation, next_observation.title or "action_failed")
+                        observation = next_observation
+                    except Exception:
+                        target_node = current_node
                     history.append(ActionRecord(decision, False, error))
-                    logger.log(run_id, step, current_node, None, decision, False, observation, graph_context, error, timings)
-                    self.graph.add_transition(current_node, current_node, decision, False, goal, run_id, error)
+                    logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings)
+                    self.graph.add_transition(current_node, target_node, decision, False, goal, run_id, error)
                     workflow.clear()
                     planned.clear()
 
             error = "Step limit reached"
-            result = RunResult(run_id, False, self.config.max_steps, current_node, error, history)
+            result = RunResult(run_id, False, self.config.max_steps, current_node, error, history, download_paths, list(ledger.values()))
             logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, error)
             return result
         finally:

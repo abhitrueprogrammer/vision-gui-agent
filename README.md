@@ -14,6 +14,10 @@ Artifacts are written to `artifacts/`: raw and numbered screenshots, `state-grap
 
 The model receives the semantic element list, graph neighbors and path, plus successful/failed action history. When the DOM is unambiguous it reasons without a screenshot; otherwise it receives a resized, quality-controlled JPEG rather than the full PNG. It returns up to three linked actions, which the agent stops immediately if the observed state does not match the plan. Successful edges are replayed automatically only for the same goal.
 
+Actions may include an optional `verify` postcondition: `page_changed`, `url_matches`, `title_matches`, `element_visible`, `element_absent`, `element_value`, or `download_created`. An action is successful only when browser execution and its requested postcondition both succeed; omitted `verify` retains the legacy execution-only behavior. A failed check stops dependent planned actions and asks the policy again from the latest observation. Patterns are literal substrings (case/whitespace-insensitive for visible text and titles).
+
+Downloads are verified and saved under `artifacts/<run_id>/downloads/`; only verified non-empty saved files are printed as `download:` paths in the final CLI result. `--verbose` prints the proposed condition, execution and verification result/reason, observed graph node, and verified download path.
+
 Inspect completed-run metrics with:
 
 ```bash

@@ -39,16 +39,32 @@ class GeminiPolicy:
         )
         prompt = {
             "goal": goal,
-            "elements": observation.element_summaries(),
+            "url": observation.url, "title": observation.title,
+            "elements": [element.__dict__ for element in observation.elements],
             "graph_context": graph_context,
             "recent_actions": [record.to_dict() for record in history[-8:]],
             "instructions": (
                 "Choose up to three consecutive next actions. Return a JSON array only. Fields: action "
                 "(click|fill|select|press|scroll|done), element_id when needed, text for "
                 "fill/select, key for press, direction for scroll, current_label (short semantic "
-                "name of the visible state), next_label (predicted resulting state), and rationale. "
-                "Only use listed element ids. Do not repeat failed actions. Use done only when "
-                "the user goal is complete. Each later action's current_label must match the prior "
+                "name of the visible state), next_label (predicted resulting state), rationale, impact "
+                "(harmless|high), grounding (a list of observable evidence objects, never strings: "
+                "{source:'element_text|aria_label|placeholder|role|tag|href|type|value|download|selected|checked',expected:'observed text',element_id:12}; "
+                "use {source:'url|title',expected:'observed text'} or {source:'comparison',comparison:{candidates:[...],direction:'min|max',attribute:'...',selected:...}} when applicable), and constraints (persistent generic "
+                "{id,description,material,status,evidence,unavailable_reason} records; status is exactly unproven, proven, or unavailable). Labels are predictions, not facts. "
+                "Optionally include verify: exactly one of {kind:'page_changed'}, "
+                "{kind:'url_matches',pattern:'/account'}, {kind:'title_matches',pattern:'Account'}, "
+                "{kind:'element_visible',pattern:'Order submitted'}, {kind:'element_absent',pattern:'Loading'}, "
+                "{kind:'element_value',element_id:4,expected:'example'}, or {kind:'download_created'}. "
+                "Patterns are non-empty literal substrings; title/text/aria-label/placeholder matching ignores case and whitespace, URL matching is literal. "
+                "Include verify when an action has a meaningful observable result, preferring the most specific reliable condition over page_changed; never invent kinds. "
+                "A later planned action runs only after the prior requested verification passes. Omit verify for harmless actions without a reliable observation. "
+                "Only use listed element ids. Cite target metadata in grounding; never infer semantics from ids. Do not repeat failed actions. "
+                "Comparison evidence must name its observed attribute and list candidate element ids, values, direction (min|max), and selected id. "
+                "A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
+                "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering, URL ordering, or candidate comparison; first result is not proof. Use done only when "
+                "the user goal is complete; for a download goal, done is valid only after a click verified with download_created in recent_actions. done may use a state-only verify (url_matches, title_matches, element_visible, element_absent, element_value), but not page_changed or download_created. "
+                "Put download_created on the click that starts it, never done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"url_matches\",\"pattern\":\"/account\"}}. Each later action's current_label must match the prior "
                 "action's next_label. The agent will stop the plan if the visible state changes unexpectedly."
             ),
         }
@@ -79,7 +95,12 @@ class GeminiPolicy:
         try:
             return parse_decisions(self.last_response)
         except ValueError as exc:
-            raise ValueError(f"{exc}; model response={self.last_response[:2000]!r}") from exc
+            prompt["instructions"] += " Your prior response was invalid. Return corrected JSON only; constraint status must be exactly unproven, proven, or unavailable."
+            self.last_response = await asyncio.to_thread(generate)
+            try:
+                return parse_decisions(self.last_response)
+            except ValueError as retry_exc:
+                raise ValueError(f"{retry_exc}; model response={self.last_response[:2000]!r}") from retry_exc
 
 
 class ScriptedPolicy:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from uuid import uuid4
 
@@ -10,6 +11,15 @@ import networkx as nx
 from PIL import Image
 
 from .models import ActionDecision, Observation
+
+
+def normalized_url(value: str) -> str:
+    parts = urlsplit(value)
+    host = (parts.hostname or "").lower()
+    port = parts.port
+    if port and not ((parts.scheme.lower() == "http" and port == 80) or (parts.scheme.lower() == "https" and port == 443)):
+        host = f"{host}:{port}"
+    return urlunsplit((parts.scheme.lower(), host, parts.path or "/", parts.query, ""))
 
 
 class StateGraph:
@@ -29,14 +39,15 @@ class StateGraph:
     def add_observation(self, observation: Observation, label: str | None = None) -> tuple[str, bool]:
         with Image.open(observation.screenshot_path) as image:
             perceptual_hash = imagehash.phash(image)
+        observation_url = normalized_url(observation.url)
         for node_id, attributes in self.graph.nodes(data=True):
-            if perceptual_hash - imagehash.hex_to_hash(attributes["hash"]) <= self.hash_threshold:
-                if label:
-                    self.graph.nodes[node_id]["label"] = label
+            existing_url = attributes.get("normalized_url", normalized_url(attributes.get("url", "")))
+            if existing_url == observation_url and perceptual_hash - imagehash.hex_to_hash(attributes["hash"]) <= self.hash_threshold:
                 return node_id, False
         node_id = uuid4().hex[:12]
         self.graph.add_node(node_id, hash=str(perceptual_hash), label=label or observation.title or "Unlabelled page",
                             url=observation.url, screenshot=observation.screenshot_path,
+                            normalized_url=observation_url,
                             marked_screenshot=observation.marked_screenshot_path,
                             elements=[element.__dict__ for element in observation.elements])
         return node_id, True

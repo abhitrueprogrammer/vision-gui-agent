@@ -5,7 +5,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .models import ActionDecision, Element, Observation
+from .models import ActionDecision, Element, Observation, VerificationResult
 
 
 class RunLogger:
@@ -30,6 +30,10 @@ class RunLogger:
                                  "execute_ms": "REAL NOT NULL DEFAULT 0", "persist_ms": "REAL NOT NULL DEFAULT 0"}.items():
             if name not in existing:
                 self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
+        for name, definition in {"verification_json": "TEXT", "verification_status": "TEXT NOT NULL DEFAULT 'not_requested'",
+                                 "verification_reason": "TEXT", "download_path": "TEXT"}.items():
+            if name not in existing:
+                self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
         if "model" not in run_columns:
             self.connection.execute("ALTER TABLE runs ADD COLUMN model TEXT")
@@ -41,13 +45,15 @@ class RunLogger:
 
     def log(self, run_id: str, step: int, source: str | None, target: str | None, decision: ActionDecision,
             success: bool, observation: Observation, graph_context: dict, error: str | None = None,
-            timings: dict[str, float] | None = None) -> None:
+            timings: dict[str, float] | None = None, verification: VerificationResult | None = None) -> None:
         timings = timings or {}
+        verification = verification or VerificationResult("not_requested", "No postcondition requested")
         cursor = self.connection.execute(
-            "INSERT INTO transitions(run_id,step,source_node,target_node,action_json,success,error,observation_json,graph_context_json,observe_ms,model_ms,execute_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO transitions(run_id,step,source_node,target_node,action_json,success,error,observation_json,graph_context_json,observe_ms,model_ms,execute_ms,verification_json,verification_status,verification_reason,download_path) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (run_id, step, source, target, json.dumps(decision.to_dict()), int(success), error,
              json.dumps(observation.to_dict()), json.dumps(graph_context), timings.get("observe_ms", 0),
-             timings.get("model_ms", 0), timings.get("execute_ms", 0)),
+             timings.get("model_ms", 0), timings.get("execute_ms", 0),
+             json.dumps(decision.verify.to_dict()) if decision.verify else None, verification.status, verification.reason, verification.download_path),
         )
         started = time.perf_counter()
         self.connection.commit()
@@ -93,9 +99,10 @@ class RunLogger:
 
     def training_examples(self) -> list[dict]:
         """Export action-selection examples without coupling data collection to a model vendor."""
-        rows = self.connection.execute("SELECT observation_json, graph_context_json, action_json, success, error FROM transitions ORDER BY id").fetchall()
-        return [{"observation": json.loads(observation), "graph_context": json.loads(context), "action": json.loads(action), "success": bool(success), "error": error}
-                for observation, context, action, success, error in rows]
+        rows = self.connection.execute("SELECT observation_json, graph_context_json, action_json, success, error, verification_status, verification_reason, download_path FROM transitions ORDER BY id").fetchall()
+        return [{"observation": json.loads(observation), "graph_context": json.loads(context), "action": json.loads(action), "success": bool(success), "error": error,
+                 "verification": {"status": status, "reason": reason, "download_path": path}}
+                for observation, context, action, success, error, status, reason, path in rows]
 
     def close(self) -> None:
         self.connection.close()

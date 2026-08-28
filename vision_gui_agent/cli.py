@@ -50,11 +50,17 @@ async def _run(args: argparse.Namespace) -> int:
                 database_path=Path(args.artifacts) / "runs.sqlite3",
                 graph_path=Path(args.artifacts) / "state-graph.json",
                 max_steps=args.max_steps,
+                verbose=args.verbose,
             )
             result = await Agent(GeminiPolicy(args.model), config).run(page, args.goal)
             print(f"run_id={result.run_id} completed={result.completed} steps={result.steps} final_node={result.final_node_id}")
             if result.error:
                 print(f"error: {result.error}")
+            for path in result.download_paths:
+                print(f"download: {path}")
+            for constraint in result.constraints:
+                if constraint.status == "unavailable":
+                    print(f"unavailable constraint: {constraint.description} ({constraint.unavailable_reason})")
             return 0 if result.completed else 1
     except (PlaywrightError, OSError, RuntimeError, ValueError) as error:
         print(f"error: {friendly_error(error, args.url)}")
@@ -71,6 +77,7 @@ def main() -> None:
     parser.add_argument("--artifacts", default="artifacts")
     parser.add_argument("--max-steps", type=int, default=12)
     parser.add_argument("--headed", action="store_true")
+    parser.add_argument("--verbose", action="store_true", help="print state, action, verification, graph, and downloads per step")
     parser.add_argument("--metrics", action="store_true", help="print metrics for recorded runs")
     args = parser.parse_args()
     if args.metrics:

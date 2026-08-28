@@ -1,18 +1,27 @@
 import asyncio
+import io
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
+from contextlib import redirect_stdout
 from pathlib import Path
 from PIL import Image
 from vision_gui_agent.agent import Agent, AgentConfig
 from vision_gui_agent.decision import parse_decision, parse_decisions
 from vision_gui_agent.models import ActionDecision, Element, Observation
+from vision_gui_agent.models import VerificationResult
+from vision_gui_agent.models import EvidenceRecord, GoalConstraint
+from vision_gui_agent.logging_store import RunLogger
 from vision_gui_agent.perception import model_image
 from vision_gui_agent.state_graph import StateGraph
 
 class CoreTests(unittest.TestCase):
     def test_decision_validation(self) -> None:
         self.assertEqual(parse_decision('{"action":"fill","element_id":2,"text":"me@example.com"}').element_id, 2)
+
+    def test_legacy_data_vga_id_grounding_is_converted_to_observable_evidence(self) -> None:
+        decision = parse_decisions("""[{"action":"click","element_id":13,"grounding":["Search submit button [data-vga-id='13']"]}]""")[0]
+        self.assertEqual(decision.grounding, (EvidenceRecord("tag", "button", 13),))
 
     def test_string_element_id_is_coerced(self) -> None:
         decision = parse_decision('{"action":"click","element_id":"3"}')
@@ -169,3 +178,92 @@ class CoreTests(unittest.TestCase):
             finally:
                 db.close()
             self.assertEqual(Agent(policy, config).graph.graph.number_of_nodes(), 1)
+
+    def test_verbose_mode_prints_action_and_observation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base, image_path = Path(temp_dir), Path(temp_dir) / "screen.png"
+            Image.new("RGB", (100, 100), "white").save(image_path)
+            observation = Observation(str(image_path), str(image_path), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 10, 10)], "https://example.test", "Start")
+            config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", verbose=True)
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision(action="click", element_id=1), ActionDecision(action="done")])})()
+            output = io.StringIO()
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()), redirect_stdout(output):
+                asyncio.run(Agent(policy, config).run(object(), "go"))
+            self.assertIn("proposed:", output.getvalue())
+            self.assertIn("execution: success", output.getvalue())
+
+    def test_verification_shapes_and_validation(self) -> None:
+        valid = [
+            {"kind": "page_changed"}, {"kind": "url_matches", "pattern": "/account"},
+            {"kind": "title_matches", "pattern": "Account"}, {"kind": "element_visible", "pattern": "Ready"},
+            {"kind": "element_absent", "pattern": "Loading"}, {"kind": "element_value", "element_id": 1, "expected": "x"},
+            {"kind": "download_created"},
+        ]
+        for verify in valid:
+            action = "click" if verify["kind"] in {"download_created", "page_changed"} else "done"
+            raw = {"action": action, "verify": verify}
+            if action == "click": raw["element_id"] = 1
+            decision = ActionDecision.from_dict(raw)
+            self.assertEqual(decision.to_dict()["verify"], verify)
+        for verify in [{"kind": "unknown"}, {"kind": "url_matches"}, {"kind": "url_matches", "pattern": ""},
+                       {"kind": "url_matches", "pattern": 4}, {"kind": "page_changed", "extra": 1},
+                       {"kind": "element_value", "element_id": 0, "expected": "x"}]:
+            with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": verify})
+        with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "page_changed"}})
+        with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "download_created"}})
+
+    def test_graph_url_identity_includes_query_and_legacy_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base, image = Path(temp_dir), Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
+            make = lambda url: Observation(str(image), str(image), [], url, "Same")
+            graph = StateGraph(); first, _ = graph.add_observation(make("HTTPS://EXAMPLE.TEST:443/a?x=1#part")); same, created = graph.add_observation(make("https://example.test/a?x=1")); other, _ = graph.add_observation(make("https://example.test/a?x=2"))
+            self.assertEqual(first, same); self.assertFalse(created); self.assertNotEqual(first, other)
+            graph.export(base / "graph.json")
+            data = __import__('json').loads((base / "graph.json").read_text())
+            for node in data["nodes"]: node.pop("normalized_url", None)
+            (base / "legacy.json").write_text(__import__('json').dumps(data))
+            self.assertIsInstance(StateGraph.load(base / "legacy.json"), StateGraph)
+
+    def test_sqlite_migrates_verification_columns(self) -> None:
+        import sqlite3
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "old.sqlite3"; db = sqlite3.connect(path)
+            db.execute("CREATE TABLE transitions (id INTEGER PRIMARY KEY)"); db.execute("CREATE TABLE runs (run_id TEXT PRIMARY KEY, goal TEXT NOT NULL, started_at TEXT)"); db.commit(); db.close()
+            logger = RunLogger(path)
+            columns = {row[1] for row in logger.connection.execute("PRAGMA table_info(transitions)")}
+            logger.close(); self.assertTrue({"verification_json", "verification_status", "verification_reason", "download_path"} <= columns)
+
+    def test_failed_verification_stops_follow_up_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base, image = Path(temp_dir), Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
+            observation = Observation(str(image), str(image), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 1, 1)], "https://example.test", "Start")
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision.from_dict({"action":"click", "element_id":1, "verify":{"kind":"url_matches", "pattern":"/next"}}), ActionDecision(action="done")])})()
+            config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", max_steps=1)
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()), patch("vision_gui_agent.agent.verify", new=AsyncMock(return_value=VerificationResult("failed", "not changed"))):
+                result = asyncio.run(Agent(policy, config).run(object(), "go"))
+            self.assertFalse(result.history[0].success); self.assertEqual(result.history[0].verification.status, "failed")
+
+    def test_policy_labels_never_overwrite_observed_graph_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image = Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
+            observation = Observation(str(image), str(image), [], "https://example.test", "Observed title")
+            graph = StateGraph(); node, _ = graph.add_observation(observation, "Canonical")
+            again, _ = graph.add_observation(observation, "Model prediction")
+            self.assertEqual(node, again); self.assertEqual(graph.graph.nodes[node]["label"], "Canonical")
+
+    def test_high_impact_requires_grounded_proven_constraints(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image = Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
+            observation = Observation(str(image), str(image), [Element(1, "[x]", "button", "Submit", "", "", "", 0, 0, 1, 1, input_type="submit")], "https://example.test", "Form")
+            decision = ActionDecision(action="click", element_id=1)
+            with self.assertRaises(ValueError): Agent._guard(decision, observation, {"choice": GoalConstraint("choice", "chosen")})
+            grounded = ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "submit", 1),))
+            Agent._guard(grounded, observation, {"choice": GoalConstraint("choice", "chosen", status="proven", evidence=(EvidenceRecord("element_text", "submit", 1),))})
+
+    def test_search_submit_is_not_high_impact(self) -> None:
+        observation = Observation("", "", [Element(1, "[x]", "input", "", "", "Search by subject...", "", 0, 0, 1, 1, input_type="submit", value="Search")], "https://example.test", "Search")
+        self.assertFalse(Agent._is_high_impact(ActionDecision(action="click", element_id=1), observation))
+
+    def test_unlabeled_form_submit_is_not_high_impact(self) -> None:
+        observation = Observation("", "", [Element(1, "[x]", "button", "", "", "", "", 0, 0, 1, 1, input_type="submit")], "https://example.test", "Search")
+        self.assertFalse(Agent._is_high_impact(ActionDecision(action="click", element_id=1), observation))
