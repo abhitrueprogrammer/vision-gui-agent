@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -103,6 +104,21 @@ class Agent:
         return evidence.source in fields and expected in Agent._normal(fields[evidence.source])
 
     @staticmethod
+    def _target_evidence_matches(evidence: EvidenceRecord, element) -> bool:
+        if evidence.source not in {"element_text", "value"} or not evidence.expected:
+            return False
+        field = "text" if evidence.source == "element_text" else "value"
+        return Agent._normal(evidence.expected) == Agent._normal(getattr(element, field, ""))
+
+    @staticmethod
+    def _requires_download(goal: str) -> bool:
+        return bool(re.search(r"\bdownload\b", goal, re.IGNORECASE))
+
+    @staticmethod
+    def _has_download(download_paths: list[str]) -> bool:
+        return any(Path(path).is_file() and Path(path).stat().st_size for path in download_paths)
+
+    @staticmethod
     def _is_high_impact(decision: ActionDecision, observation: Observation) -> bool:
         if decision.impact == "high" or decision.action == "done" or decision.verify and decision.verify.kind == "download_created": return True
         element = next((item for item in observation.elements if item.id == decision.element_id), None)
@@ -124,13 +140,18 @@ class Agent:
             ledger[proposed.id] = GoalConstraint(proposed.id, proposed.description, proposed.material, status, evidence, proposed.unavailable_reason)
 
     @staticmethod
-    def _guard(decision: ActionDecision, observation: Observation, ledger: dict[str, GoalConstraint]) -> None:
+    def _guard(decision: ActionDecision, observation: Observation, ledger: dict[str, GoalConstraint],
+               goal: str = "", download_paths: list[str] | None = None) -> None:
+        download_paths = download_paths or []
+        if decision.action == "done" and Agent._requires_download(goal) and not Agent._has_download(download_paths):
+            raise ValueError("download goal requires a successful download_created verification")
         if decision.action == "done" and decision.verify is None and not any(
                 Agent._valid_evidence(item, observation, []) for item in decision.grounding):
             raise ValueError("done requires a visual postcondition or valid visible grounding")
         if decision.element_id is not None and Agent._is_high_impact(decision, observation):
             target_evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.source in {"element_text", "value"}]
-            if not target_evidence or not any(Agent._valid_evidence(item, observation, []) for item in target_evidence):
+            target = next((item for item in observation.elements if item.id == decision.element_id), None)
+            if not target or not target_evidence or not any(Agent._target_evidence_matches(item, target) for item in target_evidence):
                 raise ValueError("High-impact action lacks valid target grounding")
         if Agent._is_high_impact(decision, observation):
             unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven"]
@@ -197,9 +218,12 @@ class Agent:
         evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.expected and item.source in {"element_text", "role", "tag", "value"}]
         if not evidence:
             return decision
+        exact_evidence = [item for item in evidence if item.source in {"element_text", "value"}]
         fields = {"element_text": "text", "role": "role", "tag": "tag", "value": "value"}
 
         def matches(element) -> bool:
+            if exact_evidence:
+                return all(Agent._target_evidence_matches(item, element) for item in exact_evidence)
             return all(Agent._normal(item.expected or "") in Agent._normal(getattr(element, fields[item.source], ""))
                        for item in evidence if item.expected)
 
@@ -312,7 +336,7 @@ class Agent:
                             observation = replace(observation, elements=[refined if item.id == refined.id else item for item in observation.elements])
                     decision.validate_for(observation)
                     self._merge_constraints(ledger, decision, observation, download_paths)
-                    self._guard(decision, observation, ledger)
+                    self._guard(decision, observation, ledger, goal, download_paths)
                     key = self.graph.replay_key(decision)
                     if action_attempts.get(key, 0) >= self.config.max_action_attempts:
                         raise ValueError("Retry limit reached for action")

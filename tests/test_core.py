@@ -10,7 +10,7 @@ from vision_gui_agent.agent import Agent, AgentConfig
 from vision_gui_agent.decision import configured_gemini_keys, parse_decision, parse_decisions
 from vision_gui_agent.desktop import DesktopPage
 from vision_gui_agent.models import ActionDecision, Element, Observation
-from vision_gui_agent.models import VerificationResult
+from vision_gui_agent.models import VerificationCondition, VerificationResult
 from vision_gui_agent.models import EvidenceRecord, GoalConstraint
 from vision_gui_agent.logging_store import RunLogger
 from vision_gui_agent.perception import GeminiVisualGrounder, LocalVisualGrounder, model_image, observe
@@ -387,6 +387,23 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(ValueError): Agent._guard(decision, observation, {"choice": GoalConstraint("choice", "chosen")})
             grounded = ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "submit", 1),))
             Agent._guard(grounded, observation, {"choice": GoalConstraint("choice", "chosen", status="proven", evidence=(EvidenceRecord("element_text", "submit", 1),))})
+
+    def test_download_requires_exact_visible_target_grounding(self) -> None:
+        observation = Observation("", "", [Element(1, "", "button", "Download ZIP", "", "", "button", 0, 0, 1, 1, download="report.zip")], "", "Downloads")
+        exact = ActionDecision(action="click", element_id=1, verify=VerificationCondition("download_created"), grounding=(EvidenceRecord("element_text", "download zip", 1),))
+        Agent._guard(exact, observation, {})
+        for evidence in (EvidenceRecord("element_text", "download", 1), EvidenceRecord("role", "button", 1)):
+            with self.assertRaises(ValueError):
+                Agent._guard(ActionDecision(action="click", element_id=1, verify=VerificationCondition("download_created"), grounding=(evidence,)), observation, {})
+
+    def test_download_goal_cannot_complete_without_verified_file(self) -> None:
+        done = ActionDecision(action="done", grounding=(EvidenceRecord("element_text", "Complete", 1),))
+        observation = Observation("", "", [Element(1, "", "text", "Complete", "", "", "text", 0, 0, 1, 1, actionable=False)], "", "Complete")
+        with self.assertRaises(ValueError):
+            Agent._guard(done, observation, {}, "Download the report")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "report.zip"; path.write_bytes(b"download")
+            Agent._guard(done, observation, {}, "Download the report", [str(path)])
 
     def test_search_submit_is_not_high_impact(self) -> None:
         observation = Observation("", "", [Element(1, "[x]", "input", "", "", "Search by subject...", "", 0, 0, 1, 1, input_type="submit", value="Search")], "https://example.test", "Search")
