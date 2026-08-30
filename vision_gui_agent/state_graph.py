@@ -22,6 +22,21 @@ def normalized_url(value: str) -> str:
     return urlunsplit((parts.scheme.lower(), host, parts.path or "/", parts.query, ""))
 
 
+def semantic_signature(elements) -> set[str]:
+    """Position-independent visual identity used to survive harmless layout shifts."""
+    signature = set()
+    for element in elements:
+        label = " ".join((getattr(element, "text", "") or getattr(element, "value", "") or
+                          getattr(element, "aria_label", "") or getattr(element, "placeholder", "")).casefold().split())
+        if label:
+            signature.add(f"{getattr(element, 'tag', '').casefold()}|{getattr(element, 'role', '').casefold()}|{label}|{int(getattr(element, 'actionable', True))}")
+    return signature
+
+
+def semantic_similarity(left: set[str], right: set[str]) -> float:
+    return len(left & right) / len(left | right) if left and right else 0.0
+
+
 class StateGraph:
     """Persistent UI-state graph deduplicated by perceptual screenshot hash."""
 
@@ -40,16 +55,27 @@ class StateGraph:
         with Image.open(observation.screenshot_path) as image:
             perceptual_hash = imagehash.phash(image)
         observation_url = normalized_url(observation.url)
+        observed_signature = semantic_signature(observation.elements)
         for node_id, attributes in self.graph.nodes(data=True):
             existing_url = attributes.get("normalized_url", normalized_url(attributes.get("url", "")))
-            if existing_url == observation_url and perceptual_hash - imagehash.hex_to_hash(attributes["hash"]) <= self.hash_threshold:
+            stored_signature = set(attributes.get("semantic_signature", ()))
+            if not stored_signature:
+                stored_signature = semantic_signature(type("Stored", (), item) for item in attributes.get("elements", ()))
+            visually_close = perceptual_hash - imagehash.hex_to_hash(attributes["hash"]) <= self.hash_threshold
+            semantically_close = len(observed_signature) >= 2 and semantic_similarity(observed_signature, stored_signature) >= .75
+            if existing_url == observation_url and (visually_close or semantically_close):
+                attributes.update(hash=str(perceptual_hash), screenshot=observation.screenshot_path,
+                                  marked_screenshot=observation.marked_screenshot_path,
+                                  elements=[element.__dict__ for element in observation.elements],
+                                  semantic_signature=sorted(observed_signature))
                 return node_id, False
         node_id = uuid4().hex[:12]
         self.graph.add_node(node_id, hash=str(perceptual_hash), label=label or observation.title or "Unlabelled page",
                             url=observation.url, screenshot=observation.screenshot_path,
                             normalized_url=observation_url,
                             marked_screenshot=observation.marked_screenshot_path,
-                            elements=[element.__dict__ for element in observation.elements])
+                            elements=[element.__dict__ for element in observation.elements],
+                            semantic_signature=sorted(observed_signature))
         return node_id, True
 
     def set_label(self, node_id: str, label: str | None) -> None:
@@ -79,7 +105,7 @@ class StateGraph:
         neighbors = [{"target": target, "label": self.graph.nodes[target]["label"],
                       "action": edge["action"], "success": edge["success"]}
                      for _, target, edge in list(self.graph.out_edges(current, data=True))[:max_neighbors]]
-        return {"current": {"id": current, "label": attributes["label"], "url": attributes["url"]},
+        return {"current": {"id": current, "label": attributes["label"]},
                 "neighbors": neighbors, "path": path[-8:]}
 
     def _reliability(self, source: str, decision: ActionDecision, goal: str) -> float:
@@ -130,4 +156,6 @@ class StateGraph:
 
     def export(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(nx.node_link_data(self.graph, edges="edges"), indent=2), encoding="utf-8")
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(json.dumps(nx.node_link_data(self.graph, edges="edges"), indent=2), encoding="utf-8")
+        temporary.replace(path)

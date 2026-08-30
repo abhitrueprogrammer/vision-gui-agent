@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-import re
 from typing import Any, Literal
 
 ActionType = Literal["click", "fill", "select", "press", "scroll", "done"]
-VerificationKind = Literal["page_changed", "url_matches", "title_matches", "element_visible", "element_absent", "element_value", "download_created"]
+VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "download_created"]
 ConstraintStatus = Literal["unproven", "proven", "unavailable"]
 Impact = Literal["harmless", "high"]
 
@@ -21,8 +20,7 @@ class VerificationCondition:
     def from_dict(cls, raw: Any) -> "VerificationCondition":
         if not isinstance(raw, dict): raise ValueError("verify must be an object or null")
         kind = raw.get("kind")
-        fields = {"page_changed": {"kind"}, "download_created": {"kind"}, "url_matches": {"kind", "pattern"},
-                  "title_matches": {"kind", "pattern"}, "element_visible": {"kind", "pattern"},
+        fields = {"page_changed": {"kind"}, "download_created": {"kind"}, "element_visible": {"kind", "pattern"}, "element_enabled": {"kind", "pattern"},
                   "element_absent": {"kind", "pattern"}, "element_value": {"kind", "element_id", "expected"}}
         if kind not in fields or set(raw) != fields[kind]: raise ValueError(f"Invalid verification condition: {kind!r}")
         if "pattern" in fields[kind] and (not isinstance(raw["pattern"], str) or not raw["pattern"].strip()): raise ValueError("verify pattern must be a non-empty string")
@@ -65,9 +63,10 @@ class Element:
     selected: bool = False
     checked: bool = False
     download: str = ""
+    actionable: bool = True
 
     def summary(self) -> str:
-        return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({self.role or 'no role'})"
+        return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({'actionable' if self.actionable else 'state evidence'})"
 
 
 @dataclass(frozen=True)
@@ -79,14 +78,6 @@ class EvidenceRecord:
 
     @classmethod
     def from_dict(cls, raw: Any) -> "EvidenceRecord":
-        # Older Gemini responses described a target as e.g. "Search button
-        # [data-vga-id='13']".  Preserve that unambiguous DOM reference while
-        # requiring a concrete observed tag for all such legacy evidence.
-        if isinstance(raw, str):
-            match = re.search(r"\[data-vga-id=['\"](\d+)['\"]\]", raw)
-            tag = re.search(r"\b(input|button|select|textarea|a)\b", raw, re.IGNORECASE)
-            if match and tag:
-                return cls("tag", tag.group(1).casefold(), int(match.group(1)))
         if not isinstance(raw, dict) or not isinstance(raw.get("source"), str): raise ValueError("evidence records require a source")
         ident, expected, comparison = raw.get("element_id"), raw.get("expected"), raw.get("comparison")
         if ident is not None and (not isinstance(ident, int) or isinstance(ident, bool) or ident < 1): raise ValueError("evidence element_id must be a positive integer")
@@ -168,8 +159,10 @@ class ActionDecision:
         return cls(action, ident, raw.get("text"), raw.get("key"), raw.get("direction"), raw.get("current_label"), raw.get("next_label"), str(raw.get("rationale", "")), verify, impact, tuple(EvidenceRecord.from_dict(item) for item in grounding), tuple(GoalConstraint.from_dict(item) for item in constraints))
 
     def validate_for(self, observation: Observation) -> None:
-        ids = {element.id for element in observation.elements}
-        if self.element_id is not None and self.element_id not in ids: raise ValueError(f"Element {self.element_id} is not present in this observation")
+        elements = {element.id: element for element in observation.elements}
+        if self.element_id is not None and self.element_id not in elements: raise ValueError(f"Element {self.element_id} is not present in this observation")
+        if self.element_id is not None and not elements[self.element_id].actionable: raise ValueError(f"Element {self.element_id} is visual evidence, not an actionable control")
+        ids = set(elements)
         if self.verify and self.verify.kind == "element_value" and self.verify.element_id not in ids: raise ValueError(f"Verification element {self.verify.element_id} is not present in this observation")
 
     def to_dict(self) -> dict[str, Any]:
@@ -199,3 +192,120 @@ class RunResult:
     history: list[ActionRecord] = field(default_factory=list)
     download_paths: list[str] = field(default_factory=list)
     constraints: list[GoalConstraint] = field(default_factory=list)
+
+
+# Action-model records are deliberately independent of the VLM response.  They
+# can only be updated from classified, visually grounded transitions.
+PredicateValue = str | bool | int | float | None
+OutcomeClass = Literal["effective", "ineffective", "execution_error", "ambiguous", "unsafe_skipped"]
+PreconditionStatus = Literal["required", "not_required", "conditional", "unknown", "unobservable"]
+SafetyClass = Literal["observational", "harmless_reversible", "state_changing_reversible", "high_impact_or_irreversible"]
+
+
+@dataclass(frozen=True)
+class PredicateGrounding:
+    source: str
+    value: str
+    element_signature: str
+    observation_id: str
+
+
+@dataclass(frozen=True)
+class VisualPredicate:
+    name: str
+    value: PredicateValue
+    confidence: float
+    grounding: tuple[PredicateGrounding, ...] = ()
+    status: Literal["grounded", "unobservable"] = "grounded"
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.name.replace("_", "").isalnum(): raise ValueError("predicate name must be stable snake_case")
+        if not 0 <= self.confidence <= 1: raise ValueError("predicate confidence must be between 0 and 1")
+        if self.status == "grounded" and not self.grounding: raise ValueError("grounded predicates require visual evidence")
+
+    @property
+    def key(self) -> tuple[str, PredicateValue]: return self.name, self.value
+    def to_dict(self) -> dict[str, Any]: return {"name": self.name, "value": self.value, "confidence": self.confidence, "grounding": [asdict(x) for x in self.grounding], "status": self.status}
+
+
+@dataclass(frozen=True)
+class SemanticAction:
+    name: str
+    target_signature: str
+    safety_class: SafetyClass = "harmless_reversible"
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.target_signature: raise ValueError("semantic actions need a name and target signature")
+
+
+@dataclass(frozen=True)
+class HypothesisEvidence:
+    id: str
+    transition_id: str
+    kind: Literal["passive", "intervention"]
+    supports: bool
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class ActionEffect:
+    predicate: str
+    resulting_value: PredicateValue
+    support: int = 0
+    contradiction: int = 0
+    evidence_ids: tuple[str, ...] = ()
+
+    @property
+    def confidence(self) -> float: return (self.support + 1) / (self.support + self.contradiction + 2)
+
+
+@dataclass(frozen=True)
+class ActionPrecondition:
+    predicate: str
+    required_value: PredicateValue
+    status: PreconditionStatus = "unknown"
+    support: int = 0
+    contradiction: int = 0
+    evidence_ids: tuple[str, ...] = ()
+
+    @property
+    def confidence(self) -> float: return (self.support + 1) / (self.support + self.contradiction + 2)
+
+
+@dataclass(frozen=True)
+class ActionSchema:
+    id: str
+    semantic_name: str
+    scope: str
+    target_signature: str
+    safety_class: SafetyClass
+    preconditions: tuple[ActionPrecondition, ...] = ()
+    effects: tuple[ActionEffect, ...] = ()
+    evidence_ids: tuple[str, ...] = ()
+    contradictions: tuple[str, ...] = ()
+    version: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "semantic_name": self.semantic_name, "scope": self.scope, "target_signature": self.target_signature,
+                "safety_class": self.safety_class, "preconditions": [{**asdict(x), "confidence": x.confidence} for x in self.preconditions],
+                "effects": [{**asdict(x), "confidence": x.confidence} for x in self.effects], "evidence_ids": list(self.evidence_ids),
+                "contradictions": list(self.contradictions), "version": self.version}
+
+
+@dataclass(frozen=True)
+class ExperimentPlan:
+    id: str
+    target_schema_id: str
+    candidate_predicate: str
+    intervention_actions: tuple[str, ...]
+    expected_value: PredicateValue
+    safety_class: SafetyClass
+    estimated_cost: int
+
+
+@dataclass(frozen=True)
+class ExperimentResult:
+    plan_id: str
+    outcome: OutcomeClass
+    effect_observed: bool | None
+    evidence_id: str

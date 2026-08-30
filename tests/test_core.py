@@ -5,23 +5,30 @@ import unittest
 from unittest.mock import AsyncMock, patch
 from contextlib import redirect_stdout
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageDraw
 from vision_gui_agent.agent import Agent, AgentConfig
-from vision_gui_agent.decision import parse_decision, parse_decisions
+from vision_gui_agent.decision import configured_gemini_keys, parse_decision, parse_decisions
+from vision_gui_agent.desktop import DesktopPage
 from vision_gui_agent.models import ActionDecision, Element, Observation
 from vision_gui_agent.models import VerificationResult
 from vision_gui_agent.models import EvidenceRecord, GoalConstraint
 from vision_gui_agent.logging_store import RunLogger
-from vision_gui_agent.perception import model_image
+from vision_gui_agent.perception import GeminiVisualGrounder, LocalVisualGrounder, model_image, observe
 from vision_gui_agent.state_graph import StateGraph
 
 class CoreTests(unittest.TestCase):
+    def test_configured_gemini_keys_keeps_commented_slots_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / ".env"
+            path.write_text("# GEMINI_API_KEY=first-key\nGEMINI_API_KEY=second-key\n")
+            self.assertEqual(configured_gemini_keys(path), ["first-key", "second-key"])
+
     def test_decision_validation(self) -> None:
         self.assertEqual(parse_decision('{"action":"fill","element_id":2,"text":"me@example.com"}').element_id, 2)
 
-    def test_legacy_data_vga_id_grounding_is_converted_to_observable_evidence(self) -> None:
-        decision = parse_decisions("""[{"action":"click","element_id":13,"grounding":["Search submit button [data-vga-id='13']"]}]""")[0]
-        self.assertEqual(decision.grounding, (EvidenceRecord("tag", "button", 13),))
+    def test_dom_grounding_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_decisions("""[{"action":"click","element_id":13,"grounding":["Search submit button [data-vga-id='13']"]}]""")
 
     def test_string_element_id_is_coerced(self) -> None:
         decision = parse_decision('{"action":"click","element_id":"3"}')
@@ -40,6 +47,42 @@ class CoreTests(unittest.TestCase):
             graph = StateGraph(); first, created = graph.add_observation(observation); second, created_again = graph.add_observation(observation)
             self.assertTrue(created); self.assertFalse(created_again); self.assertEqual(first, second)
 
+    def test_layout_shift_reuses_semantically_identical_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first_path, shifted_path = Path(temp_dir) / "first.png", Path(temp_dir) / "shifted.png"
+            Image.new("RGB", (120, 80), "white").save(first_path)
+            Image.new("RGB", (120, 80), "black").save(shifted_path)
+            elements = lambda offset: [
+                Element(1, "", "text", "Account settings", "", "", "text", offset, 5, 60, 10, actionable=False),
+                Element(2, "", "button", "Save", "", "", "button", offset, 30, 30, 15),
+            ]
+            graph = StateGraph(hash_threshold=0)
+            first, created = graph.add_observation(Observation(str(first_path), str(first_path), elements(2), "", "Settings"))
+            shifted, created_again = graph.add_observation(Observation(str(shifted_path), str(shifted_path), elements(45), "", "Settings"))
+            self.assertTrue(created); self.assertFalse(created_again); self.assertEqual(first, shifted)
+            self.assertEqual(graph.graph.nodes[first]["screenshot"], str(shifted_path))
+
+    def test_remembered_action_is_regrounded_by_visible_semantics(self) -> None:
+        decision = ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Continue", 1),))
+        observation = Observation("", "", [
+            Element(1, "", "button", "Cancel", "", "", "button", 0, 0, 20, 10),
+            Element(7, "", "button", "Continue", "", "", "button", 40, 0, 30, 10),
+        ], "", "Dialog")
+        regrounded = Agent._reground(decision, observation)
+        self.assertEqual(regrounded.element_id, 7)
+        self.assertEqual(regrounded.grounding[0].element_id, 7)
+
+    def test_state_evidence_cannot_be_clicked(self) -> None:
+        observation = Observation("", "", [Element(1, "", "text", "Complete", "", "", "text", 0, 0, 20, 10, actionable=False)], "", "Complete")
+        with self.assertRaises(ValueError):
+            ActionDecision(action="click", element_id=1).validate_for(observation)
+
+    def test_done_requires_visible_proof(self) -> None:
+        observation = Observation("", "", [Element(1, "", "text", "Complete", "", "", "text", 0, 0, 20, 10, actionable=False)], "", "Complete")
+        with self.assertRaises(ValueError):
+            Agent._guard(ActionDecision(action="done"), observation, {})
+        Agent._guard(ActionDecision(action="done", grounding=(EvidenceRecord("element_text", "Complete", 1),)), observation, {})
+
     def test_action_plan_accepts_unlinked_labels(self) -> None:
         plan = parse_decisions('[{"action":"fill","element_id":1,"text":"a","current_label":"Login","next_label":"Login"},{"action":"click","element_id":1,"current_label":"Login","next_label":"Home"}]')
         self.assertEqual(len(plan), 2)
@@ -54,6 +97,91 @@ class CoreTests(unittest.TestCase):
             image = model_image(str(path))
             self.assertLess(len(image), path.stat().st_size + 1)
             self.assertEqual(image[:2], b"\xff\xd8")
+
+    def test_observe_uses_screenshot_grounding_without_page_inspection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            class Page:
+                async def screenshot(self, path, full_page): Image.new("RGB", (100, 60), "white").save(path)
+            class Grounder:
+                async def detect(self, screenshot):
+                    self.screenshot = screenshot
+                    return [Element(1, "", "button", "Continue", "", "", "button", 10, 20, 50, 20)]
+            grounder = Grounder()
+            observation = asyncio.run(observe(Page(), Path(temp_dir), 0, grounder))
+            self.assertEqual(observation.elements[0].text, "Continue")
+            self.assertTrue(Path(observation.marked_screenshot_path).is_file())
+            self.assertEqual(observation.url, "")
+
+    def test_local_grounder_uses_control_outline_and_leaves_status_as_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (300, 120), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 20, 180, 68), outline="black", width=2)
+            draw.text((55, 35), "Continue", fill="black")
+            draw.text((25, 88), "Ready", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [
+                ([(55, 35), (145, 35), (145, 55), (55, 55)], ("Continue", .99)),
+                ([(25, 88), (115, 88), (115, 105), (25, 105)], ("Ready", .99)),
+                ([(190, 35), (240, 35), (240, 50), (190, 50)], ("Blurred", .2)),
+            ]
+            elements = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))
+            self.assertEqual([(item.text, item.tag, item.actionable) for item in elements],
+                             [("Continue", "button", True), ("Ready", "text", False)])
+            button = elements[0]
+            self.assertLessEqual(button.x, 25); self.assertGreaterEqual(button.x + button.width, 175)
+
+    def test_local_grounder_marks_field_and_select_labels(self) -> None:
+        self.assertEqual(LocalVisualGrounder._kind("Email address"), "input")
+        self.assertEqual(LocalVisualGrounder._kind("Choose country"), "select")
+
+    def test_visual_grounder_clamps_and_deduplicates_boxes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            Image.new("RGB", (100, 50), "white").save(screenshot)
+
+            class Part:
+                @staticmethod
+                def from_bytes(**kwargs): return kwargs
+            class Config:
+                def __init__(self, **kwargs): self.kwargs = kwargs
+            class AutomaticFunctionCallingConfig(Config): pass
+            class Models:
+                def generate_content(self, **_):
+                    return type("Response", (), {"text": '{"screen_label":"Login","elements":['
+                        '{"kind":"button","label":"Continue","actionable":true,"x":-5,"y":5,"width":30,"height":20},'
+                        '{"kind":"button","label":"Continue","actionable":true,"x":0,"y":5,"width":25,"height":20},'
+                        '{"kind":"text","label":"Ready","actionable":false,"x":70,"y":40,"width":40,"height":20},'
+                        '{"kind":"button","label":"Invalid","x":NaN,"y":5,"width":10,"height":10},'
+                        '{"kind":"button","label":"Offscreen","x":120,"y":5,"width":10,"height":10}]}'})()
+
+            grounder = object.__new__(GeminiVisualGrounder)
+            grounder.client = type("Client", (), {"models": Models()})()
+            grounder.types = type("Types", (), {"Part": Part, "GenerateContentConfig": Config,
+                                                "AutomaticFunctionCallingConfig": AutomaticFunctionCallingConfig})
+            grounder.model, grounder.last_label = "test", "Visual screen"
+            elements = asyncio.run(grounder.detect(screenshot))
+            self.assertEqual(grounder.last_label, "Login")
+            self.assertEqual(len(elements), 2)
+            self.assertEqual((elements[0].x, elements[0].width), (0, 25))
+            self.assertFalse(elements[1].actionable)
+
+    def test_visual_grounder_refines_crop_coordinates_to_screen(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"; Image.new("RGB", (200, 100), "white").save(screenshot)
+            class Part:
+                @staticmethod
+                def from_bytes(**kwargs): return kwargs
+            class Config:
+                def __init__(self, **kwargs): self.kwargs = kwargs
+            class AutomaticFunctionCallingConfig(Config): pass
+            class Models:
+                def generate_content(self, **_): return type("Response", (), {"text": '{"found":true,"x":10,"y":20,"width":30,"height":15}'})()
+            grounder = object.__new__(GeminiVisualGrounder)
+            grounder.client = type("Client", (), {"models": Models()})(); grounder.types = type("Types", (), {"Part": Part, "GenerateContentConfig": Config, "AutomaticFunctionCallingConfig": AutomaticFunctionCallingConfig}); grounder.model = "test"
+            refined = asyncio.run(grounder.refine(screenshot, Element(1, "", "button", "Continue", "", "", "button", 50, 30, 20, 10)))
+            self.assertEqual((refined.x, refined.y, refined.width, refined.height), (12, 20, 30, 15))
 
     def test_generic_action_reuse_is_safe(self) -> None:
         pin = lambda ident, url, label="Pin paper": Observation("", "", [Element(ident, "[x]", "button", label, "", "", "", 0, 0, 1, 1)], url, "Paper")
@@ -164,7 +292,7 @@ class CoreTests(unittest.TestCase):
                 async def decide(self, *_):
                     self.calls += 1
                     return [ActionDecision(action="click", element_id=1, current_label="Start", next_label="Form"),
-                            ActionDecision(action="done", current_label="Form")]
+                            ActionDecision(action="done", current_label="Form", grounding=(EvidenceRecord("element_text", "Go", 1),))]
 
             policy = BatchPolicy()
             config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json")
@@ -185,7 +313,8 @@ class CoreTests(unittest.TestCase):
             Image.new("RGB", (100, 100), "white").save(image_path)
             observation = Observation(str(image_path), str(image_path), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 10, 10)], "https://example.test", "Start")
             config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", verbose=True)
-            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision(action="click", element_id=1), ActionDecision(action="done")])})()
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision(action="click", element_id=1),
+                            ActionDecision(action="done", grounding=(EvidenceRecord("element_text", "Go", 1),))])})()
             output = io.StringIO()
             with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()), redirect_stdout(output):
                 asyncio.run(Agent(policy, config).run(object(), "go"))
@@ -194,8 +323,7 @@ class CoreTests(unittest.TestCase):
 
     def test_verification_shapes_and_validation(self) -> None:
         valid = [
-            {"kind": "page_changed"}, {"kind": "url_matches", "pattern": "/account"},
-            {"kind": "title_matches", "pattern": "Account"}, {"kind": "element_visible", "pattern": "Ready"},
+            {"kind": "page_changed"}, {"kind": "element_visible", "pattern": "Ready"}, {"kind": "element_enabled", "pattern": "Continue"},
             {"kind": "element_absent", "pattern": "Loading"}, {"kind": "element_value", "element_id": 1, "expected": "x"},
             {"kind": "download_created"},
         ]
@@ -205,8 +333,8 @@ class CoreTests(unittest.TestCase):
             if action == "click": raw["element_id"] = 1
             decision = ActionDecision.from_dict(raw)
             self.assertEqual(decision.to_dict()["verify"], verify)
-        for verify in [{"kind": "unknown"}, {"kind": "url_matches"}, {"kind": "url_matches", "pattern": ""},
-                       {"kind": "url_matches", "pattern": 4}, {"kind": "page_changed", "extra": 1},
+        for verify in [{"kind": "unknown"}, {"kind": "url_matches", "pattern": "/account"},
+                       {"kind": "element_visible"}, {"kind": "element_visible", "pattern": 4}, {"kind": "page_changed", "extra": 1},
                        {"kind": "element_value", "element_id": 0, "expected": "x"}]:
             with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": verify})
         with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "page_changed"}})
@@ -237,7 +365,7 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             base, image = Path(temp_dir), Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
             observation = Observation(str(image), str(image), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 1, 1)], "https://example.test", "Start")
-            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision.from_dict({"action":"click", "element_id":1, "verify":{"kind":"url_matches", "pattern":"/next"}}), ActionDecision(action="done")])})()
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision.from_dict({"action":"click", "element_id":1, "verify":{"kind":"element_visible", "pattern":"Missing"}}), ActionDecision(action="done")])})()
             config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", max_steps=1)
             with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()), patch("vision_gui_agent.agent.verify", new=AsyncMock(return_value=VerificationResult("failed", "not changed"))):
                 result = asyncio.run(Agent(policy, config).run(object(), "go"))
@@ -267,3 +395,76 @@ class CoreTests(unittest.TestCase):
     def test_unlabeled_form_submit_is_not_high_impact(self) -> None:
         observation = Observation("", "", [Element(1, "[x]", "button", "", "", "", "", 0, 0, 1, 1, input_type="submit")], "https://example.test", "Search")
         self.assertFalse(Agent._is_high_impact(ActionDecision(action="click", element_id=1), observation))
+
+    def test_browser_flow_uses_only_screenshot_grounding(self) -> None:
+        async def scenario() -> None:
+            from playwright.async_api import async_playwright
+
+            class ColorGrounder:
+                last_label = "Start"
+
+                async def detect(self, screenshot):
+                    with Image.open(screenshot).convert("RGB") as image:
+                        blue, green = [], []
+                        for y in range(image.height):
+                            for x in range(image.width):
+                                red, value, low = image.getpixel((x, y))
+                                if red < 30 and 80 < value < 140 and low > 220: blue.append((x, y))
+                                if red < 40 and 90 < value < 160 and 50 < low < 130: green.append((x, y))
+                    points, label, actionable = (blue, "Continue", True) if blue else (green, "Complete", False)
+                    self.last_label = label
+                    xs, ys = zip(*points)
+                    return [Element(1, "", "button" if actionable else "text", label, "", "", "button" if actionable else "text",
+                                    min(xs), min(ys), max(xs) - min(xs) + 1, max(ys) - min(ys) + 1, actionable=actionable)]
+
+            class Policy:
+                model = "screenshot-test"
+
+                async def decide(self, _goal, observation, *_):
+                    if observation.elements[0].actionable:
+                        return [ActionDecision.from_dict({"action": "click", "element_id": 1,
+                                "grounding": [{"source": "element_text", "expected": "Continue", "element_id": 1}],
+                                "verify": {"kind": "element_visible", "pattern": "Complete"}})]
+                    return [ActionDecision.from_dict({"action": "done", "verify": {"kind": "element_visible", "pattern": "Complete"}})]
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                async with async_playwright() as playwright:
+                    browser = await playwright.chromium.launch()
+                    try:
+                        page = await browser.new_page(viewport={"width": 400, "height": 220})
+                        await page.set_content("""<button onclick="document.body.innerHTML='<div style=&quot;position:absolute;left:180px;top:100px;width:120px;height:50px;background:#198754;color:white&quot;>Complete</div>'">Continue</button>
+                        <style>body{margin:0}button{position:absolute;left:40px;top:40px;width:120px;height:50px;border:0;background:#0d6efd;color:white}</style>""")
+                        base = Path(temp_dir)
+                        result = await Agent(Policy(), AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", max_steps=4), ColorGrounder()).run(page, "Click Continue and finish")
+                        self.assertTrue(result.completed, result)
+                        self.assertEqual([item.decision.action for item in result.history], ["click", "done"])
+                    finally:
+                        await browser.close()
+
+        asyncio.run(scenario())
+
+    def test_desktop_adapter_exposes_screenshot_mouse_and_keyboard(self) -> None:
+        class Backend:
+            def __init__(self): self.calls = []
+            def screenshot(self): return Image.new("RGB", (20, 10), "white")
+            def click(self, *args): self.calls.append(("click", args))
+            def scroll(self, *args): self.calls.append(("scroll", args))
+            def hotkey(self, *args): self.calls.append(("hotkey", args))
+            def press(self, *args): self.calls.append(("press", args))
+            def write(self, *args, **kwargs): self.calls.append(("write", args, kwargs))
+
+        async def scenario() -> None:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                backend, page = Backend(), DesktopPage(Backend())
+                path = Path(temp_dir) / "desktop.png"
+                await page.screenshot(str(path))
+                await page.mouse.click(10, 5)
+                await page.mouse.wheel(0, 650)
+                await page.keyboard.press("Control+A")
+                await page.keyboard.type("hello")
+                self.assertTrue(path.is_file())
+                self.assertEqual(backend.calls, [])
+                self.assertEqual(page.backend.calls[0], ("click", (10, 5)))
+                self.assertEqual(page.backend.calls[2], ("hotkey", ("ctrl", "a")))
+
+        asyncio.run(scenario())

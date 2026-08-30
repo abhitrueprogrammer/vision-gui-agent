@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -8,10 +9,13 @@ from uuid import uuid4
 from playwright.async_api import Page
 
 from .decision import Policy
+from .action_model import ActionModel
 from .executor import execute
+from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
-from .models import ActionDecision, ActionRecord, EvidenceRecord, GoalConstraint, Observation, RunResult
-from .perception import observe
+from .models import ActionDecision, ActionRecord, EvidenceRecord, GoalConstraint, Observation, RunResult, SemanticAction
+from .predicates import PredicateExtractor
+from .perception import VisualGrounder, observe
 from .state_graph import StateGraph
 from .verification import verify
 
@@ -24,24 +28,40 @@ class AgentConfig:
     max_steps: int = 12
     hash_threshold: int = 6
     max_action_attempts: int = 2
+    verification_attempts: int = 2
     verbose: bool = False
+    memory_mode: str = "graph"
+    min_schema_confidence: float = .6
+    max_plan_depth: int = 4
 
 
 @dataclass(frozen=True)
 class ReusableAction:
     decision: ActionDecision
     target: tuple[str, str, str]
-    page: tuple[str, frozenset[tuple[str, str]]]
-    item_url: str
-    post_page: tuple[str, frozenset[tuple[str, str]]]
+    page: tuple[str, frozenset[tuple[str, str, str]]]
+    item_identity: str
+    post_page: tuple[str, frozenset[tuple[str, str, str]]]
     target_present_after: bool
 
 
 class Agent:
-    def __init__(self, policy: Policy, config: AgentConfig = AgentConfig()) -> None:
+    def __init__(self, policy: Policy, config: AgentConfig = AgentConfig(), grounder: VisualGrounder | None = None) -> None:
         self.policy = policy
         self.config = config
-        self.graph = StateGraph.load(config.graph_path, config.hash_threshold)
+        self.grounder = grounder
+        self.graph = StateGraph(config.hash_threshold) if config.memory_mode == "none" else StateGraph.load(config.graph_path, config.hash_threshold)
+        self.action_model = ActionModel.load(config.artifact_dir / "action-model.json")
+        self.predicates = PredicateExtractor()
+        self.functional_planner = FunctionalPlanner(self.action_model, config.max_plan_depth, config.min_schema_confidence)
+
+    @staticmethod
+    def _semantic_action(decision: ActionDecision, observation: Observation) -> SemanticAction | None:
+        if decision.element_id is None: return None
+        element = next((item for item in observation.elements if item.id == decision.element_id), None)
+        if element is None: return None
+        label = Agent._normal(element.text or element.aria_label or element.placeholder)
+        return SemanticAction(label.replace(" ", "_"), f"{element.tag.casefold()}|{element.role.casefold()}|{label}") if label else None
 
     @staticmethod
     def _safe_plan(decisions: list[ActionDecision]) -> list[ActionDecision]:
@@ -62,8 +82,6 @@ class Agent:
     @staticmethod
     def _valid_evidence(evidence: EvidenceRecord, observation: Observation, download_paths: list[str]) -> bool:
         expected = Agent._normal(evidence.expected or "")
-        if evidence.source == "url": return bool(expected and expected in Agent._normal(observation.url))
-        if evidence.source == "title": return bool(expected and expected in Agent._normal(observation.title))
         if evidence.source == "file": return any(Path(path).is_file() and Path(path).stat().st_size for path in download_paths)
         if evidence.source == "comparison":
             comparison = evidence.comparison or {}; values = comparison.get("candidates", []); selected = comparison.get("selected")
@@ -107,8 +125,11 @@ class Agent:
 
     @staticmethod
     def _guard(decision: ActionDecision, observation: Observation, ledger: dict[str, GoalConstraint]) -> None:
+        if decision.action == "done" and decision.verify is None and not any(
+                Agent._valid_evidence(item, observation, []) for item in decision.grounding):
+            raise ValueError("done requires a visual postcondition or valid visible grounding")
         if decision.element_id is not None and Agent._is_high_impact(decision, observation):
-            target_evidence = [item for item in decision.grounding if item.element_id == decision.element_id]
+            target_evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.source in {"element_text", "value"}]
             if not target_evidence or not any(Agent._valid_evidence(item, observation, []) for item in target_evidence):
                 raise ValueError("High-impact action lacks valid target grounding")
         if Agent._is_high_impact(decision, observation):
@@ -127,9 +148,22 @@ class Agent:
         return (element.tag.casefold(), element.role.casefold(), label)
 
     @staticmethod
-    def _page_signature(observation) -> tuple[str, frozenset[tuple[str, str]]]:
-        controls = frozenset((item.tag.casefold(), item.role.casefold()) for item in observation.elements)
+    def _page_signature(observation) -> tuple[str, frozenset[tuple[str, str, str]]]:
+        controls = frozenset((item.tag.casefold(), item.role.casefold(), Agent._normal(item.text or item.value or item.aria_label or item.placeholder))
+                             for item in observation.elements)
         return (Agent._normal(observation.title), controls)
+
+    @staticmethod
+    def _item_identity(observation: Observation) -> str:
+        if observation.url:
+            return observation.url
+        try:
+            import imagehash
+            from PIL import Image
+            with Image.open(observation.screenshot_path) as image:
+                return str(imagehash.phash(image))
+        except (OSError, ValueError):
+            return ""
 
     @staticmethod
     def _action_template(observation, after, decision: ActionDecision) -> ReusableAction | None:
@@ -139,12 +173,12 @@ class Agent:
         target = Agent._target_signature(element) if element else None
         if not target or sum(Agent._target_signature(item) == target for item in observation.elements) != 1:
             return None
-        return ReusableAction(decision, target, Agent._page_signature(observation), observation.url,
+        return ReusableAction(decision, target, Agent._page_signature(observation), Agent._item_identity(observation),
                               Agent._page_signature(after), any(Agent._target_signature(item) == target for item in after.elements))
 
     @staticmethod
     def _reuse_action(template: ReusableAction, observation, current_label: str) -> ActionDecision | None:
-        if observation.url == template.item_url or Agent._page_signature(observation) != template.page:
+        if Agent._item_identity(observation) == template.item_identity or Agent._page_signature(observation) != template.page:
             return None
         matches = [item for item in observation.elements if Agent._target_signature(item) == template.target]
         if len(matches) != 1:
@@ -154,6 +188,37 @@ class Agent:
                               rationale="Reuse verified action on a compatible page", verify=template.decision.verify,
                               impact=template.decision.impact, grounding=template.decision.grounding,
                               constraints=template.decision.constraints)
+
+    @staticmethod
+    def _reground(decision: ActionDecision, observation: Observation) -> ActionDecision:
+        """Map a remembered semantic target to its current visual id after layout/order changes."""
+        if decision.element_id is None:
+            return decision
+        evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.expected and item.source in {"element_text", "role", "tag", "value"}]
+        if not evidence:
+            return decision
+        fields = {"element_text": "text", "role": "role", "tag": "tag", "value": "value"}
+
+        def matches(element) -> bool:
+            return all(Agent._normal(item.expected or "") in Agent._normal(getattr(element, fields[item.source], ""))
+                       for item in evidence if item.expected)
+
+        current = next((item for item in observation.elements if item.id == decision.element_id), None)
+        if current and current.actionable and matches(current):
+            return decision
+        candidates = [item for item in observation.elements if item.actionable and matches(item)]
+        if len(candidates) != 1:
+            raise ValueError(f"Semantic target for element {decision.element_id} is not uniquely visible")
+        old_id, new_id = decision.element_id, candidates[0].id
+
+        def remap(items):
+            return tuple(replace(item, element_id=new_id) if item.element_id == old_id else item for item in items)
+
+        constraints = tuple(replace(item, evidence=remap(item.evidence)) for item in decision.constraints)
+        verification = decision.verify
+        if verification and verification.kind == "element_value" and verification.element_id == old_id:
+            verification = replace(verification, element_id=new_id)
+        return replace(decision, element_id=new_id, grounding=remap(decision.grounding), constraints=constraints, verify=verification)
 
     @staticmethod
     def _reuse_workflow(templates: list[ReusableAction], observation, current_label: str) -> list[ReusableAction] | None:
@@ -195,21 +260,20 @@ class Agent:
         comparison = self._comparison_constraint(goal)
         if comparison: ledger[comparison.id] = comparison
         current_node = ""
-        observed_at = perf_counter()
-        observation = await observe(page, self.config.artifact_dir / run_id, 0)
-        observe_ms = (perf_counter() - observed_at) * 1000
         try:
+            observed_at = perf_counter()
+            observation = await observe(page, self.config.artifact_dir / run_id, 0, self.grounder)
+            observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
-                graph_context.update({"url": observation.url, "title": observation.title,
-                                      "constraints": [item.to_dict() for item in ledger.values()]})
+                graph_context["constraints"] = [item.to_dict() for item in ledger.values()]
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
                 try:
                     decision: ActionDecision | None = None
                     current_label = self.graph.graph.nodes[current_node]["label"]
-                    if workflow:
+                    if workflow and self.config.memory_mode != "none":
                         template = workflow[0]
                         candidate = self._reuse_action(template, observation, current_label)
                         if candidate is None:
@@ -224,32 +288,48 @@ class Agent:
                             planned.clear()
                         else:
                             decision = candidate
-                    if decision is None:
+                    if decision is None and self.config.memory_mode != "none":
                         reusable = self._reuse_workflow(templates, observation, current_label)
                         if reusable:
                             workflow = reusable
                             decision = self._reuse_action(workflow[0], observation, current_label)
-                    if decision is None:
+                    if decision is None and self.config.memory_mode != "none":
                         seen = {key for key, attempts in action_attempts.items() if attempts >= self.config.max_action_attempts}
                         decision = self.graph.replay(current_node, goal, seen)
-                        if decision is None:
-                            started = perf_counter()
-                            try:
-                                response = await self.policy.decide(goal, observation, graph_context, history)
-                            finally:
-                                timings["model_ms"] = (perf_counter() - started) * 1000
-                            planned = self._safe_plan(list(response) if isinstance(response, list) else [response])
-                            decision = planned.pop(0)
+                    if decision is None:
+                        started = perf_counter()
+                        try:
+                            response = await self.policy.decide(goal, observation, graph_context, history)
+                        finally:
+                            timings["model_ms"] = (perf_counter() - started) * 1000
+                        planned = self._safe_plan(list(response) if isinstance(response, list) else [response])
+                        decision = planned.pop(0)
+                    decision = self._reground(decision, observation)
+                    if decision.element_id is not None and hasattr(self.grounder, "refine"):
+                        target = next((item for item in observation.elements if item.id == decision.element_id), None)
+                        refined = await self.grounder.refine(Path(observation.screenshot_path), target) if target else None
+                        if refined:
+                            observation = replace(observation, elements=[refined if item.id == refined.id else item for item in observation.elements])
                     decision.validate_for(observation)
                     self._merge_constraints(ledger, decision, observation, download_paths)
                     self._guard(decision, observation, ledger)
                     key = self.graph.replay_key(decision)
                     if action_attempts.get(key, 0) >= self.config.max_action_attempts:
                         raise ValueError("Retry limit reached for action")
-                except Exception as exc:
+                except ValueError as exc:
                     error = f"Decision rejected: {exc}"
+                    rejected = decision or ActionDecision(action="done", rationale=error)
+                    rejected_key = self.graph.replay_key(rejected)
+                    action_attempts[rejected_key] = action_attempts.get(rejected_key, 0) + 1
+                    history.append(ActionRecord(rejected, False, error))
+                    logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings)
+                    planned.clear(); workflow.clear()
+                    if self.config.verbose: print(f"[step {step}] {error}")
+                    continue
+                except Exception as exc:
+                    error = f"Decision failed: {exc}"
                     invalid = ActionDecision(action="done", rationale=error)
-                    logger.log(run_id, step, current_node, None, invalid, False, observation, graph_context, error, timings)
+                    logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings)
                     result = RunResult(run_id, False, step, current_node, error, history, constraints=list(ledger.values()))
                     logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, result.error)
                     return result
@@ -282,10 +362,13 @@ class Agent:
                     download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads")
                     timings["execute_ms"] = (perf_counter() - started) * 1000
                     observed_at = perf_counter()
-                    next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
-                    verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold, download_path=download_path)
-                    # Verification may poll while a SPA settles; persist its final live state, not the first snapshot.
-                    next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
+                    for verification_attempt in range(self.config.verification_attempts):
+                        next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
+                        verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
+                                                    download_path=download_path)
+                        if verification.status != "failed" or verification_attempt + 1 == self.config.verification_attempts:
+                            break
+                        await asyncio.sleep(.15)
                     next_observe_ms = (perf_counter() - observed_at) * 1000
                     target_node, created = self.graph.add_observation(next_observation)
                     success = verification.status != "failed"
@@ -313,6 +396,14 @@ class Agent:
                             workflow.clear()
                     history.append(ActionRecord(decision, True, verification=verification))
                     logger.log(run_id, step, current_node, target_node, decision, True, next_observation, graph_context, timings=timings, verification=verification)
+                    if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
+                        semantic = self._semantic_action(decision, observation)
+                        before = self.predicates.extract(observation, f"{run_id}:{step}:before")
+                        after = self.predicates.extract(next_observation, f"{run_id}:{step}:after")
+                        outcome = "effective" if verification.status == "passed" else "ambiguous"
+                        schema = self.action_model.ingest(semantic, before, after, outcome, f"{run_id}:{step}") if semantic else None
+                        logger.log_action_model(run_id, step, [item.to_dict() for item in before], [item.to_dict() for item in after],
+                                                semantic.name if semantic else "", None, outcome, schema.id if schema else None, "passive_schema")
                     if verification.download_path: download_paths.append(verification.download_path)
                     self._merge_constraints(ledger, decision, next_observation, download_paths)
                     observation = next_observation
@@ -322,7 +413,7 @@ class Agent:
                     if self.config.verbose:
                         print(f"[step {step}] execution: failed; error: {error}")
                     try:
-                        next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1)
+                        next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
                         # Failure labels come only from the observed page; never from a prediction.
                         target_node, _ = self.graph.add_observation(next_observation, next_observation.title or "action_failed")
                         observation = next_observation
@@ -338,6 +429,11 @@ class Agent:
             result = RunResult(run_id, False, self.config.max_steps, current_node, error, history, download_paths, list(ledger.values()))
             logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, error)
             return result
+        except Exception as exc:
+            logger.finish_run(run_id, False, len(history), current_node, str(exc))
+            raise
         finally:
-            self.graph.export(self.config.graph_path)
+            if self.config.memory_mode != "none": self.graph.export(self.config.graph_path)
+            if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
+                self.action_model.export(self.config.artifact_dir / "action-model.json")
             logger.close()

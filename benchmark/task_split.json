@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "layouts": ["classic", "compact", "high_contrast"],
+  "exploration": ["document_open_close", "data_load_select_row_action", "account_advanced_setting"],
+  "development": ["document_edit_save", "data_transform_requires_dataset", "account_apply_requires_complete_form"],
+  "held_out": ["document_export_format", "data_transform_report", "account_apply_configuration"],
+  "layout_shift": ["document_export_format", "data_transform_report", "account_apply_configuration"],
+  "composition": ["document_export_format", "data_transform_report", "account_apply_configuration"]
+}

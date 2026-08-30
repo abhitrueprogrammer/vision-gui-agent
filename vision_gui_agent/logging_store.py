@@ -34,6 +34,11 @@ class RunLogger:
                                  "verification_reason": "TEXT", "download_path": "TEXT"}.items():
             if name not in existing:
                 self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
+        for name, definition in {"before_predicates_json": "TEXT", "after_predicates_json": "TEXT", "semantic_action": "TEXT",
+                                 "intended_effect": "TEXT", "outcome_class": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT",
+                                 "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
+            if name not in existing:
+                self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
         if "model" not in run_columns:
             self.connection.execute("ALTER TABLE runs ADD COLUMN model TEXT")
@@ -58,6 +63,14 @@ class RunLogger:
         started = time.perf_counter()
         self.connection.commit()
         self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))
+        self.connection.commit()
+
+    def log_action_model(self, run_id: str, step: int, before: list[dict], after: list[dict], semantic_action: str,
+                         intended_effect: str | None, outcome: str, schema_id: str | None, source: str,
+                         experiment_id: str | None = None, evidence_class: str | None = None) -> None:
+        self.connection.execute("""UPDATE transitions SET before_predicates_json=?, after_predicates_json=?, semantic_action=?,
+            intended_effect=?, outcome_class=?, schema_id=?, decision_source=?, experiment_id=?, evidence_class=? WHERE run_id=? AND step=?""",
+            (json.dumps(before), json.dumps(after), semantic_action, intended_effect, outcome, schema_id, source, experiment_id, evidence_class, run_id, step))
         self.connection.commit()
 
     def finish_run(self, run_id: str, completed: bool, steps: int, final_node: str, error: str | None) -> None:

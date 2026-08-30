@@ -1,17 +1,31 @@
 [project]
 name = "vision-gui-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Screenshot-native, graph-aware GUI automation for browsers and desktop software"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "google-genai>=2.18.1",
     "imagehash>=4.3.2",
     "networkx>=3.6.1",
+    "numpy>=2.0.0",
     "pillow>=12.3.0",
     "playwright>=1.62.0",
+    "pyautogui>=0.9.54",
     "python-dotenv>=1.2.2",
+    "rapidocr>=3.4.0",
+    "onnxruntime>=1.20.0",
 ]
 
 [project.scripts]
 vision-gui-agent = "vision_gui_agent.cli:main"
+vision-gui-benchmark = "vision_gui_agent.benchmark_runner:main"
+vision-gui-calibrate = "vision_gui_agent.benchmark_calibration:main"
+visual-function-lab = "vision_gui_agent.visual_function_lab_server:main"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vision_gui_agent"]

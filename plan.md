@@ -1,7 +1,7 @@
 # Vision + Graph-Based GUI Agent — Epics & User Stories
 
 **Project:** Clawbot-style agent that navigates software via a VLM + graph of UI states, instead of predefined API tools.
-**MVP scope:** Web automation via Playwright before OS-level GUI automation.
+**Implemented scope:** Web automation through Playwright input devices plus OS-level desktop automation through the same screenshot/mouse/keyboard contract.
 **Story points:** Fibonacci scale (1, 2, 3, 5, 8, 13) — relative effort, not hours.
 
 ---
@@ -21,13 +21,13 @@
 
 ---
 
-## Epic 1: Perception — DOM to Structured Elements
-*Turn a live page into a numbered, labeled list of interactable elements. No AI calls yet.*
+## Epic 1: Perception — Pixels to Structured Elements
+*Turn a screenshot into a numbered, labeled list of controls and visible state evidence.*
 
 | #   | User Story                                                                                                                                                                               | Points |     |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | --- |
-| 1.1 | As the agent, I want to query all interactable elements (buttons, links, inputs, selects, textareas, ARIA roles) on a page, so I have a candidate list of actionable targets.            | 5      |     |
-| 1.2 | As the agent, I want each element's bounding box, tag, visible text, placeholder, and aria-label extracted, so I can describe it semantically to a model later.                          | 3      |     |
+| 1.1 | As the agent, I want a vision model to detect all visible controls and key state text from a screenshot, so I have pixel-native action candidates and evidence. | 5 | |
+| 1.2 | As the agent, I want each item represented by a semantic kind, visible label/value, actionability, and pixel bounding box. | 3 | |
 | 1.3 | As the agent, I want a numbered box drawn over each detected element on a screenshot (Set-of-Mark overlay), so a vision model can reference elements by number instead of coordinates.   | 5      |     |
 | 1.4 | As a developer, I want to verify element extraction against several different page layouts (forms, menus, modals), so I trust the extraction is reliable before adding reasoning on top. | 3      |     |
 
@@ -96,7 +96,7 @@
 | Epic | Points |
 |---|---|
 | 0. Environment & Setup | 11 |
-| 1. Perception (DOM → Elements) | 16 |
+| 1. Perception (Pixels → Elements) | 16 |
 | 2. Single-Step Reasoning | 14 |
 | 3. State Representation & Dedup | 16 |
 | 4. Graph-Aware Reasoning Loop | 21 |

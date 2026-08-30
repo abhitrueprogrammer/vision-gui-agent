@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import re
+from pathlib import Path
 from typing import Protocol
 
 from dotenv import load_dotenv
@@ -17,29 +18,49 @@ class Policy(Protocol):
                      history: list[ActionRecord]) -> list[ActionDecision]: ...
 
 
-class GeminiPolicy:
-    """DOM-first policy that requests a short, safe sequence of actions."""
+def configured_gemini_keys(env_path: Path = Path(".env")) -> list[str]:
+    """Read local key slots without ever placing a credential in an artifact."""
+    if not env_path.is_file():
+        return []
+    keys = []
+    for raw in env_path.read_text().splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            line = line[1:].strip()
+        if not line.startswith("GEMINI_API_KEY="):
+            continue
+        value = line.partition("=")[2].strip().strip('"').strip("'")
+        if value:
+            keys.append(value)
+    return keys
 
-    def __init__(self, model: str = "gemini-3.6-flash") -> None:
+
+class GeminiPolicy:
+    """Vision-only policy that requests a short, safe sequence of actions."""
+
+    def __init__(self, model: str = "gemini-3.6-flash", benchmark_mode: bool = False,
+                 key_slot: int | None = None) -> None:
         load_dotenv()
-        key = os.getenv("GEMINI_API_KEY")
+        keys = configured_gemini_keys()
+        if key_slot is not None and not 1 <= key_slot <= len(keys):
+            raise RuntimeError(f"GEMINI key slot {key_slot} is unavailable")
+        key = keys[key_slot - 1] if key_slot is not None else os.getenv("GEMINI_API_KEY")
         if not key:
             raise RuntimeError("GEMINI_API_KEY is required for the Gemini policy")
         from google import genai
         from google.genai import types
-        self.client = genai.Client(api_key=key)
         self.types = types
+        self.client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=60_000))
         self.model = model
+        self.benchmark_mode = benchmark_mode
+        self.key_slot = key_slot
         self.last_response: str | None = None
 
     async def decide(self, goal: str, observation: Observation, graph_context: dict,
                      history: list[ActionRecord]) -> list[ActionDecision]:
-        dom_first = len(observation.elements) <= 20 and all(
-            element.text or element.aria_label or element.placeholder for element in observation.elements
-        )
         prompt = {
             "goal": goal,
-            "url": observation.url, "title": observation.title,
+            "screen_label": observation.title,
             "elements": [element.__dict__ for element in observation.elements],
             "graph_context": graph_context,
             "recent_actions": [record.to_dict() for record in history[-8:]],
@@ -49,35 +70,33 @@ class GeminiPolicy:
                 "fill/select, key for press, direction for scroll, current_label (short semantic "
                 "name of the visible state), next_label (predicted resulting state), rationale, impact "
                 "(harmless|high), grounding (a list of observable evidence objects, never strings: "
-                "{source:'element_text|aria_label|placeholder|role|tag|href|type|value|download|selected|checked',expected:'observed text',element_id:12}; "
-                "use {source:'url|title',expected:'observed text'} or {source:'comparison',comparison:{candidates:[...],direction:'min|max',attribute:'...',selected:...}} when applicable), and constraints (persistent generic "
+                "{source:'element_text|role|tag',expected:'visible text',element_id:12}; "
+                "use {source:'comparison',comparison:{candidates:[...],direction:'min|max',attribute:'element_text',selected:...}} when applicable), and constraints (persistent generic "
                 "{id,description,material,status,evidence,unavailable_reason} records; status is exactly unproven, proven, or unavailable). Labels are predictions, not facts. "
                 "Optionally include verify: exactly one of {kind:'page_changed'}, "
-                "{kind:'url_matches',pattern:'/account'}, {kind:'title_matches',pattern:'Account'}, "
-                "{kind:'element_visible',pattern:'Order submitted'}, {kind:'element_absent',pattern:'Loading'}, "
+                "{kind:'element_visible',pattern:'Order submitted'}, {kind:'element_enabled',pattern:'Export document'}, {kind:'element_absent',pattern:'Loading'}, "
                 "{kind:'element_value',element_id:4,expected:'example'}, or {kind:'download_created'}. "
-                "Patterns are non-empty literal substrings; title/text/aria-label/placeholder matching ignores case and whitespace, URL matching is literal. "
-                "Include verify when an action has a meaningful observable result, preferring the most specific reliable condition over page_changed; never invent kinds. "
+                "Patterns are non-empty literal substrings; visible-label matching ignores case and whitespace. "
+                "Include verify when an action has a meaningful observable result, preferring the most specific reliable condition over page_changed; use element_enabled for a control that becomes usable; never invent kinds. "
                 "A later planned action runs only after the prior requested verification passes. Omit verify for harmless actions without a reliable observation. "
-                "Only use listed element ids. Cite target metadata in grounding; never infer semantics from ids. Do not repeat failed actions. "
+                "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. Do not repeat failed actions. "
                 "Comparison evidence must name its observed attribute and list candidate element ids, values, direction (min|max), and selected id. "
                 "A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
-                "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering, URL ordering, or candidate comparison; first result is not proof. Use done only when "
-                "the user goal is complete; for a download goal, done is valid only after a click verified with download_created in recent_actions. done may use a state-only verify (url_matches, title_matches, element_visible, element_absent, element_value), but not page_changed or download_created. "
-                "Put download_created on the click that starts it, never done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"url_matches\",\"pattern\":\"/account\"}}. Each later action's current_label must match the prior "
+                "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering or candidate comparison; first result is not proof. Use done only when "
+                "the user goal is complete; for a download goal, done is valid only after a click verified with download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
+                "A done action must include either a state-only verify or grounding that cites currently visible evidence. "
+                "Put download_created on the click that starts it, never done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"element_visible\",\"pattern\":\"Account\"}}. Each later action's current_label must match the prior "
                 "action's next_label. The agent will stop the plan if the visible state changes unexpectedly."
+                + (" Visual Function Lab is a stateful browser simulation: it never creates a browser download. "
+                   "Do not use download_created there; verify its visible status text or enabled controls instead. "
+                   "Treat a button click as effective only when a visible state/control change confirms it. "
+                   "Never use a button label as proof for done. For an export-as-PDF goal, done is valid only when the "
+                   "visible status element says 'export completed: true', and its verify pattern must be exactly that text."
+                   if self.benchmark_mode else "")
             ),
         }
-        if dom_first:
-            prompt["dom_first"] = True
-            prompt["instructions"] += " DOM metadata is unambiguous; do not assume an image is available."
-        else:
-            prompt["dom_first"] = False
-
         def generate() -> str:
-            contents = [json.dumps(prompt)]
-            if not dom_first:
-                contents.insert(0, self.types.Part.from_bytes(data=model_image(observation.marked_screenshot_path), mime_type="image/jpeg"))
+            contents = [self.types.Part.from_bytes(data=model_image(observation.marked_screenshot_path, max_width=1280, quality=80), mime_type="image/jpeg"), json.dumps(prompt)]
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
