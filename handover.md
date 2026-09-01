@@ -62,7 +62,7 @@ The agent must **never** use: DOM selectors, accessibility trees, application AP
 | `__init__.py` | Public API: `Agent`, `AgentConfig`, `ActionDecision`, `Element`, `Observation` |
 | `cli.py` | CLI entry point (`vision-gui-agent` command), argument parsing, run orchestration |
 | `agent.py` | Core observe–decide–act loop, safety guard, graph/action-model lifecycle, constraint system |
-| `perception.py` | Screenshot capture, `LocalVisualGrounder` (OCR/CV), `GeminiVisualGrounder`, box validation, numbered screenshots |
+| `perception.py` | Screenshot capture, `OmniParserVisualGrounder`, `GeminiVisualGrounder`, box validation, numbered screenshots |
 | `decision.py` | `GeminiPolicy` — structured VLM fallback policy and decision validation |
 | `executor.py` | Browser/desktop mouse and keyboard delivery using visible element coordinates |
 | `verification.py` | Fresh visual postcondition checks after every action |
@@ -412,7 +412,7 @@ The experiment selector **hard-blocks**: deletion, send/submit, purchases/paymen
 
 | Mode | How It Works |
 | --- | --- |
-| **Local (default)** | `LocalVisualGrounder` uses RapidOCR + OpenCV. Screenshots stay local; Gemini receives only the element list for planning. |
+| **OmniParser (default)** | `OmniParserVisualGrounder` uses OmniParser + RapidOCR. Screenshots stay local; Gemini receives only the element list for planning. |
 | **Gemini** (`--grounder gemini`) | Screenshots are sent to Gemini for visual detection. Higher quality but uses API quota. |
 | **Benchmark pixel** (`--benchmark-grounder`) | `PixelBenchmarkGrounder` identifies controls by their distinct flat color fills. Deterministic, no OCR/API needed. Lab-only. |
 

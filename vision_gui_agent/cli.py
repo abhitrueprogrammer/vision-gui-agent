@@ -57,7 +57,8 @@ async def _run(args: argparse.Namespace) -> int:
         )
         policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
                               key_slot=args.gemini_key_slot)
-        grounder = OmniParserVisualGrounder() if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot)
+        grounder = (OmniParserVisualGrounder(refiner=GeminiVisualGrounder(args.model, args.gemini_key_slot))
+                    if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot))
         if args.benchmark_grounder:
             if args.desktop: raise ValueError("--benchmark-grounder is available only for the local browser benchmark")
             if args.grounder != "omniparser": raise ValueError("--benchmark-grounder cannot be combined with --grounder gemini")

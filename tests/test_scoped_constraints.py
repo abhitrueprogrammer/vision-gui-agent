@@ -4,7 +4,6 @@ import asyncio
 from vision_gui_agent.agent import Agent
 from vision_gui_agent.decision import GeminiPolicy, _selection_constraints, parse_goal_constraints
 from vision_gui_agent.models import ActionDecision, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition
-from vision_gui_agent.perception import LocalVisualGrounder
 
 
 def report(id, text, context="", actionable=True, download=""):
@@ -81,12 +80,6 @@ class ScopedConstraintTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "final collection quantities"):
             Agent._guard(ActionDecision("done", verify=VerificationCondition("element_visible", pattern="Product added to shopping cart.")), toast, {requirement.id: requirement})
 
-    def test_compact_visual_header_labels_are_actionable_navigation(self):
-        home = Element(1, "", "text", "Home", "", "", "text", 1000, 120, 40, 20, actionable=False)
-        peers = [home, Element(2, "", "text", "Categories", "", "", "text", 1060, 120, 70, 20, actionable=False),
-                 Element(3, "", "text", "Contact", "", "", "text", 1150, 120, 55, 20, actionable=False)]
-        self.assertTrue(LocalVisualGrounder._header_navigation(home, peers, 1000))
-        self.assertFalse(LocalVisualGrounder._header_navigation(Element(4, "", "text", "Related products", "", "", "text", 50, 200, 150, 20, actionable=False), peers, 1000))
 
     def test_goal_compiler_retries_invalid_schema(self):
         class Config:

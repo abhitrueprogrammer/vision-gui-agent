@@ -41,9 +41,15 @@ def _same_visual_element(source: Observation, latest: Observation, element_id: i
     before = next((item for item in source.elements if item.id == element_id), None)
     if before is None or not latest.elements: return None
     tag, kind, label = control_key(before)
+    # A successfully filled input/textarea/select necessarily changes its own
+    # visible text (an empty field's OCR label is its placeholder, which a fill
+    # replaces with the typed value), so requiring the label to stay the same
+    # would make it impossible to ever confirm a fill worked. Position + tag +
+    # kind is strong enough evidence on its own for these editable controls.
+    editable = before.tag in {"input", "textarea", "select"}
     compatible = [item for item in latest.elements
                   if normal(item.tag) == tag and (not kind or (normal(item.input_type) or normal(item.tag)) == kind)
-                  and (not label or control_key(item)[2] == label)
+                  and (editable or not label or control_key(item)[2] == label)
                   and item.actionable == before.actionable]
     # When an entered value hides the field outline, OCR may retain only the
     # value text.  It is still safe evidence when it lies inside the old field;

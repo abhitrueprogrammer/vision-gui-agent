@@ -52,12 +52,15 @@ def parse_goal_constraints(text: str) -> tuple[GoalConstraint, ...]:
             if item["scope"] != "final_collection" or not isinstance(item.get("quantity"), int) or isinstance(item["quantity"], bool) or item["quantity"] < 1:
                 raise ValueError("entity_quantity requires final_collection scope and a positive quantity")
         elif item["scope"] != "affected_items": raise ValueError("unsupported material constraint")
-        if not all(isinstance(item[name], str) and item[name].strip() for name in ("id", "expected", "source_span")): raise ValueError("constraint text is required")
+        raw_id = item["id"]
+        if not isinstance(raw_id, (str, int)) or isinstance(raw_id, bool) or (isinstance(raw_id, str) and not raw_id.strip()):
+            raise ValueError("constraint id is required")
+        if not all(isinstance(item[name], str) and item[name].strip() for name in ("expected", "source_span")): raise ValueError("constraint text is required")
         direction, hint = item.get("direction"), item.get("attribute_hint")
         if item["kind"] == "extremum":
             if direction not in {"min", "max"} or not isinstance(hint, str) or not hint.strip(): raise ValueError("extremum requires direction and attribute_hint")
         elif direction is not None or hint is not None: raise ValueError(f"{item['kind']} does not accept ranking fields")
-        constraints.append(GoalConstraint(item["id"], "", kind=item["kind"], scope=item["scope"], expected=item["expected"], source_span=item["source_span"], direction=direction, attribute_hint=hint, quantity=item.get("quantity")))
+        constraints.append(GoalConstraint(str(raw_id), "", kind=item["kind"], scope=item["scope"], expected=item["expected"], source_span=item["source_span"], direction=direction, attribute_hint=hint, quantity=item.get("quantity")))
     return tuple(constraints)
 
 
@@ -92,6 +95,7 @@ class GeminiPolicy:
     async def compile_goal(self, goal: str) -> tuple[GoalConstraint, ...]:
         prompt = ("Extract explicit material completion requirements, item-selection restrictions, or rankings from this goal. Return JSON only: "
                   "{constraints:[{id,kind:'target_text|extremum|entity_quantity',scope:'affected_items|final_collection',expected,source_span,direction?,attribute_hint?,quantity?}]}. "
+                  "id may be a short string or a number (e.g. 1 or 'c1'); expected and source_span must be non-empty strings. "
                   "Use entity_quantity with scope final_collection for an explicitly requested named item count in the final visible collection (cart, selected list, folder, or summary); expected is the item name and quantity is a positive integer. "
                   "Use target_text or extremum only with scope affected_items. Put matching text in expected and the supporting goal phrase in source_span. "
                   "Return constraints:[] if none. Reject any requirement you cannot express exactly in that schema. Goal: " + goal)

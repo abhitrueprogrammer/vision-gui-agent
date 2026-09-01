@@ -4,6 +4,7 @@ import asyncio
 from difflib import SequenceMatcher
 import inspect
 import re
+import traceback
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
@@ -616,7 +617,7 @@ class Agent:
                         decision = self._reground(decision, observation)
                     if decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
-                        refined = await self.grounder.refine(Path(observation.screenshot_path), target) if target else None
+                        refined = await self.grounder.refine(Path(observation.screenshot_path), target) if target and (not target.actionable or target.confidence < .7) else None
                         if refined:
                             observation = replace(observation, elements=[refined if item.id == refined.id else item for item in observation.elements])
                     target = next((item for item in observation.elements if item.id == decision.element_id), None)
@@ -677,7 +678,10 @@ class Agent:
                     if self.config.verbose: print(f"[step {step}] {error}")
                     continue
                 except Exception as exc:
-                    error = f"Decision failed: {exc}"
+                    last_response = getattr(self.policy, "last_response", None)
+                    detail = f"; model response={last_response[:2000]!r}" if last_response else ""
+                    error = f"Decision failed: {exc}{detail}"
+                    if self.config.verbose: print(f"[step {step}] {error}\n{traceback.format_exc()}")
                     invalid = ActionDecision(action="done", rationale=error)
                     logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings)
                     result = RunResult(run_id, False, step, current_node, error, history, constraints=list(ledger.values()))
@@ -725,13 +729,18 @@ class Agent:
                             break
                         await asyncio.sleep(.15)
                     next_observe_ms = (perf_counter() - observed_at) * 1000
-                    success = verification.status == "passed"
-                    error = None if success else (verification.reason if verification.status == "failed" else "Action effect was not explicitly verified")
+                    # "not_requested" means the action ran with no explicit check, not that it
+                    # failed -- treat it the same as the sibling `done` branch above does. An
+                    # omitted verify is expected (the policy is told it's fine to skip one for
+                    # harmless actions); only a verification that actually ran and failed should
+                    # count as a failure.
+                    success = verification.status != "failed"
+                    error = None if success else verification.reason
                     if self._recordable_graph_action(decision, observation):
                         self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
                     if self.config.verbose:
                         status = "new" if created else "existing"
-                        print(f"[step {step}] execution: success; verification: {verification.status}; {verification.reason}; observed: {next_observation.title!r} "
+                        print(f"[step {step}] execution: {'success' if success else 'failed'}; verification: {verification.status}; {verification.reason}; observed: {next_observation.title!r} "
                               f"({next_observation.url}); graph node: {target_node} ({status})")
                         if verification.download_path: print(f"[step {step}] download: {verification.download_path}")
                     history.append(ActionRecord(decision, success, error, verification))
