@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 ActionType = Literal["click", "fill", "select", "press", "scroll", "done"]
-VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "download_created"]
+VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "element_changed", "download_created"]
 ConstraintStatus = Literal["unproven", "proven", "unavailable"]
 Impact = Literal["harmless", "high"]
 
@@ -21,7 +21,7 @@ class VerificationCondition:
         if not isinstance(raw, dict): raise ValueError("verify must be an object or null")
         kind = raw.get("kind")
         fields = {"page_changed": {"kind"}, "download_created": {"kind"}, "element_visible": {"kind", "pattern"}, "element_enabled": {"kind", "pattern"},
-                  "element_absent": {"kind", "pattern"}, "element_value": {"kind", "element_id", "expected"}}
+                  "element_absent": {"kind", "pattern"}, "element_value": {"kind", "element_id", "expected"}, "element_changed": {"kind", "element_id"}}
         if kind not in fields or set(raw) != fields[kind]: raise ValueError(f"Invalid verification condition: {kind!r}")
         if "pattern" in fields[kind] and (not isinstance(raw["pattern"], str) or not raw["pattern"].strip()): raise ValueError("verify pattern must be a non-empty string")
         if kind == "element_value":
@@ -31,6 +31,10 @@ class VerificationCondition:
                 except ValueError: raise ValueError("verify element_id must be a positive integer") from None
             if not isinstance(ident, int) or isinstance(ident, bool) or ident < 1 or not isinstance(raw["expected"], str): raise ValueError("invalid element_value verification")
             return cls(kind, element_id=ident, expected=raw["expected"])
+        if kind == "element_changed":
+            ident = raw["element_id"]
+            if not isinstance(ident, int) or isinstance(ident, bool) or ident < 1: raise ValueError("element_changed element_id must be a positive integer")
+            return cls(kind, element_id=ident)
         return cls(kind, pattern=raw.get("pattern"))
 
     def to_dict(self) -> dict[str, Any]:
@@ -64,6 +68,8 @@ class Element:
     checked: bool = False
     download: str = ""
     actionable: bool = True
+    context: str = ""
+    context_bounds: tuple[float, float, float, float] | None = None
 
     def summary(self) -> str:
         return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({'actionable' if self.actionable else 'state evidence'})"
@@ -94,6 +100,12 @@ class GoalConstraint:
     status: ConstraintStatus = "unproven"
     evidence: tuple[EvidenceRecord, ...] = ()
     unavailable_reason: str | None = None
+    kind: Literal["target_text", "extremum"] = "target_text"
+    scope: Literal["affected_items"] = "affected_items"
+    expected: str = ""
+    source_span: str = ""
+    direction: Literal["min", "max"] | None = None
+    attribute_hint: str | None = None
 
     @classmethod
     def from_dict(cls, raw: Any) -> "GoalConstraint":
@@ -102,7 +114,8 @@ class GoalConstraint:
         if status not in {"unproven", "proven", "unavailable"}: raise ValueError("invalid constraint status")
         if status == "unavailable" and (not isinstance(reason, str) or not reason.strip()): raise ValueError("unavailable constraints require a reason")
         if not isinstance(evidence, list): raise ValueError("constraint evidence must be a list")
-        return cls(raw["id"], raw["description"], bool(raw.get("material", True)), status, tuple(EvidenceRecord.from_dict(item) for item in evidence), reason)
+        return cls(raw["id"], raw["description"], bool(raw.get("material", True)), status, tuple(EvidenceRecord.from_dict(item) for item in evidence), reason,
+                   raw.get("kind", "target_text"), raw.get("scope", "affected_items"), raw.get("expected", ""), raw.get("source_span", ""), raw.get("direction"), raw.get("attribute_hint"))
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self); data["evidence"] = [asdict(item) for item in self.evidence]
@@ -233,9 +246,12 @@ class SemanticAction:
     name: str
     target_signature: str
     safety_class: SafetyClass = "harmless_reversible"
+    action_type: Literal["click", "fill", "select", "press", "scroll"] = "click"
 
     def __post_init__(self) -> None:
-        if not self.name or not self.target_signature: raise ValueError("semantic actions need a name and target signature")
+        if (not self.name or not self.target_signature
+                or self.action_type not in {"click", "fill", "select", "press", "scroll"}):
+            raise ValueError("semantic actions need a valid type, name, and target signature")
 
 
 @dataclass(frozen=True)
@@ -255,6 +271,9 @@ class ActionEffect:
     contradiction: int = 0
     evidence_ids: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        if not self.predicate or self.support < 0 or self.contradiction < 0: raise ValueError("invalid action effect evidence")
+
     @property
     def confidence(self) -> float: return (self.support + 1) / (self.support + self.contradiction + 2)
 
@@ -267,6 +286,12 @@ class ActionPrecondition:
     support: int = 0
     contradiction: int = 0
     evidence_ids: tuple[str, ...] = ()
+    intervention_support: int = 0
+
+    def __post_init__(self) -> None:
+        if (not self.predicate or self.status not in {"required", "not_required", "conditional", "unknown", "unobservable"}
+                or min(self.support, self.contradiction, self.intervention_support) < 0 or self.intervention_support > self.support):
+            raise ValueError("invalid action precondition evidence")
 
     @property
     def confidence(self) -> float: return (self.support + 1) / (self.support + self.contradiction + 2)
@@ -284,12 +309,19 @@ class ActionSchema:
     evidence_ids: tuple[str, ...] = ()
     contradictions: tuple[str, ...] = ()
     version: int = 1
+    action_type: Literal["click", "fill", "select", "press", "scroll"] = "click"
+
+    def __post_init__(self) -> None:
+        if (not self.id or not self.semantic_name or not self.scope or not self.target_signature or self.version != 1
+                or self.safety_class not in {"observational", "harmless_reversible", "state_changing_reversible", "high_impact_or_irreversible"}
+                or self.action_type not in {"click", "fill", "select", "press", "scroll"}):
+            raise ValueError("invalid action schema")
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "semantic_name": self.semantic_name, "scope": self.scope, "target_signature": self.target_signature,
                 "safety_class": self.safety_class, "preconditions": [{**asdict(x), "confidence": x.confidence} for x in self.preconditions],
                 "effects": [{**asdict(x), "confidence": x.confidence} for x in self.effects], "evidence_ids": list(self.evidence_ids),
-                "contradictions": list(self.contradictions), "version": self.version}
+                "contradictions": list(self.contradictions), "version": self.version, "action_type": self.action_type}
 
 
 @dataclass(frozen=True)

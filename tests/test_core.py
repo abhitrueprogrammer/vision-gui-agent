@@ -1,13 +1,17 @@
 import asyncio
 import io
+import sys
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
 from contextlib import redirect_stdout
 from pathlib import Path
 from PIL import Image, ImageDraw
+from playwright.async_api import Error as PlaywrightError
 from vision_gui_agent.agent import Agent, AgentConfig
-from vision_gui_agent.decision import configured_gemini_keys, parse_decision, parse_decisions
+from vision_gui_agent.decision import _compact_elements, configured_gemini_keys, parse_decision, parse_decisions
+from vision_gui_agent.gemini import GeminiClientPool
 from vision_gui_agent.desktop import DesktopPage
 from vision_gui_agent.models import ActionDecision, Element, Observation
 from vision_gui_agent.models import VerificationCondition, VerificationResult
@@ -15,8 +19,37 @@ from vision_gui_agent.models import EvidenceRecord, GoalConstraint
 from vision_gui_agent.logging_store import RunLogger
 from vision_gui_agent.perception import GeminiVisualGrounder, LocalVisualGrounder, model_image, observe
 from vision_gui_agent.state_graph import StateGraph
+from vision_gui_agent.verification import already_satisfied, verify
 
 class CoreTests(unittest.TestCase):
+    def test_local_grounder_lowers_rapidocr_detection_threshold(self) -> None:
+        rapidocr = SimpleNamespace(RapidOCR=Mock(return_value=object()))
+        with patch.dict(sys.modules, {"rapidocr": rapidocr}):
+            LocalVisualGrounder()
+        rapidocr.RapidOCR.assert_called_once_with(params={"Det.box_thresh": .35})
+
+    def test_policy_elements_omit_perception_only_fields(self) -> None:
+        element = Element(1, "[data-id=1]", "link", "Report", "Open report", "", "link", 10.4, 20.5, 30.6, 40.7,
+                          href="https://example.test/report", context="A" * 200)
+        payload = _compact_elements(Observation("", "", [element], "", ""))[0]
+        self.assertEqual(payload["box"], [10, 20, 31, 41])
+        self.assertEqual(payload["context"], "A" * 160)
+        self.assertNotIn("selector", payload)
+        self.assertNotIn("href", payload)
+
+    def test_gemini_pool_retries_quota_error_with_next_key(self) -> None:
+        class Client:
+            def __init__(self, key): self.key = key
+        class GenAI:
+            def Client(self, api_key, **_): return Client(api_key)
+        pool = object.__new__(GeminiClientPool)
+        pool._genai, pool.types, pool._keys, pool._index = GenAI(), type("Types", (), {"HttpOptions": staticmethod(lambda **_: None)}), ["first", "second"], 0
+        pool.client = pool._new_client()
+        def request(client):
+            if client.key == "first": raise RuntimeError("RESOURCE_EXHAUSTED")
+            return client.key
+        self.assertEqual(pool.generate(request), "second")
+
     def test_configured_gemini_keys_keeps_commented_slots_available(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / ".env"
@@ -72,6 +105,13 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(regrounded.element_id, 7)
         self.assertEqual(regrounded.grounding[0].element_id, 7)
 
+    def test_replay_identity_uses_semantics_instead_of_transient_element_ids(self) -> None:
+        first = ActionDecision("click", 1, grounding=(EvidenceRecord("element_text", "Continue", 1),))
+        shifted = ActionDecision("click", 9, grounding=(EvidenceRecord("element_text", "Continue", 9),))
+        other = ActionDecision("click", 9, grounding=(EvidenceRecord("element_text", "Cancel", 9),))
+        self.assertEqual(StateGraph.replay_key(first), StateGraph.replay_key(shifted))
+        self.assertNotEqual(StateGraph.replay_key(first), StateGraph.replay_key(other))
+
     def test_state_evidence_cannot_be_clicked(self) -> None:
         observation = Observation("", "", [Element(1, "", "text", "Complete", "", "", "text", 0, 0, 20, 10, actionable=False)], "", "Complete")
         with self.assertRaises(ValueError):
@@ -98,6 +138,15 @@ class CoreTests(unittest.TestCase):
             self.assertLess(len(image), path.stat().st_size + 1)
             self.assertEqual(image[:2], b"\xff\xd8")
 
+    def test_set_of_mark_badge_does_not_cover_small_control_content(self) -> None:
+        from vision_gui_agent.perception import draw_set_of_mark
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source, marked = Path(temp_dir) / "source.png", Path(temp_dir) / "marked.png"
+            Image.new("RGB", (80, 50), "white").save(source)
+            draw_set_of_mark(source, marked, [Element(44, "", "button", "1", "", "", "button", 30, 25, 16, 16)])
+            with Image.open(marked).convert("RGB") as image:
+                self.assertEqual(image.getpixel((34, 29)), (255, 255, 255))
+
     def test_observe_uses_screenshot_grounding_without_page_inspection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             class Page:
@@ -111,6 +160,46 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(observation.elements[0].text, "Continue")
             self.assertTrue(Path(observation.marked_screenshot_path).is_file())
             self.assertEqual(observation.url, "")
+
+    def test_observe_retries_transient_playwright_screenshot_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            class Page:
+                calls = 0
+                async def screenshot(self, path, full_page):
+                    self.calls += 1
+                    if self.calls == 1: raise PlaywrightError("Unable to capture screenshot")
+                    Image.new("RGB", (100, 60), "white").save(path)
+            class Grounder:
+                async def detect(self, _):
+                    return [Element(1, "", "button", "Continue", "", "", "button", 10, 20, 50, 20)]
+            page = Page()
+            with patch("vision_gui_agent.perception.asyncio.sleep", new=AsyncMock()) as sleep:
+                observation = asyncio.run(observe(page, Path(temp_dir), 0, Grounder()))
+            self.assertEqual(page.calls, 2)
+            sleep.assert_awaited_once_with(.25)
+            self.assertTrue(Path(observation.screenshot_path).is_file())
+
+    def test_observe_waits_for_a_slow_page_to_become_actionable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            class Page:
+                async def screenshot(self, path, full_page): Image.new("RGB", (100, 60), "white").save(path)
+            grounder = LocalVisualGrounder(lambda _: [])
+            grounder.detect = AsyncMock(side_effect=[[], [Element(1, "", "button", "Continue", "", "", "button", 10, 20, 50, 20)]])
+            with patch("vision_gui_agent.perception.asyncio.sleep", new=AsyncMock()) as sleep:
+                observation = asyncio.run(observe(Page(), Path(temp_dir), 0, grounder))
+            self.assertEqual(observation.elements[0].text, "Continue")
+            sleep.assert_awaited_once_with(.5)
+
+    def test_observe_accepts_evidence_only_terminal_page(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            class Page:
+                async def screenshot(self, path, full_page): Image.new("RGB", (100, 60), "white").save(path)
+            terminal = Element(1, "", "text", "Form submitted", "", "", "text", 10, 20, 70, 20, actionable=False)
+            grounder = LocalVisualGrounder(lambda _: []); grounder.detect = AsyncMock(return_value=[terminal])
+            with patch("vision_gui_agent.perception.asyncio.sleep", new=AsyncMock()) as sleep:
+                observation = asyncio.run(observe(Page(), Path(temp_dir), 0, grounder))
+            self.assertEqual(observation.elements, [terminal])
+            sleep.assert_not_awaited()
 
     def test_local_grounder_uses_control_outline_and_leaves_status_as_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -135,6 +224,157 @@ class CoreTests(unittest.TestCase):
     def test_local_grounder_marks_field_and_select_labels(self) -> None:
         self.assertEqual(LocalVisualGrounder._kind("Email address"), "input")
         self.assertEqual(LocalVisualGrounder._kind("Choose country"), "select")
+
+    def test_local_grounder_finds_empty_labeled_fields_without_making_labels_clickable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (460, 210), "white")
+            draw = ImageDraw.Draw(image)
+            draw.text((20, 10), "Text input", fill="black")
+            draw.rectangle((20, 35, 420, 75), outline="black", width=2)
+            draw.text((35, 48), "Ada", fill="black")
+            draw.text((20, 90), "Textarea", fill="black")
+            draw.rectangle((20, 115, 420, 195), outline="black", width=2)
+            image.save(screenshot)
+            ocr = lambda _path: [
+                ([(20, 10), (100, 10), (100, 28), (20, 28)], ("Text input", .99)),
+                ([(35, 48), (65, 48), (65, 65), (35, 65)], ("Ada", .99)),
+                ([(20, 90), (90, 90), (90, 108), (20, 108)], ("Textarea", .99)),
+            ]
+            elements = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))
+            controls = [item for item in elements if item.actionable]
+            self.assertEqual([(item.text, item.tag) for item in controls], [("Text input", "input"), ("Textarea", "textarea")])
+            self.assertEqual(controls[0].value, "Ada")
+
+    def test_local_grounder_splits_separated_ocr_words_and_keeps_links_actionable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (180, 60), "white")
+            draw = ImageDraw.Draw(image)
+            draw.text((10, 20), "Home", fill="#3366cc")
+            draw.text((100, 20), "Contact", fill="#3366cc")
+            image.save(screenshot)
+            raw = SimpleNamespace(
+                boxes=[[(10, 20), (140, 20), (140, 35), (10, 35)]], txts=["Home Contact"], scores=[.99],
+                word_results=[(("Home", .99, [(10, 20), (45, 20), (45, 35), (10, 35)]),
+                               ("Contact", .99, [(100, 20), (140, 20), (140, 35), (100, 35)]))],
+            )
+            elements = asyncio.run(LocalVisualGrounder(lambda _path, **_: raw).detect(screenshot))
+            self.assertEqual([(item.text, item.tag, item.actionable) for item in elements],
+                             [("Home", "link", True), ("Contact", "link", True)])
+
+    def test_local_grounder_pairs_checkbox_outline_with_its_label(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (160, 80), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 25, 40, 45), outline="black", width=2)
+            draw.text((48, 28), "Option", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [([(48, 28), (95, 28), (95, 44), (48, 44)], ("Option", .99))]
+            element = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))[0]
+            self.assertEqual((element.tag, element.actionable), ("checkbox", True))
+            self.assertLessEqual(element.x, 20)
+            self.assertLessEqual(element.x + element.width, 42)
+
+    def test_local_grounder_uses_a_text_badge_as_a_row_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (160, 80), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 25, 40, 45), outline="black", width=2)
+            draw.text((25, 28), "7", fill="black")
+            draw.text((48, 28), "Option", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [([(25, 28), (33, 28), (33, 42), (25, 42)], ("7", .99)),
+                                  ([(48, 28), (95, 28), (95, 44), (48, 44)], ("Option", .99))]
+            option = next(item for item in asyncio.run(LocalVisualGrounder(ocr).detect(screenshot)) if item.text == "Option")
+            self.assertEqual((option.tag, option.actionable), ("button", True))
+
+    def test_local_grounder_does_not_share_an_enclosing_row_box(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "screen.png"
+            image = Image.new("RGB", (180, 90), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((10, 20, 170, 65), outline="black", width=2)
+            draw.rectangle((18, 26, 80, 58), outline="black", width=2)
+            draw.text((34, 34), "1", fill="black")
+            draw.text((110, 34), "2", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [
+                ([(34, 34), (42, 34), (42, 48), (34, 48)], ("1", .99)),
+                ([(110, 34), (118, 34), (118, 48), (110, 48)], ("2", .99)),
+            ]
+            elements = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))
+            one, two = (next(item for item in elements if item.text == text) for text in ("1", "2"))
+            self.assertTrue(one.actionable)
+            self.assertFalse(two.actionable)
+            self.assertLessEqual(one.x + one.width, two.x)
+
+    def test_local_grounder_detects_one_clean_wikipedia_autocomplete_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "wikipedia-autocomplete.png"
+            image = Image.new("RGB", (460, 260), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 20, 420, 65), outline="black", width=2)
+            draw.text((50, 34), "hitler", fill="black")
+            draw.text((350, 34), "^N3", fill="black")
+            draw.rectangle((20, 72, 420, 180), outline="black", width=2)
+            draw.rectangle((32, 84, 92, 168), outline="gray", width=2)
+            draw.text((110, 88), "Adolf Hitler", fill="black")
+            draw.text((110, 120), "German dictator", fill="black")
+            draw.text((34, 145), "1945", fill="black")
+            draw.text((20, 215), "From Wikipedia, the free encyclopedia", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [
+                ([(50, 32), (100, 32), (100, 50), (50, 50)], ("hitler", .99)),
+                ([(350, 32), (390, 32), (390, 50), (350, 50)], ("^N3", .91)),
+                ([(110, 86), (220, 86), (220, 108), (110, 108)], ("Adolf Hitler", .99)),
+                ([(110, 118), (270, 118), (270, 134), (110, 134)], ("German dictator", .99)),
+                ([(34, 143), (72, 143), (72, 157), (34, 157)], ("1945", .95)),
+                ([(20, 213), (270, 213), (270, 230), (20, 230)], ("From Wikipedia, the free encyclopedia", .99)),
+            ]
+            elements = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))
+            results = [element for element in elements if element.actionable and element.text == "Adolf Hitler"]
+            self.assertEqual(len(results), 1)
+            result = results[0]
+            self.assertLessEqual(result.x, 110); self.assertLessEqual(result.y, 86)
+            self.assertGreaterEqual(result.x + result.width, 220); self.assertGreaterEqual(result.y + result.height, 108)
+            self.assertIn("German dictator", result.context); self.assertIn("1945", result.context)
+            search = next(element for element in elements if element.actionable and element.text == "hitler")
+            self.assertEqual(search.tag, "input")
+            self.assertFalse(any(element.actionable and element.text == "^N3"
+                                 and element.x < search.x + search.width and element.x + element.width > search.x
+                                 and element.y < search.y + search.height and element.y + element.height > search.y
+                                 for element in elements))
+            self.assertFalse(next(element for element in elements if element.text.startswith("From Wikipedia")).actionable)
+
+    def test_local_grounder_handles_search_contour_spanning_first_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            screenshot = Path(temp_dir) / "autocomplete.png"
+            image = Image.new("RGB", (460, 220), "white")
+            draw = ImageDraw.Draw(image)
+            draw.rectangle((20, 20, 420, 145), outline="black", width=2)  # real layout: outer contour starts at the input
+            draw.rectangle((20, 20, 370, 65), outline="black", width=2)
+            draw.rectangle((370, 20, 420, 65), fill="#36c")
+            draw.ellipse((385, 31, 399, 45), outline="white", width=2); draw.line((397, 43, 406, 52), fill="white", width=2)
+            draw.text((50, 34), "hitler", fill="black")
+            draw.rectangle((22, 66, 98, 143), outline="gray", width=2)
+            draw.text((110, 78), "Adolf Hitler", fill="black")
+            draw.text((110, 108), "German dictator", fill="black")
+            image.save(screenshot)
+            ocr = lambda _path: [
+                ([(50, 32), (100, 32), (100, 50), (50, 50)], ("hitler", .99)),
+                ([(110, 76), (220, 76), (220, 98), (110, 98)], ("Adolf Hitler", .99)),
+                ([(110, 106), (270, 106), (270, 124), (110, 124)], ("German dictator", .99)),
+            ]
+            elements = asyncio.run(LocalVisualGrounder(ocr).detect(screenshot))
+            search = next(item for item in elements if item.text == "hitler")
+            result = next(item for item in elements if item.text == "Adolf Hitler")
+            self.assertEqual((result.tag, result.actionable), ("menuitem", True))
+            self.assertGreaterEqual(result.y, search.y + search.height - 2)
+            self.assertIn("German dictator", result.context)
+            self.assertTrue(any(item.tag == "button" and item.text == "Search" and item.actionable for item in elements))
 
     def test_visual_grounder_clamps_and_deduplicates_boxes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -281,22 +521,39 @@ class CoreTests(unittest.TestCase):
             failed = [edge for _, _, edge in Agent(RepeatingPolicy(), config).graph.graph.edges(data=True) if not edge["success"]]
             self.assertEqual(len(failed), 2); self.assertTrue(all(edge["error"] == "blocked" for edge in failed))
 
-    def test_agent_batches_actions_and_records_timings(self) -> None:
+    def test_unverified_noop_is_recorded_as_ineffective(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             base, image_path = Path(temp_dir), Path(temp_dir) / "screen.png"
             Image.new("RGB", (100, 100), "white").save(image_path)
+            observation = Observation(str(image_path), str(image_path), [Element(1, "", "input", "query", "", "", "input", 0, 0, 50, 20)], "", "Search")
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision("click", 1)])})()
+            config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json", max_steps=1)
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()):
+                result = asyncio.run(Agent(policy, config).run(object(), "search"))
+            self.assertFalse(result.history[0].success)
+            self.assertEqual(result.history[0].error, "Action had no observable effect")
+
+    def test_agent_batches_actions_and_records_timings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base, image_path = Path(temp_dir), Path(temp_dir) / "screen.png"
+            changed_path = Path(temp_dir) / "changed.png"
+            Image.new("RGB", (100, 100), "white").save(image_path)
+            changed_image = Image.new("RGB", (100, 100), "white")
+            ImageDraw.Draw(changed_image).rectangle((10, 10, 20, 20), fill="black")
+            changed_image.save(changed_path)
             observation = Observation(str(image_path), str(image_path), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 10, 10)], "https://example.test", "Start")
+            changed = Observation(str(changed_path), str(changed_path), [Element(2, "", "text", "Complete", "", "", "text", 0, 0, 10, 10, actionable=False)], "https://example.test", "Complete")
 
             class BatchPolicy:
                 calls = 0
                 async def decide(self, *_):
                     self.calls += 1
                     return [ActionDecision(action="click", element_id=1, current_label="Start", next_label="Form"),
-                            ActionDecision(action="done", current_label="Form", grounding=(EvidenceRecord("element_text", "Go", 1),))]
+                            ActionDecision(action="done", current_label="Form", grounding=(EvidenceRecord("element_text", "Complete", 2),))]
 
             policy = BatchPolicy()
             config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json")
-            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)), patch("vision_gui_agent.agent.execute", new=AsyncMock()):
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[observation, changed])), patch("vision_gui_agent.agent.execute", new=AsyncMock()):
                 result = asyncio.run(Agent(policy, config).run(object(), "complete form"))
             self.assertTrue(result.completed); self.assertEqual(policy.calls, 1)
             import sqlite3
@@ -305,7 +562,7 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(len(db.execute("SELECT observe_ms, model_ms, execute_ms, persist_ms FROM transitions").fetchall()), 2)
             finally:
                 db.close()
-            self.assertEqual(Agent(policy, config).graph.graph.number_of_nodes(), 1)
+            self.assertEqual(Agent(policy, config).graph.graph.number_of_nodes(), 2)
 
     def test_verbose_mode_prints_action_and_observation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -325,7 +582,7 @@ class CoreTests(unittest.TestCase):
         valid = [
             {"kind": "page_changed"}, {"kind": "element_visible", "pattern": "Ready"}, {"kind": "element_enabled", "pattern": "Continue"},
             {"kind": "element_absent", "pattern": "Loading"}, {"kind": "element_value", "element_id": 1, "expected": "x"},
-            {"kind": "download_created"},
+            {"kind": "element_changed", "element_id": 1}, {"kind": "download_created"},
         ]
         for verify in valid:
             action = "click" if verify["kind"] in {"download_created", "page_changed"} else "done"
@@ -339,6 +596,42 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": verify})
         with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "page_changed"}})
         with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "download_created"}})
+
+    def test_element_value_verification_survives_ocr_id_reordering(self) -> None:
+        source = Observation("", "", [Element(12, "", "input", "Search by subject...", "", "", "input", 430, 273, 575, 50)], "", "Search")
+        latest = Observation("", "", [Element(12, "", "text", "17", "", "", "text", 438, 328, 32, 34),
+                                          Element(11, "", "text", "Software Engineering", "", "", "text", 440, 286, 180, 25)], "", "Results")
+        result = asyncio.run(verify(None, source, latest, VerificationCondition("element_value", element_id=12, expected="Software Engineering"), 6))
+        self.assertEqual(result.status, "passed")
+
+    def test_visible_field_context_is_valid_value_evidence(self) -> None:
+        source = Observation("", "", [Element(1, "", "button", "Depart", "", "", "button", 0, 0, 100, 40,
+                                                   context="Depart Add date")], "", "Form")
+        latest = Observation("", "", [Element(7, "", "button", "Depart", "", "", "button", 0, 0, 100, 40,
+                                                   context="Depart 01/09/2026")], "", "Form")
+        condition = VerificationCondition("element_value", element_id=1, expected="01/09/2026")
+        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "passed")
+
+    def test_element_visible_requires_a_newly_visible_element(self) -> None:
+        source = Observation("", "", [Element(1, "", "text", "Ready", "", "", "text", 0, 0, 10, 10)], "", "Before")
+        latest = Observation("", "", [Element(1, "", "text", "Ready", "", "", "text", 0, 0, 10, 10)], "", "After")
+        result = asyncio.run(verify(None, source, latest, VerificationCondition("element_visible", pattern="Ready"), 6))
+        self.assertEqual(result.status, "failed")
+
+    def test_presatisfied_state_verification_is_detected_before_execution(self) -> None:
+        observation = Observation("", "", [Element(1, "", "button", "Apply", "", "", "button", 0, 0, 10, 10)], "", "Form")
+        self.assertTrue(already_satisfied(observation, VerificationCondition("element_visible", pattern="Apply")))
+        self.assertFalse(already_satisfied(observation, VerificationCondition("element_changed", element_id=1)))
+
+    def test_element_changed_verifies_only_the_target_region(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            before_path, after_path = Path(temp_dir) / "before.png", Path(temp_dir) / "after.png"
+            before = Image.new("RGB", (40, 40), "white"); after = before.copy()
+            ImageDraw.Draw(after).rectangle((10, 10, 20, 20), fill="black")
+            before.save(before_path); after.save(after_path)
+            element = Element(1, "", "checkbox", "Choose", "", "", "checkbox", 10, 10, 11, 11)
+            result = asyncio.run(verify(None, Observation(str(before_path), "", [element], "", ""), Observation(str(after_path), "", [element], "", ""), VerificationCondition("element_changed", element_id=1), 6))
+            self.assertEqual(result.status, "passed")
 
     def test_graph_url_identity_includes_query_and_legacy_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

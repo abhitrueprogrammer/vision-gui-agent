@@ -39,5 +39,5 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
         await page.keyboard.type(decision.text or ""); await page.keyboard.press("Enter")
     elif decision.action == "press":
         await page.keyboard.press(decision.key or "Enter")
-    await page.wait_for_timeout(350)
+    await page.wait_for_timeout(750 if decision.action in {"fill", "select"} else 350)
     return None

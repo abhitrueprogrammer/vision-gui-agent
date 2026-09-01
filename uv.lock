@@ -1718,7 +1718,7 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.62.0" },
     { name = "pyautogui", specifier = ">=0.9.54" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "rapidocr", specifier = ">=3.4.0" },
+    { name = "rapidocr", specifier = ">=3.9.2" },
 ]
 
 [[package]]

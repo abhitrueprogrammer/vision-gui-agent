@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+from tempfile import NamedTemporaryFile
 from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from uuid import uuid4
@@ -49,6 +51,8 @@ class StateGraph:
         if not path.exists():
             return cls(hash_threshold)
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("nodes"), list) or not isinstance(data.get("edges"), list):
+            raise ValueError("malformed state-graph export")
         return cls(hash_threshold, nx.node_link_graph(data, edges="edges", directed=True, multigraph=True))
 
     def add_observation(self, observation: Observation, label: str | None = None) -> tuple[str, bool]:
@@ -98,7 +102,10 @@ class StateGraph:
 
     @staticmethod
     def replay_key(decision: ActionDecision) -> str:
-        return json.dumps({name: getattr(decision, name) for name in ("action", "element_id", "text", "key", "direction")}, sort_keys=True)
+        target = sorted((item.source, " ".join((item.expected or "").casefold().split())) for item in decision.grounding
+                        if item.expected and item.source in {"element_text", "value", "aria_label", "role", "tag"})
+        return json.dumps({"action": decision.action, "target": target or decision.element_id,
+                           "text": decision.text, "key": decision.key, "direction": decision.direction}, sort_keys=True)
 
     def context(self, current: str, path: list[str], max_neighbors: int = 8) -> dict:
         attributes = self.graph.nodes[current]
@@ -156,6 +163,6 @@ class StateGraph:
 
     def export(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(json.dumps(nx.node_link_data(self.graph, edges="edges"), indent=2), encoding="utf-8")
-        temporary.replace(path)
+        with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as file:
+            json.dump(nx.node_link_data(self.graph, edges="edges"), file, indent=2); file.write("\n"); temporary = file.name
+        os.replace(temporary, path)

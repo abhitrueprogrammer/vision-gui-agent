@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, Observation
+from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, Observation, VerificationCondition
 from .visual_function_lab import ACTIONS, BUTTON_COLORS, STATUS_COLORS, TaskSpec
 
 
@@ -84,12 +84,19 @@ class BenchmarkTaskPolicy:
 
     async def decide(self, _goal: str, observation: Observation, _context: dict, _history: list[ActionRecord]) -> list[ActionDecision]:
         if self.index >= len(self.task.actions):
-            target = next((item for item in observation.elements if item.actionable), None)
-            if target is None: raise ValueError("No visible control available to ground benchmark completion")
-            return [ActionDecision.from_dict({"action": "done", "verify": {"kind": "element_visible", "pattern": target.text}})]
+            effects = ACTIONS[self.task.actions[-1]].effects
+            labels = {f"{key.replace('_', ' ')}: {str(value).lower()}" for key, value in effects.items()}
+            target = next((item for item in observation.elements if not item.actionable and item.text in labels), None)
+            if target is None: raise ValueError("No visible final-state evidence available to ground benchmark completion")
+            return [ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))]
         action = self.task.actions[self.index]; self.index += 1
         label = ACTIONS[action].label
         target = next((item for item in observation.elements if item.actionable and item.text == label), None)
         if target is None: raise ValueError(f"Rendered target not found by pixel grounder: {label}")
+        visible = {item.text for item in observation.elements}
+        changed = next((f"{key.replace('_', ' ')}: {str(value).lower()}"
+                        for key, value in ACTIONS[action].effects.items()
+                        if f"{key.replace('_', ' ')}: {str(value).lower()}" not in visible), None)
         return [ActionDecision(action="click", element_id=target.id, grounding=(EvidenceRecord("element_text", label, target.id),),
-                               verify=None, rationale="Benchmark calibration action")]
+                               verify=VerificationCondition("element_visible", pattern=changed) if changed else None,
+                               rationale="Benchmark calibration action")]

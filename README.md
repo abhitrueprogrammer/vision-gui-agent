@@ -11,7 +11,12 @@ uv sync
 uv run playwright install chromium
 ```
 
-Add `GEMINI_API_KEY=...` to `.env`.
+Add one or two Gemini keys to `.env`. When Gemini returns `RESOURCE_EXHAUSTED`, the agent retries the request with the next key.
+
+```dotenv
+GEMINI_API_KEY=first-key
+GEMINI_API_KEY_2=second-key
+```
 
 Local OCR/CV grounding is the default: screenshots stay local while Gemini plans from the detected controls. OCR models are downloaded once and cached locally. Use `--grounder gemini` only to opt back into Gemini visual detection.
 

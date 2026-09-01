@@ -5,7 +5,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .models import ActionDecision, Element, Observation, VerificationResult
+from .models import ActionDecision, Element, ExperimentPlan, Observation, VerificationResult
 
 
 class RunLogger:
@@ -24,6 +24,14 @@ class RunLogger:
             observe_ms REAL NOT NULL DEFAULT 0, model_ms REAL NOT NULL DEFAULT 0,
             execute_ms REAL NOT NULL DEFAULT 0, persist_ms REAL NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        self.connection.execute("""CREATE TABLE IF NOT EXISTS experiments (
+            run_id TEXT NOT NULL, experiment_id TEXT NOT NULL, planned_step INTEGER NOT NULL,
+            target_schema_id TEXT NOT NULL, candidate_predicate TEXT NOT NULL,
+            intervention_actions_json TEXT NOT NULL, expected_value_json TEXT NOT NULL,
+            safety_class TEXT NOT NULL, estimated_cost INTEGER NOT NULL, status TEXT NOT NULL,
+            outcome_class TEXT, effect_observed INTEGER, evidence_id TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(run_id, experiment_id))""")
         existing = {row[1] for row in self.connection.execute("PRAGMA table_info(transitions)")}
         for name, definition in {"observation_json": "TEXT NOT NULL DEFAULT '{}'", "graph_context_json": "TEXT NOT NULL DEFAULT '{}'",
                                  "observe_ms": "REAL NOT NULL DEFAULT 0", "model_ms": "REAL NOT NULL DEFAULT 0",
@@ -71,6 +79,21 @@ class RunLogger:
         self.connection.execute("""UPDATE transitions SET before_predicates_json=?, after_predicates_json=?, semantic_action=?,
             intended_effect=?, outcome_class=?, schema_id=?, decision_source=?, experiment_id=?, evidence_class=? WHERE run_id=? AND step=?""",
             (json.dumps(before), json.dumps(after), semantic_action, intended_effect, outcome, schema_id, source, experiment_id, evidence_class, run_id, step))
+        self.connection.commit()
+
+    def start_experiment(self, run_id: str, step: int, plan: ExperimentPlan) -> None:
+        self.connection.execute("""INSERT INTO experiments(run_id,experiment_id,planned_step,target_schema_id,
+            candidate_predicate,intervention_actions_json,expected_value_json,safety_class,estimated_cost,status)
+            VALUES(?,?,?,?,?,?,?,?,?,'running')""",
+            (run_id, plan.id, step, plan.target_schema_id, plan.candidate_predicate,
+             json.dumps(plan.intervention_actions), json.dumps(plan.expected_value), plan.safety_class, plan.estimated_cost))
+        self.connection.commit()
+
+    def finish_experiment(self, run_id: str, experiment_id: str, outcome: str,
+                          effect_observed: bool | None, evidence_id: str) -> None:
+        self.connection.execute("""UPDATE experiments SET status='completed', outcome_class=?, effect_observed=?, evidence_id=?
+            WHERE run_id=? AND experiment_id=?""",
+            (outcome, None if effect_observed is None else int(effect_observed), evidence_id, run_id, experiment_id))
         self.connection.commit()
 
     def finish_run(self, run_id: str, completed: bool, steps: int, final_node: str, error: str | None) -> None:

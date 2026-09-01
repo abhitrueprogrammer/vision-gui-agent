@@ -3,17 +3,16 @@ from __future__ import annotations
 import asyncio
 import json
 import math
-import os
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
-from playwright.async_api import Page
+from playwright.async_api import Error as PlaywrightError, Page
 
 from .models import Element, Observation
+from .gemini import GeminiClientPool
 
 
 class VisualGrounder(Protocol):
@@ -30,7 +29,7 @@ class LocalVisualGrounder:
                 from rapidocr import RapidOCR
             except ImportError as exc:
                 raise RuntimeError("Local visual grounding requires rapidocr and onnxruntime; run uv sync") from exc
-            ocr = RapidOCR()
+            ocr = RapidOCR(params={"Det.box_thresh": .35})
         self.ocr = ocr
 
     @staticmethod
@@ -45,7 +44,27 @@ class LocalVisualGrounder:
             texts = texts if texts is not None else result.get("txts")
             scores = scores if scores is not None else result.get("scores")
         if boxes is not None and texts is not None:
-            return [(list(box), str(text), float(score)) for box, text, score in zip(boxes, texts, scores if scores is not None else [1] * len(texts))]
+            records = [(list(box), str(text), float(score)) for box, text, score in zip(boxes, texts, scores if scores is not None else [1] * len(texts))]
+            word_results = getattr(result, "word_results", ())
+            if len(word_results) != len(records): return records
+            split = []
+            for record, words in zip(records, word_results):
+                groups: list[list[tuple[str, float, list[tuple[float, float]]]]] = []
+                for word in words or ():
+                    if not isinstance(word, (tuple, list)) or len(word) < 3 or not str(word[0]).strip(): continue
+                    text, score, points = str(word[0]), float(word[1]), list(word[2])
+                    if groups:
+                        previous = groups[-1][-1][2]
+                        height = max(point[1] for point in previous) - min(point[1] for point in previous)
+                        if min(point[0] for point in points) - max(point[0] for point in previous) > max(8, height * .6): groups.append([])
+                    if not groups: groups.append([])
+                    groups[-1].append((text, score, points))
+                if len(groups) < 2:
+                    split.append(record); continue
+                for group in groups:
+                    points = [point for _, _, word_points in group for point in word_points]
+                    split.append((points, " ".join(word[0] for word in group), min(word[1] for word in group)))
+            return split
         records = []
         for item in result or []:
             if not isinstance(item, (list, tuple)) or len(item) < 2: continue
@@ -53,6 +72,16 @@ class LocalVisualGrounder:
             text, score = (text_score, 1) if isinstance(text_score, str) else (text_score[0], text_score[1])
             records.append((list(box), str(text), float(score)))
         return records
+
+    @staticmethod
+    def _is_link(image: Any, left: float, top: float, right: float, bottom: float) -> bool:
+        """Recognize conventional saturated-blue link text from pixels."""
+        crop = image[max(0, int(top)):min(image.shape[0], int(bottom)), max(0, int(left)):min(image.shape[1], int(right))]
+        if not crop.size: return False
+        blue, _, red = crop[..., 0].astype("int16"), crop[..., 1], crop[..., 2].astype("int16")
+        saturated_blue = (blue > red + 70) & (blue > 100) & (crop[..., 1] < 200)
+        ink = crop.min(axis=2) < 220
+        return bool(ink.any() and saturated_blue.mean() <= .5 and saturated_blue.sum() / ink.sum() >= .5)
 
     @staticmethod
     def _kind(label: str) -> str:
@@ -67,15 +96,28 @@ class LocalVisualGrounder:
             import numpy as np
         except ImportError as exc:
             raise RuntimeError("Local visual grounding requires OpenCV; run uv sync") from exc
-        raw = await asyncio.to_thread(self.ocr, str(screenshot))
+        try:
+            raw = await asyncio.to_thread(self.ocr, str(screenshot), return_word_box=True)
+        except TypeError:  # Lightweight injected OCR fakes and older engines accept only a path.
+            raw = await asyncio.to_thread(self.ocr, str(screenshot))
         image = cv2.imread(str(screenshot))
         if image is None: raise ValueError(f"Cannot read screenshot: {screenshot}")
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         boxes = [cv2.boundingRect(contour) for contour in contours]
+        records = self._records(raw)
+        record_bounds = []
+        for points, text, score in records:
+            if score < .7 or not text.strip() or len(points) < 4: continue
+            xs, ys = [point[0] for point in points], [point[1] for point in points]
+            record_bounds.append((min(xs), min(ys), max(xs), max(ys), " ".join(text.split())))
+        search_boxes = [(x, y, w, h) for x, y, w, h in boxes
+                        if 20 <= h <= 80 and w / h >= 4
+                        and any(x <= left and y <= top and x + w >= right and y + h >= bottom
+                                for left, top, right, bottom, _ in record_bounds)]
         elements: list[Element] = []
-        for points, text, score in self._records(raw):
+        for points, text, score in records:
             if score < .7 or not text.strip() or len(points) < 4: continue
             xs, ys = [point[0] for point in points], [point[1] for point in points]
             left, top, right, bottom = min(xs), min(ys), max(xs), max(ys)
@@ -84,16 +126,115 @@ class LocalVisualGrounder:
             candidates = [(x, y, w, h) for x, y, w, h in boxes
                           if x <= left and y <= top and x + w >= right and y + h >= bottom
                           and w >= width + 12 and h >= height + 8 and w * h <= max(width * height * 8, 20_000)]
+            candidates = [box for box in candidates if not any(
+                box[0] <= other_left and box[1] <= other_top
+                and box[0] + box[2] >= other_right and box[1] + box[3] >= other_bottom
+                and (other_right <= left or other_left >= right)
+                and other_text.replace(" ", "").isalnum()
+                and abs((other_top + other_bottom - top - bottom) / 2) <= max(height, other_bottom - other_top) * .6
+                for other_left, other_top, other_right, other_bottom, other_text in record_bounds
+            )]
             if candidates:
-                x, y, w, h = min(candidates, key=lambda box: box[2] * box[3]); kind, actionable = self._kind(text), True
+                x, y, w, h = min(candidates, key=lambda box: box[2] * box[3])
+                kind, actionable = ("input" if h <= 80 and w / h >= 4 else self._kind(text)), True
                 # Disabled labels are visibly low-contrast.  Treat uncertain text as evidence, never a click target.
                 label_pixels = gray[max(0, int(top)):min(gray.shape[0], int(bottom)), max(0, int(left)):min(gray.shape[1], int(right))]
                 actionable = bool(label_pixels.size and float(np.percentile(label_pixels, 2)) < 160)
             else:
                 x, y, w, h, kind, actionable = left, top, width, height, "text", False
+                # An outlined square immediately before a label is a visible checkbox even when
+                # OCR recognizes only the label.  Treat the pair as one control.
+                checkboxes = []
+                for bx, by, bw, bh in boxes:
+                    if not (8 <= bw <= 28 and 8 <= bh <= 28 and .5 <= bw / bh <= 2
+                            and 0 <= left - (bx + bw) <= 28 and abs((by + bh / 2) - (top + height / 2)) <= max(height, bh)):
+                        continue
+                    contains_text = any(other_text != text and other_score >= .7 and len(other_points) >= 4
+                                        and bx < max(point[0] for point in other_points) and bx + bw > min(point[0] for point in other_points)
+                                        and by < max(point[1] for point in other_points) and by + bh > min(point[1] for point in other_points)
+                                        for other_points, other_text, other_score in records)
+                    if not contains_text:
+                        checkboxes.append((bx, by, bw, bh))
+                if checkboxes:
+                    bx, by, bw, bh = min(checkboxes, key=lambda box: left - (box[0] + box[2]))
+                    x, y, w, h, kind, actionable = bx, by, bw, bh, "checkbox", True
+                else:
+                    markers = [(bx, by, bw, bh) for bx, by, bw, bh in boxes
+                               if 12 <= bw <= 48 and 12 <= bh <= 48 and .5 <= bw / bh <= 2
+                               and 0 <= left - (bx + bw) <= 28 and abs((by + bh / 2) - (top + height / 2)) <= max(height, bh)]
+                    if markers:
+                        bx, by, bw, bh = min(markers, key=lambda box: left - (box[0] + box[2]))
+                        x, y, w, h, kind, actionable = bx, min(by, top), right - bx, max(by + bh, bottom) - min(by, top), "button", True
+            if kind == "text" and self._is_link(image, left, top, right, bottom):
+                kind, actionable = "link", True
+            containers = [(bx, by, bw, bh) for bx, by, bw, bh in boxes
+                          if bx <= x and by <= y and bx + bw >= x + w and by + bh >= y + h
+                          and bw * bh > w * h * 2 and bw * bh <= image.shape[0] * image.shape[1] * .75]
+            context = ""
+            container = None
+            for bx, by, bw, bh in sorted(containers, key=lambda box: box[2] * box[3]):
+                enclosed = [record for record in record_bounds
+                            if bx <= record[0] and by <= record[1] and bx + bw >= record[2] and by + bh >= record[3]]
+                labels = [record[4] for record in sorted(enclosed, key=lambda record: (record[1], record[0]))]
+                if len(labels) >= 2:
+                    container, context = (bx, by, bw, bh), " ".join(labels)
+                    search = next(((sx, sy, sw, sh) for sx, sy, sw, sh in search_boxes
+                                   if max(0, min(sx + sw, bx + bw) - max(sx, bx)) >= min(sw, bw) * .7
+                                   and (sy + sh <= by <= sy + sh + 40
+                                        or by <= sy + 2 < sy + sh < by + bh and top >= sy + sh - 4)), None)
+                    row_y = by
+                    if search:
+                        row_y = max(by, search[1] + search[3])
+                    row_records = [record for record in enclosed if record[1] >= row_y - 4]
+                    primary = max(row_records or enclosed, key=lambda record: (record[3] - record[1], sum(char.isalpha() for char in record[4]), -record[1]))
+                    # ponytail: this only promotes a multi-line card aligned directly below a visible search field;
+                    # add cross-row grouping if borderless result lists need support.
+                    if search: row_h = by + bh - row_y
+                    if (not actionable and search and 35 <= row_h <= 180 and bw / row_h >= 2
+                            and primary[:4] == (left, top, right, bottom)):
+                        x, y, w, h, kind, actionable = bx, row_y, bw, row_h, "menuitem", True
+                    break
             candidate = Element(len(elements) + 1, "", kind, " ".join(text.split())[:200], "", "", kind,
-                                float(x), float(y), float(w), float(h), actionable=actionable)
-            if not any(_same_detection(candidate, existing) for existing in elements): elements.append(candidate)
+                                float(x), float(y), float(w), float(h), actionable=actionable,
+                                context=context[:500], context_bounds=tuple(map(float, container)) if context else None)
+            duplicate = next((index for index, existing in enumerate(elements) if _same_detection(candidate, existing)), None)
+            if duplicate is None:
+                elements.append(candidate)
+            elif _detection_quality(candidate) > _detection_quality(elements[duplicate]):
+                elements[duplicate] = replace(candidate, id=elements[duplicate].id)
+        # OCR cannot see an empty field. Pair wide control outlines with the label immediately
+        # above them so empty inputs, textareas, selects, and date fields remain actionable.
+        field_boxes = [(x, y, w, h) for x, y, w, h in set(boxes) if 30 <= h <= 140 and w >= 120 and w / h >= 2.5]
+        field_boxes = [box for box in field_boxes if not any(
+            other != box and other[0] <= box[0] and other[1] <= box[1]
+            and other[0] + other[2] >= box[0] + box[2] and other[1] + other[3] >= box[1] + box[3]
+            and other[2] * other[3] <= box[2] * box[3] * 1.25
+            for other in field_boxes)]
+        for x, y, w, h in sorted(field_boxes, key=lambda box: (box[1], box[0])):
+            labels = [record for record in record_bounds
+                      if -20 <= record[0] - x <= 20 and -8 <= y - record[3] <= 40]
+            if not labels: continue
+            label = min(labels, key=lambda record: (abs(y - record[3]), abs(record[0] - x)))[4]
+            word = label.casefold()
+            kind = "textarea" if h >= 60 else "select" if "select" in word or "dropdown" in word and "datalist" not in word else "input"
+            actionable = not any(token in word for token in ("disabled", "readonly", "file input"))
+            elements = [replace(item, actionable=False) if x <= item.x + item.width / 2 <= x + w
+                        and y <= item.y + item.height / 2 <= y + h else item for item in elements]
+            values = [record[4] for record in record_bounds
+                      if x <= (record[0] + record[2]) / 2 <= x + w and y <= (record[1] + record[3]) / 2 <= y + h]
+            elements.append(Element(len(elements) + 1, "", kind, label, "", "", kind,
+                                    float(x), float(y), float(w), float(h), value=" ".join(values)[:200], actionable=actionable))
+        for field in [item for item in elements if item.tag == "input" and item.height <= 60]:
+            sx, sy, sw, sh = field.x, field.y, field.width, field.height
+            icons = [(bx, by, bw, bh) for bx, by, bw, bh in boxes
+                     if 8 <= bw <= 48 and 8 <= bh <= 48 and .5 <= bw / bh <= 2
+                     and 0 <= bx - (sx + sw) <= 40 and sy <= by + bh / 2 <= sy + sh]
+            if icons:
+                bx, by, bw, bh = max(icons, key=lambda box: box[2] * box[3])
+                candidate = Element(len(elements) + 1, "", "button", "Search", "", "", "button",
+                                    float(bx), float(by), float(bw), float(bh), actionable=True)
+                if not any(_same_detection(candidate, existing) for existing in elements):
+                    elements.append(candidate)
         return elements
 
 
@@ -101,19 +242,8 @@ class GeminiVisualGrounder:
     """Detect actionable screen regions from pixels only."""
 
     def __init__(self, model: str = "gemini-3.6-flash", key_slot: int | None = None) -> None:
-        load_dotenv()
-        if key_slot is not None:
-            from .decision import configured_gemini_keys
-            keys = configured_gemini_keys()
-            if not 1 <= key_slot <= len(keys): raise RuntimeError(f"GEMINI key slot {key_slot} is unavailable")
-            key = keys[key_slot - 1]
-        else:
-            key = os.getenv("GEMINI_API_KEY")
-        if not key:
-            raise RuntimeError("GEMINI_API_KEY is required for visual perception")
-        from google import genai
-        from google.genai import types
-        self.client, self.types, self.model = genai.Client(api_key=key), types, model
+        self._clients = GeminiClientPool(key_slot)
+        self.client, self.types, self.model = self._clients.client, self._clients.types, model
         self.last_label = "Visual screen"
 
     async def refine(self, screenshot: Path, target: Element) -> Element | None:
@@ -129,12 +259,12 @@ class GeminiVisualGrounder:
             prompt = (f"This is a {crop.width}x{crop.height} crop from a screenshot. Locate only the visible control "
                       f"labelled {target.text!r}. Return JSON only: {{\"found\":true|false,\"x\":number,\"y\":number,"
                       "\"width\":number,\"height\":number}}. Coordinates are crop-relative pixels and must tightly cover that control.")
-            response = self.client.models.generate_content(
+            response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 contents=[self.types.Part.from_bytes(data=output.getvalue(), mime_type="image/jpeg"), prompt],
                 config=self.types.GenerateContentConfig(response_mime_type="application/json",
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)),
-            )
+            ))
             return response.text
 
         try:
@@ -156,7 +286,7 @@ class GeminiVisualGrounder:
         def generate() -> str:
             prompt = f"""Inspect this {image_size[0]}x{image_size[1]} screenshot only. Do not use or assume HTML, DOM, accessibility metadata, URLs, or hidden state.
 Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}}. Include every visible actionable control and the small number of headings, messages, selected values, or status text needed to distinguish this screen. Each item must be {{\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"label\":\"visible text, visible field value, or short visual description\",\"value\":\"visible field value or empty\",\"actionable\":true|false,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}. Coordinates must be pixels in the stated native screenshot size, boxes must tightly cover the visible region, and uncertain regions must be omitted. Text/status evidence is actionable=false."""
-            response = self.client.models.generate_content(
+            response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 # Detection coordinates must use the screenshot's native pixel grid.
                 contents=[self.types.Part.from_bytes(data=model_image(str(screenshot), max_width=10000), mime_type="image/jpeg"), prompt + " Visibly greyed-out, faded, or disabled controls are not actionable; report them as actionable=false if included."],
@@ -164,7 +294,7 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
                     response_mime_type="application/json",
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True),
                 ),
-            )
+            ))
             return response.text
 
         raw = await asyncio.to_thread(generate)
@@ -196,35 +326,57 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
             kind = kind if kind in {"button", "link", "input", "select", "textarea", "checkbox", "menuitem", "text", "other"} else "other"
             raw_actionable = item.get("actionable")
             actionable = (raw_actionable if isinstance(raw_actionable, bool) else kind != "text") and kind != "text"
+            context, bounds = item.get("context", ""), item.get("context_bounds")
+            if not isinstance(context, str): context = ""
+            try: bounds = tuple(float(value) for value in bounds) if isinstance(bounds, list) and len(bounds) == 4 else None
+            except (TypeError, ValueError): bounds = None
             candidate = Element(len(elements) + 1, "", kind, label, "", "", kind, x1, y1, x2 - x1, y2 - y1,
-                                value=str(item.get("value", "")).strip()[:200], actionable=actionable)
+                                value=str(item.get("value", "")).strip()[:200], actionable=actionable, context=context.strip()[:500], context_bounds=bounds)
             if any(_same_detection(candidate, existing) for existing in elements):
                 continue
             elements.append(candidate)
         return elements
 
+    def _generate(self, request):
+        return self._clients.generate(request) if hasattr(self, "_clients") else request(self.client)
+
 
 async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGrounder | None) -> Observation:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     raw_path, marked_path = artifact_dir / f"step-{step:03d}.png", artifact_dir / f"step-{step:03d}-marked.png"
-    await page.screenshot(path=str(raw_path), full_page=False)
     if grounder is None:
         raise RuntimeError("A screenshot-native visual grounder is required")
-    elements = await grounder.detect(raw_path)
-    if isinstance(grounder, LocalVisualGrounder) and not any(element.actionable for element in elements):
-        raise RuntimeError("Local visual grounding found no reliable actionable controls")
+    for perception_attempt in range(10):
+        for screenshot_attempt in range(3):
+            try:
+                await page.screenshot(path=str(raw_path), full_page=False)
+                break
+            except PlaywrightError:
+                if screenshot_attempt == 2: raise
+                await asyncio.sleep(.25)
+        elements = await grounder.detect(raw_path)
+        if not isinstance(grounder, LocalVisualGrounder) or elements:
+            break
+        if perception_attempt == 9:
+            raise RuntimeError("Local visual grounding found no reliable visual elements")
+        await asyncio.sleep(.5)
     draw_set_of_mark(raw_path, marked_path, elements)
     return Observation(str(raw_path), str(marked_path), elements, "", getattr(grounder, "last_label", "Visual screen"))
 
 
 def _same_detection(left: Element, right: Element) -> bool:
-    if left.tag != right.tag or " ".join(left.text.casefold().split()) != " ".join(right.text.casefold().split()):
-        return False
     overlap_width = max(0.0, min(left.x + left.width, right.x + right.width) - max(left.x, right.x))
     overlap_height = max(0.0, min(left.y + left.height, right.y + right.height) - max(left.y, right.y))
     intersection = overlap_width * overlap_height
     union = left.width * left.height + right.width * right.height - intersection
-    return bool(union and intersection / union >= .6)
+    same_label = (left.tag == right.tag
+                  and " ".join(left.text.casefold().split()) == " ".join(right.text.casefold().split()))
+    return bool(union and intersection / union >= (.6 if same_label else .85))
+
+
+def _detection_quality(element: Element) -> tuple[bool, bool, int, int]:
+    label = " ".join(element.text.split())
+    return element.actionable, element.tag != "text", sum(char.isalpha() for char in label), -sum(not (char.isalnum() or char.isspace()) for char in label)
 
 
 def model_image(path: str, max_width: int = 960, quality: int = 70) -> bytes:
@@ -243,6 +395,9 @@ def draw_set_of_mark(source: Path, destination: Path, elements: list[Element]) -
     for element in elements:
         x1, y1, x2, y2 = int(element.x), int(element.y), int(element.x + element.width), int(element.y + element.height)
         color = "#ff2056" if element.actionable else "#246bfd"
-        draw.rectangle((x1, y1, x2, y2), outline=color, width=2); bbox = draw.textbbox((x1, y1), str(element.id), font=font)
-        draw.rectangle((x1, y1, bbox[2] + 5, bbox[3] + 4), fill=color); draw.text((x1 + 2, y1 + 1), str(element.id), fill="white", font=font)
+        draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
+        bbox = draw.textbbox((0, 0), str(element.id), font=font)
+        label_y = max(0, y1 - (bbox[3] - bbox[1]) - 4) if element.width < 50 or element.height < 25 else y1
+        draw.rectangle((x1, label_y, x1 + bbox[2] + 5, label_y + bbox[3] + 4), fill=color)
+        draw.text((x1 + 2, label_y + 1), str(element.id), fill="white", font=font)
     image.save(destination)

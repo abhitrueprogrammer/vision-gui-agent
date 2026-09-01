@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from pathlib import Path
+from urllib.parse import urlencode, urljoin
 
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
@@ -50,6 +51,8 @@ async def _run(args: argparse.Namespace) -> int:
             memory_mode=args.memory_mode,
             min_schema_confidence=args.min_schema_confidence,
             max_plan_depth=args.max_plan_depth,
+            experiment_budget=args.experiment_budget,
+            experiment_sandbox=bool(args.benchmark_reset and args.benchmark_grounder),
         )
         policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
                               key_slot=args.gemini_key_slot)
@@ -60,6 +63,7 @@ async def _run(args: argparse.Namespace) -> int:
             from .benchmark_agent import PixelBenchmarkGrounder
             grounder = PixelBenchmarkGrounder()
         if args.desktop:
+            if args.benchmark_reset: raise ValueError("--benchmark-reset is available only for the local browser benchmark")
             from .desktop import DesktopPage
             result = await Agent(policy, config, grounder).run(DesktopPage(), args.goal)
         else:
@@ -67,6 +71,8 @@ async def _run(args: argparse.Namespace) -> int:
                 browser = await playwright.chromium.launch(headless=not args.headed)
                 context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1440, "height": 1000})
                 page = await context.new_page()
+                if args.benchmark_reset:
+                    await page.goto(urljoin(args.url, "/reset?") + urlencode({"state": args.benchmark_reset}), wait_until="domcontentloaded")
                 await page.goto(args.url, wait_until="domcontentloaded")
                 result = await Agent(policy, config, grounder).run(page, args.goal)
         print(f"run_id={result.run_id} completed={result.completed} steps={result.steps} final_node={result.final_node_id}")
@@ -100,7 +106,8 @@ def main() -> None:
     parser.add_argument("--experiment-budget", type=int, default=0, help="reserved active experiments; active mode is sandbox-only")
     parser.add_argument("--min-schema-confidence", type=float, default=.6)
     parser.add_argument("--max-plan-depth", type=int, default=4)
-    parser.add_argument("--benchmark-reset", help="named deterministic Visual Function Lab reset state")
+    from .visual_function_lab import INITIAL_STATES
+    parser.add_argument("--benchmark-reset", choices=INITIAL_STATES, help="named deterministic Visual Function Lab reset state")
     parser.add_argument("--benchmark-grounder", action="store_true", help="use the screenshot-only calibration grounder for Visual Function Lab")
     parser.add_argument("--gemini-key-slot", type=int, choices=[1, 2], help="select a configured Gemini key slot without exposing it")
     parser.add_argument("--metrics", action="store_true", help="print metrics for recorded runs")
@@ -120,6 +127,10 @@ def main() -> None:
         parser.error("--max-steps must be at least 1")
     if args.experiment_budget < 0 or not 0 <= args.min_schema_confidence <= 1 or args.max_plan_depth < 1:
         parser.error("invalid action-model bounds")
+    if args.experiment_budget and args.memory_mode != "active-action-model":
+        parser.error("--experiment-budget requires --memory-mode active-action-model")
+    if args.experiment_budget and (not args.benchmark_reset or not args.benchmark_grounder):
+        parser.error("active experiments require --benchmark-reset and --benchmark-grounder")
     raise SystemExit(asyncio.run(_run(args)))
 
 
