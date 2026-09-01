@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+from datetime import date
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-ActionType = Literal["click", "fill", "select", "press", "scroll", "done"]
-VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "element_changed", "download_created"]
+ActionType = Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "done"]
+VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "element_checked", "element_filename", "element_color", "element_range", "element_changed", "download_created"]
 ConstraintStatus = Literal["unproven", "proven", "unavailable"]
 Impact = Literal["harmless", "high"]
+
+
+def json_value(value: Any) -> Any:
+    """Convert OCR/OpenCV scalar values before artifacts reach json.dumps."""
+    if isinstance(value, dict): return {str(key): json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)): return [json_value(item) for item in value]
+    item = getattr(value, "item", None)
+    return item() if callable(item) else value
 
 
 @dataclass(frozen=True)
@@ -22,14 +31,16 @@ class VerificationCondition:
         kind = raw.get("kind")
         fields = {"page_changed": {"kind"}, "download_created": {"kind"}, "element_visible": {"kind", "pattern"}, "element_enabled": {"kind", "pattern"},
                   "element_absent": {"kind", "pattern"}, "element_value": {"kind", "element_id", "expected"}, "element_changed": {"kind", "element_id"}}
+        fields["element_checked"] = {"kind", "element_id", "expected"}
+        fields.update({kind: {"kind", "element_id", "expected"} for kind in ("element_filename", "element_color", "element_range")})
         if kind not in fields or set(raw) != fields[kind]: raise ValueError(f"Invalid verification condition: {kind!r}")
         if "pattern" in fields[kind] and (not isinstance(raw["pattern"], str) or not raw["pattern"].strip()): raise ValueError("verify pattern must be a non-empty string")
-        if kind == "element_value":
+        if kind in {"element_value", "element_checked", "element_filename", "element_color", "element_range"}:
             ident = raw["element_id"]
             if isinstance(ident, str):
                 try: ident = int(ident)
                 except ValueError: raise ValueError("verify element_id must be a positive integer") from None
-            if not isinstance(ident, int) or isinstance(ident, bool) or ident < 1 or not isinstance(raw["expected"], str): raise ValueError("invalid element_value verification")
+            if not isinstance(ident, int) or isinstance(ident, bool) or ident < 1 or not isinstance(raw["expected"], str): raise ValueError(f"invalid {kind} verification")
             return cls(kind, element_id=ident, expected=raw["expected"])
         if kind == "element_changed":
             ident = raw["element_id"]
@@ -65,11 +76,15 @@ class Element:
     input_type: str = ""
     value: str = ""
     selected: bool = False
-    checked: bool = False
+    checked: bool | None = None
     download: str = ""
     actionable: bool = True
     context: str = ""
     context_bounds: tuple[float, float, float, float] | None = None
+    confidence: float = 1.0
+    enabled: bool = True
+    readonly: bool = False
+    label_bounds: tuple[float, float, float, float] | None = None
 
     def summary(self) -> str:
         return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({'actionable' if self.actionable else 'state evidence'})"
@@ -131,7 +146,7 @@ class Observation:
     title: str
 
     def element_summaries(self) -> list[str]: return [element.summary() for element in self.elements]
-    def to_dict(self) -> dict[str, Any]: return {"url": self.url, "title": self.title, "screenshot_path": self.screenshot_path, "marked_screenshot_path": self.marked_screenshot_path, "elements": [asdict(element) for element in self.elements]}
+    def to_dict(self) -> dict[str, Any]: return {"url": self.url, "title": self.title, "screenshot_path": self.screenshot_path, "marked_screenshot_path": self.marked_screenshot_path, "elements": [json_value(asdict(element)) for element in self.elements]}
 
 
 @dataclass(frozen=True)
@@ -141,6 +156,7 @@ class ActionDecision:
     text: str | None = None
     key: str | None = None
     direction: Literal["up", "down"] | None = None
+    checked: bool | None = None
     current_label: str | None = None
     next_label: str | None = None
     rationale: str = ""
@@ -152,14 +168,21 @@ class ActionDecision:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "ActionDecision":
         action = raw.get("action")
-        if action not in {"click", "fill", "select", "press", "scroll", "done"}: raise ValueError(f"Unknown action: {action!r}")
+        if action not in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "done"}: raise ValueError(f"Unknown action: {action!r}")
         ident = raw.get("element_id")
         if isinstance(ident, str):
             try: ident = int(ident)
             except ValueError: raise ValueError("element_id must be a positive integer") from None
         if ident is not None and (not isinstance(ident, int) or isinstance(ident, bool) or ident < 1): raise ValueError("element_id must be a positive integer")
-        if action in {"click", "fill", "select", "press"} and ident is None: raise ValueError(f"{action} requires element_id")
-        if action in {"fill", "select"} and not isinstance(raw.get("text"), str): raise ValueError(f"{action} requires text")
+        if action in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press"} and ident is None: raise ValueError(f"{action} requires element_id")
+        if action in {"fill", "select", "set_date", "set_range", "upload", "set_color"} and not isinstance(raw.get("text"), str): raise ValueError(f"{action} requires text")
+        if action == "set_checked" and not isinstance(raw.get("checked"), bool): raise ValueError("set_checked requires checked")
+        if action == "set_date":
+            try: date.fromisoformat(raw["text"])
+            except ValueError: raise ValueError("set_date requires an ISO date") from None
+        if action == "set_range":
+            try: int(raw["text"])
+            except ValueError: raise ValueError("set_range requires an integer") from None
         if action == "press" and not isinstance(raw.get("key"), str): raise ValueError("press requires key")
         if action == "scroll" and raw.get("direction", "down") not in {"up", "down"}: raise ValueError("scroll direction must be up or down")
         if any(raw.get(name) is not None and not isinstance(raw[name], str) for name in ("current_label", "next_label")): raise ValueError("state labels must be strings")
@@ -169,14 +192,30 @@ class ActionDecision:
         if not isinstance(grounding, list) or not isinstance(constraints, list): raise ValueError("grounding and constraints must be lists")
         if verify and verify.kind == "download_created" and (action != "click" or ident is None): raise ValueError("download_created is valid only for click with element_id")
         if verify and action == "done" and verify.kind in {"page_changed", "download_created"}: raise ValueError(f"{verify.kind} is invalid for done")
-        return cls(action, ident, raw.get("text"), raw.get("key"), raw.get("direction"), raw.get("current_label"), raw.get("next_label"), str(raw.get("rationale", "")), verify, impact, tuple(EvidenceRecord.from_dict(item) for item in grounding), tuple(GoalConstraint.from_dict(item) for item in constraints))
+        return cls(action, ident, raw.get("text"), raw.get("key"), raw.get("direction"), raw.get("checked"), raw.get("current_label"), raw.get("next_label"), str(raw.get("rationale", "")), verify, impact, tuple(EvidenceRecord.from_dict(item) for item in grounding), tuple(GoalConstraint.from_dict(item) for item in constraints))
 
     def validate_for(self, observation: Observation) -> None:
         elements = {element.id: element for element in observation.elements}
         if self.element_id is not None and self.element_id not in elements: raise ValueError(f"Element {self.element_id} is not present in this observation")
         if self.element_id is not None and not elements[self.element_id].actionable: raise ValueError(f"Element {self.element_id} is visual evidence, not an actionable control")
+        target = elements.get(self.element_id) if self.element_id is not None else None
+        if target and self.action in {"fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color"} and (not target.enabled or target.readonly):
+            raise ValueError(f"Element {self.element_id} is not editable")
+        expected_kinds = {"set_checked": {"checkbox", "radio"}, "set_date": {"input", "date"},
+                          "set_range": {"range"}, "upload": {"file"}, "set_color": {"color"}}
+        if target and self.action in expected_kinds and target.tag not in expected_kinds[self.action] and target.input_type not in expected_kinds[self.action]:
+            raise ValueError(f"{self.action} is incompatible with element {self.element_id}")
+        if self.action == "set_date":
+            try: date.fromisoformat(self.text or "")
+            except ValueError: raise ValueError("set_date requires an ISO date") from None
+        if self.action == "set_range":
+            try: value = int(self.text or "")
+            except ValueError: raise ValueError("set_range requires an integer") from None
+            if value < 0: raise ValueError("set_range requires a non-negative value")
+        if self.action == "set_color" and (not self.text or len(self.text) != 7 or self.text[0] != "#" or any(char not in "0123456789abcdefABCDEF" for char in self.text[1:])):
+            raise ValueError("set_color requires #rrggbb")
         ids = set(elements)
-        if self.verify and self.verify.kind == "element_value" and self.verify.element_id not in ids: raise ValueError(f"Verification element {self.verify.element_id} is not present in this observation")
+        if self.verify and self.verify.kind in {"element_value", "element_checked", "element_filename", "element_color", "element_range"} and self.verify.element_id not in ids: raise ValueError(f"Verification element {self.verify.element_id} is not present in this observation")
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -246,11 +285,11 @@ class SemanticAction:
     name: str
     target_signature: str
     safety_class: SafetyClass = "harmless_reversible"
-    action_type: Literal["click", "fill", "select", "press", "scroll"] = "click"
+    action_type: Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll"] = "click"
 
     def __post_init__(self) -> None:
         if (not self.name or not self.target_signature
-                or self.action_type not in {"click", "fill", "select", "press", "scroll"}):
+                or self.action_type not in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll"}):
             raise ValueError("semantic actions need a valid type, name, and target signature")
 
 
@@ -309,12 +348,12 @@ class ActionSchema:
     evidence_ids: tuple[str, ...] = ()
     contradictions: tuple[str, ...] = ()
     version: int = 1
-    action_type: Literal["click", "fill", "select", "press", "scroll"] = "click"
+    action_type: Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll"] = "click"
 
     def __post_init__(self) -> None:
         if (not self.id or not self.semantic_name or not self.scope or not self.target_signature or self.version != 1
                 or self.safety_class not in {"observational", "harmless_reversible", "state_changing_reversible", "high_impact_or_irreversible"}
-                or self.action_type not in {"click", "fill", "select", "press", "scroll"}):
+                or self.action_type not in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll"}):
             raise ValueError("invalid action schema")
 
     def to_dict(self) -> dict[str, Any]:

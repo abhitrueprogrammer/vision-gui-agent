@@ -44,8 +44,9 @@ async def _run(args: argparse.Namespace) -> int:
     try:
         config = AgentConfig(
             artifact_dir=Path(args.artifacts),
-            database_path=Path(args.artifacts) / "runs.sqlite3",
-            graph_path=Path(args.artifacts) / "state-graph.json",
+            database_path=Path(args.artifacts) / "runs-v2.sqlite3",
+            graph_path=Path(args.artifacts) / "state-graph-v2.json",
+            action_model_path=Path(args.artifacts) / "action-model-v2.json",
             max_steps=args.max_steps,
             verbose=args.verbose,
             memory_mode=args.memory_mode,
@@ -113,7 +114,7 @@ def main() -> None:
     parser.add_argument("--metrics", action="store_true", help="print metrics for recorded runs")
     args = parser.parse_args()
     if args.metrics:
-        logger = RunLogger(Path(args.artifacts) / "runs.sqlite3")
+        logger = RunLogger(Path(args.artifacts) / "runs-v2.sqlite3")
         try:
             print({**logger.metrics(), "by_model": logger.model_metrics()})
         finally:

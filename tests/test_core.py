@@ -289,7 +289,9 @@ class CoreTests(unittest.TestCase):
             ocr = lambda _path: [([(25, 28), (33, 28), (33, 42), (25, 42)], ("7", .99)),
                                   ([(48, 28), (95, 28), (95, 44), (48, 44)], ("Option", .99))]
             option = next(item for item in asyncio.run(LocalVisualGrounder(ocr).detect(screenshot)) if item.text == "Option")
-            self.assertEqual((option.tag, option.actionable), ("button", True))
+            # A square/text collision without an explicit visible control label
+            # is evidence, not a safe target.
+            self.assertEqual((option.tag, option.actionable), ("text", False))
 
     def test_local_grounder_does_not_share_an_enclosing_row_box(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -374,7 +376,8 @@ class CoreTests(unittest.TestCase):
             self.assertEqual((result.tag, result.actionable), ("menuitem", True))
             self.assertGreaterEqual(result.y, search.y + search.height - 2)
             self.assertIn("German dictator", result.context)
-            self.assertTrue(any(item.tag == "button" and item.text == "Search" and item.actionable for item in elements))
+            # The blue icon has no visible label; do not invent a generic Search action.
+            self.assertFalse(any(item.tag == "button" and item.text == "Search" and item.actionable for item in elements))
 
     def test_visual_grounder_clamps_and_deduplicates_boxes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -680,6 +683,14 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(ValueError): Agent._guard(decision, observation, {"choice": GoalConstraint("choice", "chosen")})
             grounded = ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "submit", 1),))
             Agent._guard(grounded, observation, {"choice": GoalConstraint("choice", "chosen", status="proven", evidence=(EvidenceRecord("element_text", "submit", 1),))})
+
+    def test_submit_requires_intent_and_visible_success_check(self) -> None:
+        observation = Observation("", "", [Element(1, "", "button", "Submit", "", "", "button", 0, 0, 10, 10)], "", "Form")
+        decision = ActionDecision("click", 1, grounding=(EvidenceRecord("element_text", "Submit", 1),))
+        with self.assertRaisesRegex(ValueError, "explicit submit intent"):
+            Agent._guard(decision, observation, {}, "fill the form")
+        with self.assertRaisesRegex(ValueError, "success postcondition"):
+            Agent._guard(decision, observation, {}, "submit the form")
 
     def test_download_requires_exact_visible_target_grounding(self) -> None:
         observation = Observation("", "", [Element(1, "", "button", "Download ZIP", "", "", "button", 0, 0, 1, 1, download="report.zip")], "", "Downloads")

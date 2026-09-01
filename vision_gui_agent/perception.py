@@ -86,6 +86,11 @@ class LocalVisualGrounder:
     @staticmethod
     def _kind(label: str) -> str:
         word = label.casefold()
+        if "checkbox" in word: return "checkbox"
+        if "radio" in word: return "radio"
+        if "color" in word: return "color"
+        if "range" in word or "slider" in word: return "range"
+        if "file" in word: return "file"
         if any(token in word for token in ("select ", "choose ", "pick ")): return "select"
         if any(token in word for token in ("email", "password", "search", "username", "phone", "address", "enter ", "type ")): return "input"
         return "button"
@@ -104,8 +109,9 @@ class LocalVisualGrounder:
         if image is None: raise ValueError(f"Cannot read screenshot: {screenshot}")
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        boxes = [cv2.boundingRect(contour) for contour in contours]
+        joined = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3)), iterations=2)
+        contours, _ = cv2.findContours(joined, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        boxes = list({cv2.boundingRect(contour) for contour in contours})
         records = self._records(raw)
         record_bounds = []
         for points, text, score in records:
@@ -216,25 +222,108 @@ class LocalVisualGrounder:
             if not labels: continue
             label = min(labels, key=lambda record: (abs(y - record[3]), abs(record[0] - x)))[4]
             word = label.casefold()
-            kind = "textarea" if h >= 60 else "select" if "select" in word or "dropdown" in word and "datalist" not in word else "input"
-            actionable = not any(token in word for token in ("disabled", "readonly", "file input"))
+            kind = ("textarea" if h >= 60 else "file" if "file" in word else "color" if "color" in word else
+                    "range" if "range" in word or "slider" in word else "select" if "select" in word else "input")
+            readonly = "readonly" in word
+            enabled = "disabled" not in word
+            actionable = enabled and not readonly
             elements = [replace(item, actionable=False) if x <= item.x + item.width / 2 <= x + w
                         and y <= item.y + item.height / 2 <= y + h else item for item in elements]
             values = [record[4] for record in record_bounds
                       if x <= (record[0] + record[2]) / 2 <= x + w and y <= (record[1] + record[3]) / 2 <= y + h]
+            input_type = ("password" if "password" in word else "date" if "date" in word else
+                          "file" if kind == "file" else "color" if kind == "color" else
+                          "range" if kind == "range" else "")
             elements.append(Element(len(elements) + 1, "", kind, label, "", "", kind,
-                                    float(x), float(y), float(w), float(h), value=" ".join(values)[:200], actionable=actionable))
-        for field in [item for item in elements if item.tag == "input" and item.height <= 60]:
-            sx, sy, sw, sh = field.x, field.y, field.width, field.height
-            icons = [(bx, by, bw, bh) for bx, by, bw, bh in boxes
-                     if 8 <= bw <= 48 and 8 <= bh <= 48 and .5 <= bw / bh <= 2
-                     and 0 <= bx - (sx + sw) <= 40 and sy <= by + bh / 2 <= sy + sh]
-            if icons:
-                bx, by, bw, bh = max(icons, key=lambda box: box[2] * box[3])
-                candidate = Element(len(elements) + 1, "", "button", "Search", "", "", "button",
-                                    float(bx), float(by), float(bw), float(bh), actionable=True)
-                if not any(_same_detection(candidate, existing) for existing in elements):
-                    elements.append(candidate)
+                                    float(x), float(y), float(w), float(h), input_type=input_type,
+                                    value=" ".join(values)[:200], actionable=actionable,
+                                    enabled=enabled, readonly=readonly,
+                                    label_bounds=(labels[0][0], labels[0][1], labels[0][2] - labels[0][0], labels[0][3] - labels[0][1])))
+        # Promote visually labelled native controls that OCR sees more reliably
+        # than their anti-aliased borders. No target name is invented: every
+        # control is anchored to visible label text.
+        promoted: list[Element] = []
+        common_fields = [item for item in elements if item.tag in {"input", "select", "textarea", "file"}
+                         and item.width >= 120 and 25 <= item.height <= 80]
+        common_width = float(sorted(item.width for item in common_fields)[len(common_fields) // 2]) if common_fields else 320.0
+        common_height = float(sorted(item.height for item in common_fields)[len(common_fields) // 2]) if common_fields else 40.0
+        for left, top, right, bottom, label in record_bounds:
+            word = label.casefold()
+            tag = ("checkbox" if "checkbox" in word else "radio" if "radio" in word else
+                   "color" if "color" in word else "range" if "range" in word or "slider" in word else
+                   "file" if "file input" in word else "input" if any(token in word for token in ("text input", "password", "datalist", "date picker")) else
+                   "button" if word.strip() in {"submit", "continue", "save", "apply", "done"} else "")
+            if not tag: continue
+            if any(item.actionable and _same_text(item.text, label) and item.tag == tag
+                   and (tag not in {"checkbox", "radio"} or item.checked is not None) for item in elements): continue
+            if tag in {"checkbox", "radio"}:
+                candidates = [(x, y, w, h) for x, y, w, h in boxes if 8 <= w <= 30 and 8 <= h <= 30
+                              and left - 32 <= x <= left + 20 and abs((y + h / 2) - (top + bottom) / 2) <= 12]
+                if candidates:
+                    x, y, w, h = min(candidates, key=lambda box: abs((box[0] + box[2]) - left))
+                else:
+                    rx1, ry1 = max(0, int(left - 12)), max(0, int(top - 8))
+                    rx2, ry2 = min(image.shape[1], int(left + 40)), min(image.shape[0], int(bottom + 8))
+                    roi = image[ry1:ry2, rx1:rx2]
+                    colored = (roi[..., 0].astype("int16") - roi[..., 2].astype("int16") > 50) & (roi[..., 0] > 100)
+                    ys, xs = np.where(colored)
+                    if len(xs):
+                        x, y = rx1 + int(xs.min()), ry1 + int(ys.min()); w, h = int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)
+                    else:
+                        w = h = max(14, int(bottom - top) - 8); x, y = int(left - w - 8), int((top + bottom - h) / 2)
+                crop = image[y:y + h, x:x + w]
+                blue = bool(crop.size and ((crop[..., 0].astype("int16") - crop[..., 2].astype("int16")) > 50).mean() > .08)
+                promoted.append(Element(0, "", tag, label, "", "", tag, x, y, w, h,
+                                        checked=blue, label_bounds=(left, top, right - left, bottom - top)))
+                continue
+            if tag == "range":
+                candidates = [(x, y, w, h) for x, y, w, h in boxes if w >= 120 and h <= 45
+                              and abs(x - left) <= 30 and 0 <= y - bottom <= 35]
+            elif tag == "color":
+                candidates = [(x, y, w, h) for x, y, w, h in boxes if 20 <= w <= 70 and 20 <= h <= 70
+                              and abs(x - left) <= 30 and 0 <= y - bottom <= 35]
+            elif tag == "button":
+                candidates = [(x, y, w, h) for x, y, w, h in boxes if x <= left and y <= top and x + w >= right and y + h >= bottom
+                              and w <= 240 and h <= 100]
+            else:
+                candidates = [(x, y, w, h) for x, y, w, h in boxes if w >= 120 and 25 <= h <= 80
+                              and abs(x - left) <= 30 and 0 <= y - bottom <= 40]
+            if candidates:
+                x, y, w, h = min(candidates, key=lambda box: box[2] * box[3])
+            elif tag in {"input", "file"}:
+                column = min(common_fields, key=lambda item: abs(item.x - left), default=None)
+                x, y, w, h = (column.x if column else left, bottom - 2, column.width if column else common_width, common_height)
+            else:
+                continue
+            promoted.append(Element(0, "", tag, label, "", "", tag, x, y, w, h,
+                                    input_type=("password" if "password" in word else "date" if "date" in word else tag), actionable=True,
+                                    label_bounds=(left, top, right - left, bottom - top)))
+        for candidate in promoted:
+            elements = [item for item in elements if not (item.actionable and not _same_text(item.text, candidate.text)
+                        and candidate.x <= item.x + item.width / 2 <= candidate.x + candidate.width
+                        and candidate.y <= item.y + item.height / 2 <= candidate.y + candidate.height)]
+            overlaps = [index for index, item in enumerate(elements) if _same_detection(candidate, item)]
+            if overlaps:
+                index = overlaps[0]
+                elements[index] = replace(candidate, id=elements[index].id)
+            else:
+                elements.append(replace(candidate, id=max((item.id for item in elements), default=0) + 1))
+        # OCR often sees entered text as a second small "input" inside the real
+        # outlined field.  Keep one control, carrying that visible text as value.
+        fields = [item for item in elements if item.actionable and item.tag in {"input", "textarea", "select"}]
+        remove: set[int] = set()
+        for field in fields:
+            nested = [item for item in elements if item is not field and item.actionable
+                      and field.x <= item.x + item.width / 2 <= field.x + field.width
+                      and field.y <= item.y + item.height / 2 <= field.y + field.height
+                      and item.width * item.height < field.width * field.height * .7]
+            if nested:
+                value = next((item.text for item in nested if item.text and not _same_text(item.text, field.text)), field.value)
+                if value: elements[elements.index(field)] = replace(field, value=value)
+                remove.update(item.id for item in nested)
+        elements = [item for item in elements if item.id not in remove]
+        heading = min(record_bounds, key=lambda item: (item[1], -(item[3] - item[1])), default=None)
+        if heading: self.last_label = heading[4][:120]
         return elements
 
 
@@ -361,7 +450,12 @@ async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGro
             raise RuntimeError("Local visual grounding found no reliable visual elements")
         await asyncio.sleep(.5)
     draw_set_of_mark(raw_path, marked_path, elements)
-    return Observation(str(raw_path), str(marked_path), elements, "", getattr(grounder, "last_label", "Visual screen"))
+    url = getattr(page, "url", "")
+    if callable(url): url = url()
+    if asyncio.iscoroutine(url): url = await url
+    # Adapter metadata separates graph nodes; visible semantics still come only
+    # from the screenshot grounder.
+    return Observation(str(raw_path), str(marked_path), elements, str(url or ""), getattr(grounder, "last_label", "Visual screen"))
 
 
 def _same_detection(left: Element, right: Element) -> bool:
@@ -372,6 +466,10 @@ def _same_detection(left: Element, right: Element) -> bool:
     same_label = (left.tag == right.tag
                   and " ".join(left.text.casefold().split()) == " ".join(right.text.casefold().split()))
     return bool(union and intersection / union >= (.6 if same_label else .85))
+
+
+def _same_text(left: str, right: str) -> bool:
+    return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
 
 
 def _detection_quality(element: Element) -> tuple[bool, bool, int, int]:
@@ -397,7 +495,8 @@ def draw_set_of_mark(source: Path, destination: Path, elements: list[Element]) -
         color = "#ff2056" if element.actionable else "#246bfd"
         draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
         bbox = draw.textbbox((0, 0), str(element.id), font=font)
-        label_y = max(0, y1 - (bbox[3] - bbox[1]) - 4) if element.width < 50 or element.height < 25 else y1
+        badge_height = bbox[3] - bbox[1] + 4
+        label_y = y1 - badge_height if y1 >= badge_height else min(image.height - badge_height, y2 + 2)
         draw.rectangle((x1, label_y, x1 + bbox[2] + 5, label_y + bbox[3] + 4), fill=color)
         draw.text((x1 + 2, label_y + 1), str(element.id), fill="white", font=font)
     image.save(destination)

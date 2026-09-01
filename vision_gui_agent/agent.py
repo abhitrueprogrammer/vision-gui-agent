@@ -21,14 +21,14 @@ from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, Ev
 from .predicates import PredicateExtractor
 from .perception import VisualGrounder, observe
 from .state_graph import StateGraph
-from .verification import already_satisfied, verify
+from .verification import already_satisfied, control_key, verify
 
 
 @dataclass(frozen=True)
 class AgentConfig:
     artifact_dir: Path = Path("artifacts")
-    database_path: Path = Path("artifacts/runs.sqlite3")
-    graph_path: Path = Path("artifacts/state-graph.json")
+    database_path: Path = Path("artifacts/runs-v2.sqlite3")
+    graph_path: Path = Path("artifacts/state-graph-v2.json")
     max_steps: int = 12
     hash_threshold: int = 6
     max_action_attempts: int = 2
@@ -39,6 +39,7 @@ class AgentConfig:
     max_plan_depth: int = 4
     experiment_budget: int = 0
     experiment_sandbox: bool = False
+    action_model_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,12 @@ class Agent:
         self.config = config
         self.grounder = grounder
         self.graph = StateGraph(config.hash_threshold) if config.memory_mode == "none" else StateGraph.load(config.graph_path, config.hash_threshold)
-        self.action_model = ActionModel.load(config.artifact_dir / "action-model.json")
+        self.action_model_path = config.action_model_path or config.artifact_dir / "action-model-v2.json"
+        # Keep existing learned actions usable after the artifact filename change.
+        if not self.action_model_path.exists():
+            legacy = config.artifact_dir / "action-model.json"
+            if legacy.exists(): self.action_model_path = legacy
+        self.action_model = ActionModel.load(self.action_model_path)
         self.predicates = PredicateExtractor()
         self.functional_planner = FunctionalPlanner(self.action_model, config.max_plan_depth, config.min_schema_confidence)
         self.experiments = ExperimentSelector(config.experiment_budget, config.experiment_sandbox)
@@ -70,6 +76,12 @@ class Agent:
         label = Agent._normal(element.text or element.aria_label or element.placeholder)
         return SemanticAction(label.replace(" ", "_"), f"{element.tag.casefold()}|{element.role.casefold()}|{label}",
                               action_type=decision.action) if label and decision.action != "done" else None
+
+    @staticmethod
+    def _recordable_graph_action(decision: ActionDecision, observation: Observation) -> bool:
+        """Graph replay must never retain credentials or local file paths."""
+        target = next((item for item in observation.elements if item.id == decision.element_id), None)
+        return not (decision.action == "upload" or target and "password" in (target.input_type + " " + target.text).casefold())
 
     @staticmethod
     def _effect_pattern(effect: ActionEffect) -> str:
@@ -190,7 +202,7 @@ class Agent:
 
     @staticmethod
     def _fresh_verification(condition: VerificationCondition, initial: Observation, current: Observation) -> bool:
-        if condition.kind != "element_value":
+        if condition.kind not in {"element_value", "element_filename", "element_color", "element_range"}:
             return not already_satisfied(initial, condition)
         target = next((item for item in current.elements if item.id == condition.element_id), None)
         if target is None: return False
@@ -233,6 +245,28 @@ class Agent:
         words = " ".join((element.text, element.aria_label, element.value)).casefold()
         if "search" in words: return bool(element.download)
         return bool(element.download or any(word in words for word in ("submit", "delete", "remove", "purchase", "pay", "checkout")))
+
+    @staticmethod
+    def _is_submit_control(element) -> bool:
+        if not element: return False
+        return element.input_type == "submit" or "submit" in " ".join((element.text, element.aria_label, element.value)).casefold()
+
+    @staticmethod
+    def _completion_requirements(goal: str, observation: Observation) -> set[tuple[str, str, str]]:
+        """Track generic "all/every editable" goals from verified visible effects."""
+        if not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", goal, re.IGNORECASE):
+            return set()
+        return {control_key(item) for item in observation.elements
+                if item.actionable and item.enabled and not item.readonly
+                and item.tag in {"input", "textarea", "select", "checkbox", "radio", "range", "color"}
+                and item.input_type not in {"file", "submit", "button", "reset"}}
+
+    @staticmethod
+    def _completion_summary(required: set[tuple[str, str, str]], completed: set[tuple[str, str, str]]) -> dict:
+        pending = required - completed
+        return {"required": [label for _, _, label in sorted(required)],
+                "completed": [label for _, _, label in sorted(completed & required)],
+                "remaining": [label for _, _, label in sorted(pending)]}
 
     @staticmethod
     def _merge_constraints(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
@@ -281,6 +315,11 @@ class Agent:
                goal: str = "", download_paths: list[str] | None = None) -> None:
         download_paths = download_paths or []
         target = next((item for item in observation.elements if item.id == decision.element_id), None)
+        if goal and Agent._is_submit_control(target):
+            if not re.search(r"\bsubmit\b", goal, re.IGNORECASE):
+                raise ValueError("Submit requires explicit submit intent in the goal")
+            if decision.verify is None:
+                raise ValueError("Submit requires a visible success postcondition")
         scoped = [item for item in ledger.values() if item.material and item.source_span]
         if scoped and decision.element_id is not None and not Agent._is_discovery_action(decision, target, observation, scoped):
             pending = [constraint for constraint in scoped if constraint.status != "proven"]
@@ -409,7 +448,7 @@ class Agent:
 
         constraints = tuple(replace(item, evidence=remap(item.evidence)) for item in decision.constraints)
         verification = decision.verify
-        if verification and verification.kind == "element_value" and verification.element_id == old_id:
+        if verification and verification.kind in {"element_value", "element_checked", "element_filename", "element_color", "element_range"} and verification.element_id == old_id:
             verification = replace(verification, element_id=new_id)
         return replace(decision, element_id=new_id, grounding=remap(decision.grounding), constraints=constraints, verify=verification)
 
@@ -450,9 +489,8 @@ class Agent:
         workflow: list[ReusableAction] = []
         action_attempts: dict[str, int] = {}
         ledger: dict[str, GoalConstraint] = {}
-        fill_all_fields = bool(re.search(r"\bfill\s+(?:every|all)\b", goal, re.IGNORECASE))
         compiler = getattr(self.policy, "compile_goal", None)
-        if callable(compiler) and not fill_all_fields:
+        if callable(compiler):
             try:
                 compiled = compiler(goal)
                 compiled = await compiled if inspect.isawaitable(compiled) else compiled
@@ -462,10 +500,9 @@ class Agent:
                 ledger = {item.id: item for item in compiled}
                 if len(ledger) != len(compiled): raise ValueError("compiler returned duplicate constraint ids")
             except Exception as exc:
-                error = f"Goal compiler failed: {exc}"
-                result = RunResult(run_id, False, 0, "", error, constraints=list(ledger.values()))
-                logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, result.error)
-                return result
+                # This compiler only understands selection/ranking restrictions;
+                # an unavailable model must not make unrelated form tasks impossible.
+                if self.config.verbose: print(f"Goal compiler unavailable: {exc}")
         for constraint in self._explicit_hard_constraints(goal):
             ledger.setdefault(constraint.id, constraint)
         comparison = self._comparison_constraint(goal)
@@ -475,10 +512,8 @@ class Agent:
             observed_at = perf_counter()
             observation = await observe(page, self.config.artifact_dir / run_id, 0, self.grounder)
             initial_observation = observation
-            required_fields = ({self._normal(item.text or item.aria_label or item.placeholder) for item in observation.elements
-                                if item.actionable and item.tag in {"input", "textarea", "select"}}
-                               if fill_all_fields else set())
-            completed_fields: set[str] = set()
+            required_fields = self._completion_requirements(goal, observation)
+            completed_fields: set[tuple[str, str, str]] = set()
             action_executed = False
             observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
@@ -486,6 +521,7 @@ class Agent:
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
                 graph_context["constraints"] = [item.to_dict() for item in ledger.values()]
+                graph_context["completion"] = self._completion_summary(required_fields, completed_fields)
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
                 try:
                     decision: ActionDecision | None = None
@@ -532,8 +568,6 @@ class Agent:
                             timings["model_ms"] = (perf_counter() - started) * 1000
                         planned = self._safe_plan(list(response) if isinstance(response, list) else [response])
                         decision = planned.pop(0)
-                    if history and not history[-1].success and (decision.action == "done" or self._is_high_impact(decision, observation)):
-                        raise ValueError("high-impact action cannot follow a failed action or decision")
                     if self.config.memory_mode != "none":
                         decision = self._reground(decision, observation)
                     if decision.element_id is not None and hasattr(self.grounder, "refine"):
@@ -547,22 +581,38 @@ class Agent:
                     if (decision.action == "fill" and target and "password" in self._normal(target.text or target.aria_label or target.placeholder)
                             and decision.verify and decision.verify.kind == "element_value"):
                         decision = replace(decision, verify=VerificationCondition("element_changed", element_id=target.id))
-                    if decision.action in {"fill", "select"} and decision.verify is None:
+                    if decision.action in {"fill", "select", "set_date"} and decision.verify is None:
                         decision = replace(decision, verify=VerificationCondition("element_value", element_id=target.id,
                                                                                   expected=decision.text or ""))
+                    if self._is_submit_control(target) and decision.verify is None:
+                        decision = replace(decision, verify=VerificationCondition("page_changed"))
+                    if decision.action == "set_checked" and decision.verify is None:
+                        decision = replace(decision, verify=VerificationCondition("element_checked", element_id=target.id,
+                                                                                  expected=str(decision.checked).lower()))
+                    if decision.action == "upload" and decision.verify is None:
+                        decision = replace(decision, verify=VerificationCondition("element_filename", element_id=target.id,
+                                                                                  expected=Path(decision.text or "").name))
+                    if decision.action == "set_color" and decision.verify is None:
+                        decision = replace(decision, verify=VerificationCondition("element_color", element_id=target.id,
+                                                                                  expected=decision.text or ""))
+                    if decision.action == "set_range" and decision.verify is None:
+                        decision = replace(decision, verify=VerificationCondition("element_range", element_id=target.id,
+                                                                                  expected=decision.text or ""))
                     if decision.action != "done" and already_satisfied(observation, decision.verify):
-                        if fill_all_fields and decision.action == "select":
-                            raise ValueError("select value is already current; choose a different option")
+                        if decision.action in {"fill", "select", "set_date", "set_range", "upload", "set_color"}:
+                            raise ValueError("Requested field state is already satisfied; choose a different visible control")
                         decision = replace(decision, verify=None)
                     decision.validate_for(observation)
-                    key = self.graph.replay_key(decision)
+                    key = self.graph.replay_key(replace(decision, element_id=None,
+                        grounding=decision.grounding or ((EvidenceRecord("element_text", target.text, None),) if target else ())))
                     attempt_limit = 1 if self._is_high_impact(decision, observation) else self.config.max_action_attempts
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
                     self._merge_constraints(ledger, decision, observation, download_paths)
-                    missing_fields = required_fields - completed_fields
-                    if missing_fields and self._is_high_impact(decision, observation):
-                        raise ValueError(f"High-impact action deferred; unfilled fields: {', '.join(sorted(missing_fields))}")
+                    if required_fields and self._is_submit_control(target):
+                        pending = required_fields - completed_fields
+                        if pending:
+                            raise ValueError(f"Submit deferred; incomplete visible fields: {', '.join(label for _, _, label in sorted(pending))}")
                     self._guard(decision, observation, ledger, goal, download_paths)
                     if decision.action == "done" and action_executed:
                         if decision.verify and not self._fresh_verification(decision.verify, initial_observation, observation):
@@ -600,7 +650,8 @@ class Agent:
                     error = None if success else verification.reason
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification)
-                    self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error)
+                    if self._recordable_graph_action(decision, observation):
+                        self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
                     if success:
                         self._merge_constraints(ledger, decision, observation, download_paths)
@@ -630,7 +681,8 @@ class Agent:
                     next_observe_ms = (perf_counter() - observed_at) * 1000
                     success = verification.status != "failed" and (verification.status == "passed" or target_node != current_node)
                     error = None if success else (verification.reason if verification.status == "failed" else "Action had no observable effect")
-                    self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
+                    if self._recordable_graph_action(decision, observation):
+                        self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
                     if self.config.verbose:
                         status = "new" if created else "existing"
                         print(f"[step {step}] execution: success; verification: {verification.status}; {verification.reason}; observed: {next_observation.title!r} "
@@ -660,8 +712,8 @@ class Agent:
                     if not success:
                         planned.clear(); workflow.clear(); observation = next_observation; observe_ms = next_observe_ms
                         continue
-                    if target and decision.action in {"fill", "select"} and verification.status == "passed":
-                        completed_fields.add(self._normal(target.text or target.aria_label or target.placeholder))
+                    if target and decision.verify and verification.status == "passed":
+                        completed_fields.add(control_key(target))
                     if next_observation.url != observation.url:
                         planned.clear()
                     template = self._action_template(observation, next_observation, decision)
@@ -692,7 +744,8 @@ class Agent:
                     logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings)
                     if selected_experiment:
                         logger.finish_experiment(run_id, selected_experiment.id, "execution_error", None, f"{run_id}:{step}")
-                    self.graph.add_transition(current_node, target_node, decision, False, goal, run_id, error)
+                    if self._recordable_graph_action(decision, observation):
+                        self.graph.add_transition(current_node, target_node, decision, False, goal, run_id, error)
                     workflow.clear()
                     planned.clear()
 
@@ -706,5 +759,5 @@ class Agent:
         finally:
             if self.config.memory_mode != "none": self.graph.export(self.config.graph_path)
             if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
-                self.action_model.export(self.config.artifact_dir / "action-model.json")
+                self.action_model.export(self.action_model_path)
             logger.close()

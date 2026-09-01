@@ -112,7 +112,7 @@ class ActionModel:
 
     def export(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {"version": 1, "scope": self.scope, "schemas": [item.to_dict() for item in sorted(self.schemas.values(), key=lambda x: x.id)]}
+        payload = {"version": 1, "format_version": 2, "scope": self.scope, "schemas": [item.to_dict() for item in sorted(self.schemas.values(), key=lambda x: x.id)]}
         with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as file:
             json.dump(payload, file, indent=2, sort_keys=True); file.write("\n"); temporary = file.name
         os.replace(temporary, path)
@@ -121,7 +121,7 @@ class ActionModel:
     def load(cls, path: Path, scope: str = "controlled_benchmark") -> "ActionModel":
         if not path.exists(): return cls(scope)
         raw = json.loads(path.read_text())
-        if not isinstance(raw, dict) or raw.get("version") != 1 or not isinstance(raw.get("schemas"), list):
+        if not isinstance(raw, dict) or raw.get("format_version") != 2 or not isinstance(raw.get("schemas"), list):
             raise ValueError("unsupported or malformed action-model export")
         if not isinstance(raw.get("scope", scope), str): raise ValueError("action-model scope must be a string")
         schemas = []

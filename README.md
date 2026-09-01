@@ -26,7 +26,7 @@ Local OCR/CV grounding is the default: screenshots stay local while Gemini plans
 uv run vision-gui-agent http://localhost:4200 "Log in and open account settings" --headed
 ```
 
-Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model.json`; SQLite transitions retain predicate and evidence fields for audit. Active experiments remain disabled unless a resettable sandbox has explicitly enabled them.
+Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model-v2.json`; SQLite transitions retain predicate and evidence fields for audit. Active experiments remain disabled unless a resettable sandbox has explicitly enabled them.
 
 ## Visual Function Lab
 
@@ -46,9 +46,9 @@ Each observation is a screenshot. The visual grounder returns a semantic screen 
 
 The state graph combines perceptual hashes with position-independent semantic signatures. This keeps distinct screens separate while recognizing the same state after controls move. Replayed actions are re-grounded against their visible label and role before execution, so stored element numbers are never treated as permanent coordinates.
 
-Actions support `click`, `fill`, `select`, `press`, `scroll`, and `done`. Optional visual postconditions are `page_changed`, `element_visible`, `element_absent`, `element_value`, and `download_created`. Failed postconditions trigger one fresh observation before the plan is abandoned. Browser downloads are verified and saved under `artifacts/<run_id>/downloads/`; desktop download discovery is intentionally unsupported because it is not reliably observable from the screen alone.
+Actions support `click`, `fill`, `select`, `set_checked`, `set_date`, `set_range`, `upload`, `set_color`, `press`, `scroll`, and `done`. Optional visual postconditions include checked-state and visible-value checks. Failed postconditions trigger one fresh observation before the plan is abandoned. Browser downloads are verified and saved under `artifacts/<run_id>/downloads/`; desktop download discovery is intentionally unsupported because it is not reliably observable from the screen alone.
 
-Artifacts are written to `artifacts/`: raw and numbered screenshots, an atomically written `state-graph.json`, and `runs.sqlite3`. Reusing or sharing the graph file lets other runs reuse learned interface topology. `--verbose` prints decisions, verification results, state reuse, and downloads.
+Artifacts are written to `artifacts/`: raw and numbered screenshots, an atomically written `state-graph-v2.json`, `runs-v2.sqlite3`, and `action-model-v2.json`. Earlier artifact files are left untouched. Reusing or sharing the graph file lets other runs reuse learned interface topology. `--verbose` prints decisions, verification results, state reuse, and downloads.
 
 Inspect completed-run metrics with:
 

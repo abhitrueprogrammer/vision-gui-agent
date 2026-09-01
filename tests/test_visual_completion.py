@@ -67,6 +67,21 @@ class VisualCompletionTests(unittest.TestCase):
         self.assertEqual(asyncio.run(verify(None, source, correct, condition, 6)).status, "passed")
         self.assertEqual(asyncio.run(verify(None, source, wrong, condition, 6)).status, "failed")
 
+    def test_verification_requires_the_same_unique_control_not_any_overlapping_field(self):
+        source = Observation("", "", [element(28, "input", "Name", x=10)], "", "")
+        latest = Observation("", "", [element(29, "input", "Name", value="Ada", x=10),
+                                         element(30, "input", "Name", value="Wrong", x=10)], "", "")
+        condition = VerificationCondition("element_value", element_id=28, expected="Ada")
+        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "failed")
+
+    def test_type_specific_form_postconditions(self):
+        source = Observation("", "", [element(1, "file", "Attachment", x=10), element(2, "color", "Color", x=30), element(3, "range", "Volume", x=50)], "", "Form")
+        latest = Observation("", "", [element(8, "file", "Attachment", value="proof.txt", x=10), element(9, "color", "Color", value="#12ab34", x=30), element(10, "range", "Volume", value="12", x=50)], "", "Form")
+        for condition in (VerificationCondition("element_filename", element_id=1, expected="proof.txt"),
+                          VerificationCondition("element_color", element_id=2, expected="#12ab34"),
+                          VerificationCondition("element_range", element_id=3, expected="12")):
+            self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "passed")
+
     def test_fill_without_model_verification_gets_value_postcondition(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); image = base / "screen.png"; Image.new("RGB", (80, 50), "white").save(image)
@@ -78,6 +93,16 @@ class VisualCompletionTests(unittest.TestCase):
                 result = asyncio.run(Agent(policy, config).run(object(), "enter destination"))
             self.assertTrue(result.history[0].success)
             self.assertEqual(result.history[0].decision.verify.kind, "element_value")
+
+    def test_already_filled_value_is_rejected_instead_of_becoming_an_unverified_noop(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); image = base / "screen.png"; Image.new("RGB", (80, 50), "white").save(image)
+            form = Observation(str(image), str(image), [element(1, "input", "Name", value="Ada")], "", "Form")
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision("fill", 1, text="Ada")])})()
+            config = AgentConfig(base / "artifacts", base / "runs.db", base / "graph.json", max_steps=1, memory_mode="none")
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=form)):
+                result = asyncio.run(Agent(policy, config).run(object(), "fill the name"))
+            self.assertIn("already satisfied", result.history[0].error)
 
     def test_password_fill_uses_visible_change_instead_of_hidden_plaintext(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -93,31 +118,47 @@ class VisualCompletionTests(unittest.TestCase):
             self.assertEqual(result.history[0].decision.verify.kind, "element_changed")
             self.assertTrue(result.history[0].success)
 
-    def test_fill_every_goal_blocks_submit_until_each_field_is_completed(self):
+    def test_goal_compilation_failure_does_not_block_unrelated_form_actions(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); image = base / "screen.png"; Image.new("RGB", (120, 60), "white").save(image)
             form = Observation(str(image), str(image), [element(1, "input", "Name"), element(2, "select", "Country"), element(3, "button", "Submit")], "", "Form")
-            filled = Observation(str(image), str(image), [element(1, "input", "Name", value="Ada"), element(2, "select", "Country"), element(3, "button", "Submit")], "", "Form")
             policy = type("Policy", (), {"compile_goal": AsyncMock(side_effect=ValueError("unavailable")), "decide": AsyncMock(side_effect=[
                 [ActionDecision("fill", 1, text="Ada")],
                 [ActionDecision("click", 3, grounding=(EvidenceRecord("element_text", "Submit", 3),))],
             ])})()
             config = AgentConfig(base / "artifacts", base / "runs.db", base / "graph.json", max_steps=2, verification_attempts=1, memory_mode="none")
-            with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[form, filled])), patch("vision_gui_agent.agent.execute", new=AsyncMock(return_value=None)):
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=form)):
                 result = asyncio.run(Agent(policy, config).run(object(), "Fill every editable field, then submit"))
-            self.assertIn("unfilled fields: country", result.history[-1].error)
-            self.assertNotIn("name", result.history[-1].error)
-            policy.compile_goal.assert_not_awaited()
+            self.assertEqual(result.error, "Step limit reached")
+            policy.decide.assert_awaited()
 
-    def test_fill_every_goal_rejects_selecting_the_current_placeholder(self):
+    def test_verified_completion_allows_submit_after_field_ids_change(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); before_path, result_path = base / "before.png", base / "result.png"
+            Image.new("RGB", (80, 50), "white").save(before_path); Image.new("RGB", (80, 50), "black").save(result_path)
+            form = Observation(str(before_path), str(before_path), [element(28, "input", "Name", x=10), element(40, "button", "Submit", x=10, y=30)], "https://test/", "Form")
+            filled = Observation(str(before_path), str(before_path), [element(29, "input", "Name", value="Ada", x=10), element(41, "button", "Submit", x=10, y=30)], "https://test/", "Form")
+            submitted = Observation(str(result_path), str(result_path), [element(1, "text", "Submitted", actionable=False)], "https://test/done", "Done")
+            policy = type("Policy", (), {"decide": AsyncMock(side_effect=[
+                [ActionDecision("fill", 28, text="Ada")],
+                [ActionDecision("click", 41, grounding=(EvidenceRecord("element_text", "Submit", 41),))],
+                [ActionDecision("done", grounding=(EvidenceRecord("element_text", "Submitted", 1),))],
+            ])})()
+            config = AgentConfig(base / "artifacts", base / "runs.db", base / "graph.json", max_steps=3, verification_attempts=1, memory_mode="none")
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[form, filled, submitted])), patch("vision_gui_agent.agent.execute", new=AsyncMock(return_value=None)):
+                result = asyncio.run(Agent(policy, config).run(object(), "Fill every editable field then submit"))
+            self.assertTrue(result.completed, [record.to_dict() for record in result.history])
+            self.assertEqual(result.history[1].decision.verify.kind, "page_changed")
+
+    def test_current_select_value_is_an_observable_noop_not_a_goal_grammar_error(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); image = base / "screen.png"; Image.new("RGB", (80, 40), "white").save(image)
             form = Observation(str(image), str(image), [element(1, "select", "Country", value="Choose")], "", "Form")
             policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision("select", 1, text="Choose")])})()
             config = AgentConfig(base / "artifacts", base / "runs.db", base / "graph.json", max_steps=1, memory_mode="none")
-            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=form)):
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[form, form])), patch("vision_gui_agent.agent.execute", new=AsyncMock(return_value=None)):
                 result = asyncio.run(Agent(policy, config).run(object(), "Fill every dropdown"))
-            self.assertIn("select value is already current", result.history[-1].error)
+            self.assertIn("already satisfied", result.history[-1].error)
 
     def test_done_freshness_semantics(self):
         initial = Observation("", "", [element(1, "text", "Book flights", actionable=False),
@@ -171,7 +212,7 @@ class VisualCompletionTests(unittest.TestCase):
             config = AgentConfig(base / "failed-artifacts", base / "failed.db", base / "failed-graph.json", max_steps=2, verification_attempts=1, memory_mode="none")
             with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[initial, initial])), patch("vision_gui_agent.agent.execute", new=AsyncMock(return_value=None)):
                 failed = asyncio.run(Agent(failed_policy, config).run(object(), "book"))
-            self.assertIn("high-impact action cannot follow", failed.history[-1].error)
+            self.assertIn("done grounding was already satisfied", failed.history[-1].error)
 
             stale_policy = type("Policy", (), {"decide": AsyncMock(side_effect=[
                 [ActionDecision("click", 1, verify=VerificationCondition("element_visible", pattern="Ready"))],

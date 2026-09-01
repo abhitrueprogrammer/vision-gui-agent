@@ -21,13 +21,15 @@ def _compact_elements(observation: Observation) -> list[dict]:
     for element in observation.elements:
         item = {"id": element.id, "tag": element.tag, "role": element.role, "text": element.text,
                 "value": element.value, "actionable": element.actionable,
+                "enabled": element.enabled, "readonly": element.readonly, "confidence": round(element.confidence, 2),
                 "box": [round(value) for value in (element.x, element.y, element.width, element.height)]}
         for name in ("aria_label", "placeholder", "download", "context"):
             value = getattr(element, name)
             if value:
                 item[name] = value[:160] if name == "context" else value
         if element.selected: item["selected"] = True
-        if element.checked: item["checked"] = True
+        if element.checked is not None: item["checked"] = element.checked
+        if element.input_type: item["input_type"] = element.input_type
         elements.append(item)
     return elements
 
@@ -112,8 +114,8 @@ class GeminiPolicy:
             "recent_actions": [record.to_dict() for record in history[-8:]],
             "instructions": (
                 "Choose exactly one next action. Return a JSON array containing one object only. Fields: action "
-                "(click|fill|select|press|scroll|done), element_id when needed, text for "
-                "fill/select, key for press, direction for scroll, current_label (short semantic "
+                "(click|fill|select|set_checked|set_date|set_range|upload|set_color|press|scroll|done), element_id when needed, text for "
+                "fill/select/set_date/set_range/upload/set_color, checked (boolean) for set_checked, key for press, direction for scroll, current_label (short semantic "
                 "name of the visible state), next_label (predicted resulting state), rationale, impact "
                 "(harmless|high), grounding (a list of observable evidence objects, never strings: "
                 "{source:'element_text|value|role|tag',expected:'visible text',element_id:12}; "
@@ -121,16 +123,16 @@ class GeminiPolicy:
                 "The agent normally maintains and proves constraints itself. Include constraints only to mark an existing graph_context constraint unavailable, preserving its id and definition exactly and giving a visible-state reason. Labels are predictions, not facts. "
                 "Optionally include verify: exactly one of {kind:'page_changed'}, "
                 "{kind:'element_visible',pattern:'Order submitted'}, {kind:'element_enabled',pattern:'Export document'}, {kind:'element_absent',pattern:'Loading'}, "
-                "{kind:'element_value',element_id:4,expected:'example'}, {kind:'element_changed',element_id:4}, or {kind:'download_created'}. "
+                "{kind:'element_value',element_id:4,expected:'example'}, {kind:'element_checked',element_id:4,expected:'true'}, {kind:'element_filename',element_id:4,expected:'report.pdf'}, {kind:'element_color',element_id:4,expected:'#12ab34'}, {kind:'element_range',element_id:4,expected:'12'}, {kind:'element_changed',element_id:4}, or {kind:'download_created'}. "
                 "Patterns are non-empty literal substrings; visible-label matching ignores case and whitespace. "
                 "Include verify when an action has a meaningful observable result, preferring the most specific reliable condition over page_changed; use element_enabled for a control that becomes usable and element_changed when a clicked control changes selection appearance but exposes no readable value; never invent kinds. "
                 "A later planned action runs only after the prior requested verification passes. Omit verify for harmless actions without a reliable observation. "
-                "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. The screenshot is authoritative when OCR misreads a small numeric control. Do not repeat rejected or ineffective actions. For a visually editable field, use fill directly even if its detected tag is imperfect; clicking it repeatedly only focuses it. Select a visible autocomplete suggestion before leaving or submitting its field; typed but uncommitted autocomplete text is incomplete. For a calendar cell, verify the clicked cell with element_changed; then verify an Apply/Done click by the dialog control becoming absent instead of guessing the receiving field's display format. Prefer element_value or newly visible goal-result evidence; use page_changed only for an expected state transition. "
+                "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. The screenshot is authoritative when OCR misreads a small numeric control. Do not repeat rejected or ineffective actions, and never fill/select a visible field that already has the requested value; choose a distinct remaining field. For a visually editable field, use fill directly even if its detected tag is imperfect; clicking it repeatedly only focuses it. Use set_checked with the requested boolean instead of blindly toggling checkboxes or radios. Use set_date for an ISO date, set_range for a non-negative integer keyboard step value, upload only for an explicit local path, and set_color only for an explicit #rrggbb value. Select a visible autocomplete suggestion before leaving or submitting its field; typed but uncommitted autocomplete text is incomplete. For a calendar cell, verify the clicked cell with element_changed; then verify an Apply/Done click by the dialog control becoming absent instead of guessing the receiving field's display format. Prefer element_value, element_checked, or newly visible goal-result evidence; use page_changed only for an expected state transition. "
                 "A visible container, category, or navigation item is not proof of the contents behind it. Do not declare a requirement unavailable while a visible, ordinary control can reveal relevant contents; do not replace such exploration with scrolling. "
                 "Comparison evidence must name its observed attribute and list candidate element ids, values, direction (min|max), and selected id. "
                 "Constraints in graph_context are persistent and read-only: do not invent, weaken, or redefine them. You may mark one unavailable only with its existing id and a reason grounded in the current visible state. "
                 "Do not call a constraint unavailable merely because an intermediate search, suggestion, category, or navigation list lacks it. A visible list proves unavailability only when it is explicitly exhaustive or contains the final selectable objects, and every visible object has been checked. "
-                "Before a final search, submit, or done action, compare every explicit goal requirement with the visible form state and set any missing or contradictory mode, option, value, or cardinality first. A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
+                "The graph_context completion field lists the visible controls required by an all/every editable goal. Prefer a distinct item from completion.remaining and do not submit while it is non-empty. Before a final search, submit, or done action, compare every explicit goal requirement with the visible form state and set any missing or contradictory mode, option, value, or cardinality first. A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
                 "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering or candidate comparison; first result is not proof. Use done only when "
                 "the user goal is complete on the destination screen, not while it is merely visible in search or autocomplete suggestions; for a goal explicitly requesting a download, click the download control with verify:{kind:'download_created'} and ground that target with its exact visible element_text or value. done is valid only after that click has verified download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
                 "A done action must include either a state-only verify or grounding that cites currently visible evidence which appeared because of this workflow. Persistent headings, navigation, form labels, and submit buttons never prove completion. "
