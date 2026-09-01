@@ -422,7 +422,7 @@ The experiment selector **hard-blocks**: deletion, send/submit, purchases/paymen
 
 ### Passing
 
-- **44+ unit tests** across 6 test files
+- **121 unit/integration tests** across 6 test files
 - **48 task/layout benchmark runs** (all 17 actions covered)
 - **21 positive workflow/layout calibration runs** (real Chromium + Playwright)
 - Gemini Flash Lite preflight completed the PDF-export task with independent evaluator confirmation

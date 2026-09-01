@@ -249,6 +249,8 @@ class ActionModelTests(unittest.TestCase):
             url = f"http://127.0.0.1:{server.server_address[1]}"
             page = urlopen(url).read().decode()
             self.assertIn("Open document", page); self.assertNotIn("invalid_attempts", page)
+            admin = urlopen(url + "/admin").read().decode()
+            self.assertIn("Reset current layout", admin); self.assertNotIn("Open document", admin)
             urlopen(Request(url, data=b'{"action":"open_document"}', method="POST")).read()
             self.assertIn("document open", urlopen(url).read().decode().casefold())
         finally:

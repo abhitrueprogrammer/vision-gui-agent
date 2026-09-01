@@ -22,6 +22,8 @@ class _Handler(BaseHTTPRequestHandler):
             self.evaluator.reset(query.get("state", ["blank"])[0], query.get("layout", ["classic"])[0]); self._send(json.dumps({"ok": True}), "application/json"); return
         if self.path.startswith("/score"):
             self._send(json.dumps(self.evaluator.visible_state()), "application/json"); return
+        if urlparse(self.path).path == "/admin":
+            self._send(self.admin_page()); return
         self._send(self.page())
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0")); payload = json.loads(self.rfile.read(length) or b"{}")
@@ -41,6 +43,12 @@ class _Handler(BaseHTTPRequestHandler):
             )
             groups.append(f"<section><h2>{workspace.title()} workspace</h2>{buttons}</section>")
         return f'''<!doctype html><title>Visual Function Lab</title><style>body{{font:18px sans-serif;margin:3rem}}main{{display:block}}button{{padding:.8rem 1rem;border:1px solid #334155;color:#111;min-width:190px;min-height:52px;font-size:16px}}button:disabled{{opacity:.35;filter:grayscale(1)}}.compact button{{font-size:14px;min-width:165px}}.high_contrast{{background:#000;color:#fff}}#state{{padding:1rem;border:2px solid currentColor;min-height:22px}}.state-chip{{display:inline-block;width:14px;height:14px;margin-right:7px;vertical-align:middle}}section{{margin-top:1.5rem;display:grid;grid-template-columns:repeat(3,max-content);gap:14px 18px}}section h2{{grid-column:1/-1;margin:0}}</style><main class="{layout}"><h1>Visual Function Lab</h1><p id="state">{status}</p>{''.join(groups)}</main><script>async function act(action){{await fetch('/',{{method:'POST',body:JSON.stringify({{action}})}});location.reload()}}</script>'''
+
+    def admin_page(self) -> str:
+        layout = self.evaluator.layout
+        buttons = "".join(f'<button onclick="reset(\'{name}\')">{name.replace("_", " ").title()}</button>'
+                          for name in ("classic", "compact", "high_contrast"))
+        return f'''<!doctype html><title>Visual Function Lab controls</title><style>body{{font:18px sans-serif;margin:3rem}}button{{margin:.25rem;padding:.7rem 1rem}}</style><h1>Visual Function Lab controls</h1><p>Current layout: <strong>{layout}</strong></p><button onclick="reset('{layout}')">Reset current layout</button>{buttons}<p><a href="/">Open benchmark</a></p><script>async function reset(layout){{await fetch('/reset?state=blank&layout='+layout);location.reload()}}</script>'''
 
 
 def serve_visual_function_lab(port: int = 4200) -> ThreadingHTTPServer:
