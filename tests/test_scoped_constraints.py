@@ -4,6 +4,7 @@ import asyncio
 from vision_gui_agent.agent import Agent
 from vision_gui_agent.decision import GeminiPolicy, _selection_constraints, parse_goal_constraints
 from vision_gui_agent.models import ActionDecision, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition
+from vision_gui_agent.perception import LocalVisualGrounder
 
 
 def report(id, text, context="", actionable=True, download=""):
@@ -51,6 +52,41 @@ class ScopedConstraintTests(unittest.TestCase):
                     '{"constraints":[{"id":"x","kind":"target_text","scope":"affected_items","expected":"x"}]}',
                     '{"constraints":[{"id":"x","kind":"target_text","scope":"whole_collection","expected":"x","source_span":"x"}]}'):
             with self.assertRaises(ValueError): parse_goal_constraints(raw)
+
+    def test_entity_quantity_compiler_constraint(self):
+        constraints = parse_goal_constraints('{"constraints":[{"id":"pliers","kind":"entity_quantity","scope":"final_collection","expected":"Pliers","quantity":1,"source_span":"1 Plier"},{"id":"cutters","kind":"entity_quantity","scope":"final_collection","expected":"Bolt Cutters","quantity":2,"source_span":"2 bolt cutters"}]}')
+        self.assertEqual([(item.expected, item.quantity) for item in constraints], [("Pliers", 1), ("Bolt Cutters", 2)])
+        with self.assertRaises(ValueError):
+            parse_goal_constraints('{"constraints":[{"id":"pliers","kind":"entity_quantity","scope":"final_collection","expected":"Pliers","quantity":0,"source_span":"0 Pliers"}]}')
+
+    def test_entity_quantity_requires_one_row_with_explicit_quantity(self):
+        requirement = GoalConstraint("pliers", "", kind="entity_quantity", scope="final_collection", expected="Pliers", quantity=2, source_span="2 Pliers")
+        separate = Observation("", "", [
+            Element(1, "", "text", "Pliers", "", "", "text", 0, 0, 20, 10, actionable=False, context="Pliers quantity 1", context_bounds=(0, 0, 100, 20)),
+            Element(2, "", "text", "Bolt Cutters", "", "", "text", 0, 30, 20, 10, actionable=False, context="Bolt Cutters quantity 2", context_bounds=(0, 30, 100, 20)),
+        ], "", "Cart")
+        ledger = {requirement.id: requirement}
+        Agent._prove_entity_quantities(ledger, separate)
+        self.assertEqual(ledger[requirement.id].status, "unproven")
+        matching = Observation("", "", [
+            Element(1, "", "text", "Pliers", "", "", "text", 0, 0, 20, 10, actionable=False, context="Pliers quantity 2", context_bounds=(0, 0, 100, 20)),
+            Element(2, "", "text", "2", "", "", "text", 60, 0, 10, 10, actionable=False, context="Pliers quantity 2", context_bounds=(0, 0, 100, 20)),
+        ], "", "Cart")
+        Agent._prove_entity_quantities(ledger, matching)
+        self.assertEqual(ledger[requirement.id].status, "proven")
+
+    def test_done_rejects_toast_without_final_collection_proof(self):
+        requirement = GoalConstraint("pliers", "", kind="entity_quantity", scope="final_collection", expected="Pliers", quantity=1, source_span="1 Plier")
+        toast = Observation("", "", [Element(1, "", "text", "Product added to shopping cart.", "", "", "text", 0, 0, 20, 10, actionable=False)], "", "Product")
+        with self.assertRaisesRegex(ValueError, "final collection quantities"):
+            Agent._guard(ActionDecision("done", verify=VerificationCondition("element_visible", pattern="Product added to shopping cart.")), toast, {requirement.id: requirement})
+
+    def test_compact_visual_header_labels_are_actionable_navigation(self):
+        home = Element(1, "", "text", "Home", "", "", "text", 1000, 120, 40, 20, actionable=False)
+        peers = [home, Element(2, "", "text", "Categories", "", "", "text", 1060, 120, 70, 20, actionable=False),
+                 Element(3, "", "text", "Contact", "", "", "text", 1150, 120, 55, 20, actionable=False)]
+        self.assertTrue(LocalVisualGrounder._header_navigation(home, peers, 1000))
+        self.assertFalse(LocalVisualGrounder._header_navigation(Element(4, "", "text", "Related products", "", "", "text", 50, 200, 150, 20, actionable=False), peers, 1000))
 
     def test_goal_compiler_retries_invalid_schema(self):
         class Config:

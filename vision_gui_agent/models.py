@@ -115,12 +115,13 @@ class GoalConstraint:
     status: ConstraintStatus = "unproven"
     evidence: tuple[EvidenceRecord, ...] = ()
     unavailable_reason: str | None = None
-    kind: Literal["target_text", "extremum"] = "target_text"
-    scope: Literal["affected_items"] = "affected_items"
+    kind: Literal["target_text", "extremum", "entity_quantity"] = "target_text"
+    scope: Literal["affected_items", "final_collection"] = "affected_items"
     expected: str = ""
     source_span: str = ""
     direction: Literal["min", "max"] | None = None
     attribute_hint: str | None = None
+    quantity: int | None = None
 
     @classmethod
     def from_dict(cls, raw: Any) -> "GoalConstraint":
@@ -129,8 +130,16 @@ class GoalConstraint:
         if status not in {"unproven", "proven", "unavailable"}: raise ValueError("invalid constraint status")
         if status == "unavailable" and (not isinstance(reason, str) or not reason.strip()): raise ValueError("unavailable constraints require a reason")
         if not isinstance(evidence, list): raise ValueError("constraint evidence must be a list")
+        kind, scope, quantity = raw.get("kind", "target_text"), raw.get("scope", "affected_items"), raw.get("quantity")
+        if kind not in {"target_text", "extremum", "entity_quantity"} or scope not in {"affected_items", "final_collection"}:
+            raise ValueError("invalid constraint kind or scope")
+        if kind == "entity_quantity":
+            if scope != "final_collection" or not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:
+                raise ValueError("entity_quantity requires final_collection scope and a positive quantity")
+        elif quantity is not None:
+            raise ValueError("quantity is valid only for entity_quantity")
         return cls(raw["id"], raw["description"], bool(raw.get("material", True)), status, tuple(EvidenceRecord.from_dict(item) for item in evidence), reason,
-                   raw.get("kind", "target_text"), raw.get("scope", "affected_items"), raw.get("expected", ""), raw.get("source_span", ""), raw.get("direction"), raw.get("attribute_hint"))
+                   kind, scope, raw.get("expected", ""), raw.get("source_span", ""), raw.get("direction"), raw.get("attribute_hint"), quantity)
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self); data["evidence"] = [asdict(item) for item in self.evidence]

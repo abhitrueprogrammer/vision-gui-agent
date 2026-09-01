@@ -43,17 +43,21 @@ def parse_goal_constraints(text: str) -> tuple[GoalConstraint, ...]:
         raise ValueError("Goal compiler did not return a constraints object") from exc
     if not isinstance(items, list): raise ValueError("constraints must be a list")
     constraints = []
-    fields = {"id", "kind", "scope", "expected", "source_span", "direction", "attribute_hint"}
+    fields = {"id", "kind", "scope", "expected", "source_span", "direction", "attribute_hint", "quantity"}
     for item in items:
         if not isinstance(item, dict) or set(item) - fields or not {"id", "kind", "scope", "expected", "source_span"} <= set(item):
             raise ValueError("invalid goal constraint fields")
-        if item["kind"] not in {"target_text", "extremum"} or item["scope"] != "affected_items": raise ValueError("unsupported material constraint")
+        if item["kind"] not in {"target_text", "extremum", "entity_quantity"}: raise ValueError("unsupported material constraint")
+        if item["kind"] == "entity_quantity":
+            if item["scope"] != "final_collection" or not isinstance(item.get("quantity"), int) or isinstance(item["quantity"], bool) or item["quantity"] < 1:
+                raise ValueError("entity_quantity requires final_collection scope and a positive quantity")
+        elif item["scope"] != "affected_items": raise ValueError("unsupported material constraint")
         if not all(isinstance(item[name], str) and item[name].strip() for name in ("id", "expected", "source_span")): raise ValueError("constraint text is required")
         direction, hint = item.get("direction"), item.get("attribute_hint")
         if item["kind"] == "extremum":
             if direction not in {"min", "max"} or not isinstance(hint, str) or not hint.strip(): raise ValueError("extremum requires direction and attribute_hint")
-        elif direction is not None or hint is not None: raise ValueError("target_text does not accept ranking fields")
-        constraints.append(GoalConstraint(item["id"], "", kind=item["kind"], scope=item["scope"], expected=item["expected"], source_span=item["source_span"], direction=direction, attribute_hint=hint))
+        elif direction is not None or hint is not None: raise ValueError(f"{item['kind']} does not accept ranking fields")
+        constraints.append(GoalConstraint(item["id"], "", kind=item["kind"], scope=item["scope"], expected=item["expected"], source_span=item["source_span"], direction=direction, attribute_hint=hint, quantity=item.get("quantity")))
     return tuple(constraints)
 
 
@@ -86,9 +90,10 @@ class GeminiPolicy:
         self.last_response: str | None = None
 
     async def compile_goal(self, goal: str) -> tuple[GoalConstraint, ...]:
-        prompt = ("Extract only explicit item-selection restrictions or rankings from this goal. Return JSON only: "
-                  "{constraints:[{id,kind:'target_text|extremum',scope:'affected_items',expected,source_span,direction?,attribute_hint?}]}. "
-                  "scope is a fixed literal: always use 'affected_items', never words from the goal. Put matching text in expected and the supporting goal phrase in source_span. "
+        prompt = ("Extract explicit material completion requirements, item-selection restrictions, or rankings from this goal. Return JSON only: "
+                  "{constraints:[{id,kind:'target_text|extremum|entity_quantity',scope:'affected_items|final_collection',expected,source_span,direction?,attribute_hint?,quantity?}]}. "
+                  "Use entity_quantity with scope final_collection for an explicitly requested named item count in the final visible collection (cart, selected list, folder, or summary); expected is the item name and quantity is a positive integer. "
+                  "Use target_text or extremum only with scope affected_items. Put matching text in expected and the supporting goal phrase in source_span. "
                   "Return constraints:[] if none. Reject any requirement you cannot express exactly in that schema. Goal: " + goal)
         def generate() -> str:
             return self._generate(lambda client: client.models.generate_content(model=self.model, contents=prompt,
@@ -97,7 +102,7 @@ class GeminiPolicy:
         try:
             return _selection_constraints(goal, parse_goal_constraints(self.last_response))
         except ValueError:
-            prompt += " Your prior response was invalid. Return corrected JSON only; target_text must omit direction and attribute_hint."
+            prompt += " Your prior response was invalid. Return corrected JSON only; only extremum accepts direction/attribute_hint and only entity_quantity accepts quantity."
             self.last_response = await asyncio.to_thread(generate)
             try:
                 return _selection_constraints(goal, parse_goal_constraints(self.last_response))
@@ -130,6 +135,7 @@ class GeminiPolicy:
                 "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. The screenshot is authoritative when OCR misreads a small numeric control. Do not repeat rejected or ineffective actions, and never fill/select a visible field that already has the requested value; choose a distinct remaining field. For a visually editable field, use fill directly even if its detected tag is imperfect; clicking it repeatedly only focuses it. Use set_checked with the requested boolean instead of blindly toggling checkboxes or radios. Use set_date for an ISO date, set_range for a non-negative integer keyboard step value, upload only for an explicit local path, and set_color only for an explicit #rrggbb value. Select a visible autocomplete suggestion before leaving or submitting its field; typed but uncommitted autocomplete text is incomplete. For a calendar cell, verify the clicked cell with element_changed; then verify an Apply/Done click by the dialog control becoming absent instead of guessing the receiving field's display format. Prefer element_value, element_checked, or newly visible goal-result evidence; use page_changed only for an expected state transition. "
                 "A visible container, category, or navigation item is not proof of the contents behind it. Do not declare a requirement unavailable while a visible, ordinary control can reveal relevant contents; do not replace such exploration with scrolling. "
                 "Comparison evidence must name its observed attribute and list candidate element ids, values, direction (min|max), and selected id. "
+                "For an entity_quantity requirement, set the visible quantity control to the requested value and verify it before one state-changing add/select action. A generic notification proves only that an action happened, never the final item identity or quantity. Navigate to the final collection and wait until each requested entity and exact quantity are visibly associated in one row/container before done. "
                 "Constraints in graph_context are persistent and read-only: do not invent, weaken, or redefine them. You may mark one unavailable only with its existing id and a reason grounded in the current visible state. "
                 "Do not call a constraint unavailable merely because an intermediate search, suggestion, category, or navigation list lacks it. A visible list proves unavailability only when it is explicitly exhaustive or contains the final selectable objects, and every visible object has been checked. "
                 "The graph_context completion field lists the visible controls required by an all/every editable goal. Prefer a distinct item from completion.remaining and do not submit while it is non-empty. Before a final search, submit, or done action, compare every explicit goal requirement with the visible form state and set any missing or contradictory mode, option, value, or cardinality first. A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "

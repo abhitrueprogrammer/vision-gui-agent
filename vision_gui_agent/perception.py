@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import os
+import sys
 from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
@@ -17,6 +19,128 @@ from .gemini import GeminiClientPool
 
 class VisualGrounder(Protocol):
     async def detect(self, screenshot: Path) -> list[Element]: ...
+
+
+class OmniParserVisualGrounder:
+    """OmniParser regions reconciled with RapidOCR; no contour-derived controls."""
+    last_label = "OmniParser screen"
+
+    def __init__(self, detector: Any | None = None, ocr: Callable[[str], Any] | None = None,
+                 omniparser_home: Path | None = None) -> None:
+        injected = detector is not None or ocr is not None
+        if detector is None:
+            home = (omniparser_home or (Path(os.environ["OMNIPARSER_HOME"]) if os.environ.get("OMNIPARSER_HOME") else None)
+                    or Path(__file__).resolve().parents[1] / "third_party" / "OmniParser")
+            if home is None or not (home / "util" / "yolov9.py").is_file():
+                raise RuntimeError("OmniParser is required: clone it and set OMNIPARSER_HOME to that checkout")
+            sys.path.insert(0, str(home))
+            try:
+                from util.yolov9 import YOLOv9Detector
+            except ImportError as exc:
+                raise RuntimeError("OmniParser requires torch, torchvision, and huggingface_hub; run uv sync") from exc
+            detector = YOLOv9Detector(revision="refs/pr/37")
+        if ocr is None:
+            try:
+                from rapidocr import RapidOCR
+            except ImportError as exc:
+                raise RuntimeError("OmniParser grounding requires rapidocr; run uv sync") from exc
+            ocr = RapidOCR(params={"Det.box_thresh": .35})
+        self.detector, self.ocr, self._injected = detector, ocr, injected
+
+    @staticmethod
+    def _box(record: tuple[list[tuple[float, float]], str, float]) -> tuple[float, float, float, float]:
+        points, _, _ = record
+        xs, ys = zip(*points)
+        return min(xs), min(ys), max(xs), max(ys)
+
+    @staticmethod
+    def _records(result: Any) -> list[tuple[list[tuple[float, float]], str, float]]:
+        if isinstance(result, tuple): result = result[0]
+        boxes, texts, scores = getattr(result, "boxes", None), getattr(result, "txts", None), getattr(result, "scores", None)
+        if isinstance(result, dict):
+            boxes, texts, scores = boxes or result.get("boxes"), texts or result.get("txts"), scores or result.get("scores")
+        if boxes is not None and texts is not None:
+            return [(list(box), str(text), float(score)) for box, text, score in zip(boxes, texts, scores if scores is not None else [1] * len(texts))]
+        records = []
+        for item in result or []:
+            if not isinstance(item, (list, tuple)) or len(item) < 2: continue
+            box, text_score = item[0], item[1]
+            text, score = (text_score, 1) if isinstance(text_score, str) else (text_score[0], text_score[1])
+            records.append((list(box), str(text), float(score)))
+        return records
+
+    @staticmethod
+    def _inside(text_box: tuple[float, float, float, float], region: tuple[float, float, float, float]) -> bool:
+        left, top, right, bottom = text_box; x, y, width, height = region
+        area = max(1.0, (right - left) * (bottom - top))
+        overlap = max(0.0, min(right, x + width) - max(left, x)) * max(0.0, min(bottom, y + height) - max(top, y))
+        return overlap / area >= .8
+
+    @staticmethod
+    def _near_label(text_box: tuple[float, float, float, float], region: tuple[float, float, float, float]) -> bool:
+        left, top, right, bottom = text_box; x, y, width, height = region
+        vertically_above = -16 <= x - left <= 24 and -8 <= y - bottom <= 28
+        horizontally_left = -8 <= y - top <= height and -8 <= x - right <= 28
+        return vertically_above or horizontally_left
+
+    @staticmethod
+    def _kind(image: Image.Image, region: tuple[float, float, float, float]) -> str:
+        """Conservative visual type classifier; uncertain regions stay generic-clickable."""
+        x, y, width, height = (int(value) for value in region)
+        if width < 3 or height < 3: return "other"
+        ratio = width / height
+        if .65 <= ratio <= 1.5 and max(width, height) <= 48:
+            return "checkbox"
+        # Empty, wide outlined areas are the one shape we can classify safely enough for text entry.
+        crop = image.crop((x, y, x + width, y + height)).convert("L")
+        if ratio >= 2.2 and width >= 80 and height >= 22:
+            pixels = __import__("numpy").asarray(crop)
+            border = __import__("numpy").concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
+            middle = pixels[max(1, height // 4):max(2, height - height // 4), max(1, width // 4):max(2, width - width // 4)]
+            if middle.size and border.mean() + 18 < middle.mean():
+                return "textarea" if height >= 60 else "input"
+        return "other"
+
+    async def detect(self, screenshot: Path) -> list[Element]:
+        with Image.open(screenshot) as source:
+            image = source.convert("RGB")
+        def read_ocr():
+            try: return self.ocr(str(screenshot), return_word_box=True)
+            except TypeError: return self.ocr(str(screenshot))
+        raw_ocr = read_ocr() if self._injected else await asyncio.to_thread(read_ocr)
+        records = [record for record in self._records(raw_ocr)
+                   if record[2] >= .7 and record[1].strip() and len(record[0]) >= 4]
+
+        def predict():
+            return self.detector.predict(source=image, conf=.25, imgsz=max(image.size))
+        result = predict() if self._injected else await asyncio.to_thread(predict)
+        boxes = result[0].boxes
+        regions = [(float(x1), float(y1), max(0.0, float(x2) - float(x1)), max(0.0, float(y2) - float(y1)), float(score))
+                   for (x1, y1, x2, y2), score in zip(boxes.xyxy.tolist(), boxes.conf.tolist())]
+        elements: list[Element] = []
+        matched: set[int] = set()
+        for x, y, width, height, confidence in regions:
+            if width < 2 or height < 2: continue
+            region = x, y, width, height
+            contained = [(index, record) for index, record in enumerate(records) if self._inside(self._box(record), region)]
+            kind = self._kind(image, region)
+            labels = contained or ([(index, record) for index, record in enumerate(records)
+                                   if kind in {"input", "textarea"} and self._near_label(self._box(record), region)][:1])
+            matched.update(index for index, _ in labels)
+            text = " ".join(" ".join(record[1].split()) for _, record in labels)[:200]
+            context = text if len(contained) > 1 else ""
+            elements.append(Element(len(elements) + 1, "", kind, text, "", "", kind, x, y, width, height,
+                                    actionable=True, confidence=confidence, context=context,
+                                    context_bounds=region if context else None))
+        for index, record in enumerate(records):
+            if index in matched: continue
+            left, top, right, bottom = self._box(record)
+            elements.append(Element(len(elements) + 1, "", "text", " ".join(record[1].split())[:200], "", "", "text",
+                                    left, top, right - left, bottom - top, actionable=False, confidence=record[2]))
+        heading = min((record for index, record in enumerate(records) if index not in matched),
+                      key=lambda record: self._box(record)[1], default=None)
+        if heading: self.last_label = " ".join(heading[1].split())[:120]
+        return elements
 
 
 class LocalVisualGrounder:
@@ -94,6 +218,20 @@ class LocalVisualGrounder:
         if any(token in word for token in ("select ", "choose ", "pick ")): return "select"
         if any(token in word for token in ("email", "password", "search", "username", "phone", "address", "enter ", "type ")): return "input"
         return "button"
+
+    @staticmethod
+    def _header_navigation(element: Element, elements: list[Element], image_height: int) -> bool:
+        """Recognize a compact, horizontally grouped header menu without DOM metadata."""
+        label = " ".join(element.text.split())
+        if element.actionable or element.tag != "text" or not label or len(label) > 16 or not label.replace(" ", "").isalnum():
+            return False
+        if element.y + element.height > image_height * .22:
+            return False
+        peers = [item for item in elements if item is not element and item.tag == "text" and not item.actionable
+                 and len(" ".join(item.text.split())) <= 16 and item.text.replace(" ", "").isalnum()
+                 and abs((item.y + item.height / 2) - (element.y + element.height / 2)) <= 18
+                 and abs((item.x + item.width / 2) - (element.x + element.width / 2)) <= 500]
+        return len(peers) >= 2
 
     async def detect(self, screenshot: Path) -> list[Element]:
         try:
@@ -322,6 +460,9 @@ class LocalVisualGrounder:
                 if value: elements[elements.index(field)] = replace(field, value=value)
                 remove.update(item.id for item in nested)
         elements = [item for item in elements if item.id not in remove]
+        # ponytail: visual header grouping covers conventional compact nav menus; add a learned affordance model if unusual headers matter.
+        elements = [replace(item, tag="link", role="link", actionable=True)
+                    if self._header_navigation(item, elements, image.shape[0]) else item for item in elements]
         heading = min(record_bounds, key=lambda item: (item[1], -(item[3] - item[1])), default=None)
         if heading: self.last_label = heading[4][:120]
         return elements
@@ -345,9 +486,10 @@ class GeminiVisualGrounder:
             output = BytesIO(); crop.save(output, format="JPEG", quality=85)
 
         def generate() -> str:
-            prompt = (f"This is a {crop.width}x{crop.height} crop from a screenshot. Locate only the visible control "
+            prompt = (f"This is a {crop.width}x{crop.height} crop from a screenshot. Locate only the visible region "
                       f"labelled {target.text!r}. Return JSON only: {{\"found\":true|false,\"x\":number,\"y\":number,"
-                      "\"width\":number,\"height\":number}}. Coordinates are crop-relative pixels and must tightly cover that control.")
+                      "\"width\":number,\"height\":number,\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"actionable\":true|false}}. "
+                      "Coordinates are crop-relative pixels and must tightly cover that region. Mark actionable true only when it is visibly interactive.")
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 contents=[self.types.Part.from_bytes(data=output.getvalue(), mime_type="image/jpeg"), prompt],
@@ -366,7 +508,10 @@ class GeminiVisualGrounder:
             return None
         x1, y1 = max(0.0, left + x), max(0.0, top + y)
         x2, y2 = min(float(right), x1 + width), min(float(bottom), y1 + height)
-        return replace(target, x=x1, y=y1, width=x2 - x1, height=y2 - y1) if x2 - x1 >= 2 and y2 - y1 >= 2 else None
+        kind = str(result.get("kind", target.tag)).strip().lower()
+        kind = kind if kind in {"button", "link", "input", "select", "textarea", "checkbox", "menuitem", "text", "other"} else target.tag
+        actionable = result.get("actionable") if isinstance(result.get("actionable"), bool) else target.actionable
+        return replace(target, x=x1, y=y1, width=x2 - x1, height=y2 - y1, tag=kind, role=kind, actionable=actionable) if x2 - x1 >= 2 and y2 - y1 >= 2 else None
 
     async def detect(self, screenshot: Path) -> list[Element]:
         with Image.open(screenshot) as image:
@@ -374,7 +519,7 @@ class GeminiVisualGrounder:
 
         def generate() -> str:
             prompt = f"""Inspect this {image_size[0]}x{image_size[1]} screenshot only. Do not use or assume HTML, DOM, accessibility metadata, URLs, or hidden state.
-Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}}. Include every visible actionable control and the small number of headings, messages, selected values, or status text needed to distinguish this screen. Each item must be {{\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"label\":\"visible text, visible field value, or short visual description\",\"value\":\"visible field value or empty\",\"actionable\":true|false,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}. Coordinates must be pixels in the stated native screenshot size, boxes must tightly cover the visible region, and uncertain regions must be omitted. Text/status evidence is actionable=false."""
+Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}}. Include every visible actionable control and the small number of headings, messages, selected values, or status text needed to distinguish this screen. Each item must be {{\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"label\":\"visible text, visible field value, or short visual description\",\"value\":\"visible field value or empty\",\"actionable\":true|false,\"context\":\"visible row/container text or empty\",\"context_bounds\":[x,y,width,height] or null,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}. For a visible list, table, cart, selected-items, folder, or summary row, include its full visible row text as context and its row bounds; include a visible quantity using words such as 'quantity 2'. Coordinates must be pixels in the stated native screenshot size, boxes must tightly cover the visible region, and uncertain regions must be omitted. Text/status evidence is actionable=false."""
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 # Detection coordinates must use the screenshot's native pixel grid.

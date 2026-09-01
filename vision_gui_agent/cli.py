@@ -10,7 +10,7 @@ from playwright.async_api import Browser, BrowserContext, Error as PlaywrightErr
 from .agent import Agent, AgentConfig
 from .decision import GeminiPolicy
 from .logging_store import RunLogger
-from .perception import GeminiVisualGrounder, LocalVisualGrounder
+from .perception import GeminiVisualGrounder, OmniParserVisualGrounder
 
 
 def friendly_error(error: Exception, url: str | None = None) -> str:
@@ -57,10 +57,10 @@ async def _run(args: argparse.Namespace) -> int:
         )
         policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
                               key_slot=args.gemini_key_slot)
-        grounder = LocalVisualGrounder() if args.grounder == "local" else GeminiVisualGrounder(args.model, args.gemini_key_slot)
+        grounder = OmniParserVisualGrounder() if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot)
         if args.benchmark_grounder:
             if args.desktop: raise ValueError("--benchmark-grounder is available only for the local browser benchmark")
-            if args.grounder != "local": raise ValueError("--benchmark-grounder cannot be combined with --grounder gemini")
+            if args.grounder != "omniparser": raise ValueError("--benchmark-grounder cannot be combined with --grounder gemini")
             from .benchmark_agent import PixelBenchmarkGrounder
             grounder = PixelBenchmarkGrounder()
         if args.desktop:
@@ -97,7 +97,7 @@ def main() -> None:
     parser.add_argument("url", nargs="?")
     parser.add_argument("goal", nargs="?")
     parser.add_argument("--model", default="gemini-3.6-flash")
-    parser.add_argument("--grounder", choices=["local", "gemini"], default="local", help="screenshot detector; local avoids Gemini vision requests")
+    parser.add_argument("--grounder", choices=["omniparser", "gemini"], default="omniparser", help="screenshot detector; OmniParser is local")
     parser.add_argument("--artifacts", default="artifacts")
     parser.add_argument("--max-steps", type=int, default=12)
     parser.add_argument("--headed", action="store_true")

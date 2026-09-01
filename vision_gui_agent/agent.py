@@ -276,7 +276,7 @@ class Agent:
             if old is None and any(item.source_span for item in ledger.values()):
                 continue
             if old and old.source_span:
-                same_definition = (old.kind, old.scope, old.expected, old.source_span, old.direction, old.attribute_hint) == (proposed.kind, proposed.scope, proposed.expected, proposed.source_span, proposed.direction, proposed.attribute_hint)
+                same_definition = (old.kind, old.scope, old.expected, old.source_span, old.direction, old.attribute_hint, old.quantity) == (proposed.kind, proposed.scope, proposed.expected, proposed.source_span, proposed.direction, proposed.attribute_hint, proposed.quantity)
                 if not same_definition:
                     if not proposed.source_span and proposed.status == "unavailable" and proposed.unavailable_reason:
                         ledger[old.id] = replace(old, status="unavailable", evidence=(), unavailable_reason=proposed.unavailable_reason)
@@ -290,7 +290,7 @@ class Agent:
             status = proposed.status
             if status == "proven" and not evidence: status = "unproven"
             if old and old.material and not proposed.material: proposed = GoalConstraint(proposed.id, proposed.description, True, status, evidence, proposed.unavailable_reason)
-            ledger[proposed.id] = GoalConstraint(proposed.id, proposed.description, proposed.material, status, evidence, proposed.unavailable_reason)
+            ledger[proposed.id] = replace(proposed, material=proposed.material or bool(old and old.material), status=status, evidence=evidence)
 
     @staticmethod
     def _prove_constraints(ledger: dict[str, GoalConstraint], decision: ActionDecision,
@@ -311,6 +311,29 @@ class Agent:
                 ledger[constraint.id] = replace(constraint, status="proven", evidence=(evidence,))
 
     @staticmethod
+    def _prove_entity_quantities(ledger: dict[str, GoalConstraint], observation: Observation) -> None:
+        """Prove counts only when one visible row explicitly associates the item and quantity."""
+        for constraint in list(ledger.values()):
+            if constraint.kind != "entity_quantity" or constraint.status != "unproven" or constraint.quantity is None:
+                continue
+            matches = []
+            rows: dict[tuple[float, float, float, float], tuple[object, list[str]]] = {}
+            for element in observation.elements:
+                if not element.context_bounds: continue
+                row_element, parts = rows.setdefault(element.context_bounds, (element, []))
+                parts.extend((element.context, element.text, element.value))
+                rows[element.context_bounds] = (row_element, parts)
+            for element, parts in rows.values():
+                row = " ".join(parts)
+                if not Agent._contains(row, constraint.expected): continue
+                quantity = re.search(r"\b(?:quantity|qty|count)\s*[:×x]?\s*(\d+)\b", row, re.IGNORECASE)
+                if quantity and int(quantity.group(1)) == constraint.quantity:
+                    matches.append((element, row))
+            if len(matches) == 1:
+                element, row = matches[0]
+                ledger[constraint.id] = replace(constraint, status="proven", evidence=(EvidenceRecord("context", row, element.id),))
+
+    @staticmethod
     def _guard(decision: ActionDecision, observation: Observation, ledger: dict[str, GoalConstraint],
                goal: str = "", download_paths: list[str] | None = None) -> None:
         download_paths = download_paths or []
@@ -320,7 +343,7 @@ class Agent:
                 raise ValueError("Submit requires explicit submit intent in the goal")
             if decision.verify is None:
                 raise ValueError("Submit requires a visible success postcondition")
-        scoped = [item for item in ledger.values() if item.material and item.source_span]
+        scoped = [item for item in ledger.values() if item.material and item.source_span and item.kind != "entity_quantity"]
         if scoped and decision.element_id is not None and not Agent._is_discovery_action(decision, target, observation, scoped):
             pending = [constraint for constraint in scoped if constraint.status != "proven"]
             if pending and (not target or not target.context.strip()): raise ValueError("Constrained action requires an item context")
@@ -337,6 +360,8 @@ class Agent:
             elif not matched:
                 raise ValueError("Harmless constrained action must satisfy a pending constraint")
         unavailable = any(item.material and item.status == "unavailable" for item in ledger.values())
+        if decision.action == "done" and any(item.kind == "entity_quantity" and item.status != "proven" for item in ledger.values()):
+            raise ValueError("final collection quantities require visible exact row verification")
         if decision.action == "done" and Agent._requires_download(goal) and not unavailable and not Agent._has_download(download_paths):
             raise ValueError("download goal requires a successful download_created verification")
         if decision.action == "done" and decision.verify is None and not any(
@@ -380,6 +405,24 @@ class Agent:
         controls = frozenset((item.tag.casefold(), item.role.casefold(), Agent._normal(item.text or item.value or item.aria_label or item.placeholder))
                              for item in observation.elements)
         return (Agent._normal(observation.title), controls)
+
+    @staticmethod
+    def _visible_signature(observation: Observation) -> frozenset[tuple[str, str, str, str]]:
+        return frozenset((item.tag.casefold(), Agent._normal(item.text), Agent._normal(item.value), Agent._normal(item.context))
+                         for item in observation.elements)
+
+    async def _settle_route(self, page: Page, observation: Observation, run_dir: Path, step: int) -> Observation:
+        """Bounded visual settling for SPA navigation without relying on DOM state."""
+        if not hasattr(page, "wait_for_timeout"):
+            return observation
+        previous = observation
+        for attempt in range(6):
+            await page.wait_for_timeout(250)
+            latest = await observe(page, run_dir, step, self.grounder)
+            if attempt >= 2 and latest.url == previous.url and self._visible_signature(latest) == self._visible_signature(previous):
+                return latest
+            previous = latest
+        return previous
 
     @staticmethod
     def _item_identity(observation: Observation) -> str:
@@ -517,6 +560,7 @@ class Agent:
             action_executed = False
             observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
+                self._prove_entity_quantities(ledger, observation)
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
@@ -672,6 +716,8 @@ class Agent:
                     observed_at = perf_counter()
                     for verification_attempt in range(self.config.verification_attempts):
                         next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
+                        if next_observation.url != observation.url:
+                            next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
                         target_node, created = self.graph.add_observation(next_observation)
                         verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
                                                     download_path=download_path, page_changed=target_node != current_node)
@@ -679,8 +725,8 @@ class Agent:
                             break
                         await asyncio.sleep(.15)
                     next_observe_ms = (perf_counter() - observed_at) * 1000
-                    success = verification.status != "failed" and (verification.status == "passed" or target_node != current_node)
-                    error = None if success else (verification.reason if verification.status == "failed" else "Action had no observable effect")
+                    success = verification.status == "passed"
+                    error = None if success else (verification.reason if verification.status == "failed" else "Action effect was not explicitly verified")
                     if self._recordable_graph_action(decision, observation):
                         self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
                     if self.config.verbose:

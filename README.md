@@ -18,7 +18,15 @@ GEMINI_API_KEY=first-key
 GEMINI_API_KEY_2=second-key
 ```
 
-Local OCR/CV grounding is the default: screenshots stay local while Gemini plans from the detected controls. OCR models are downloaded once and cached locally. Use `--grounder gemini` only to opt back into Gemini visual detection.
+OmniParser + RapidOCR grounding is the default: screenshots stay local while Gemini plans from the detected controls. The repository includes OmniParser at `third_party/OmniParser`; download its detector weights as documented upstream. An external checkout can override it:
+
+```bash
+git clone https://github.com/microsoft/OmniParser /opt/OmniParser
+export OMNIPARSER_HOME=/opt/OmniParser
+uv sync
+```
+
+Use `--grounder gemini` only to opt back into Gemini visual detection. OmniParser regions are authoritative for clickability; OCR supplies labels, and uncertain region types remain generic click targets.
 
 ## Run in a browser
 

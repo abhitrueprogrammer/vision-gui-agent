@@ -3,18 +3,21 @@ name = "vision-gui-agent"
 version = "0.1.0"
 description = "Screenshot-native, graph-aware GUI automation for browsers and desktop software"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "google-genai>=2.18.1",
     "imagehash>=4.3.2",
     "networkx>=3.6.1",
-    "numpy>=2.0.0",
+    "numpy==1.26.4",
     "pillow>=12.3.0",
     "playwright>=1.62.0",
     "pyautogui>=0.9.54",
     "python-dotenv>=1.2.2",
     "rapidocr>=3.9.2",
     "onnxruntime>=1.20.0",
+    "torch",
+    "torchvision",
+    "huggingface-hub",
 ]
 
 [project.scripts]
