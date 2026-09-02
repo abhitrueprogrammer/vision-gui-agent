@@ -25,43 +25,21 @@ class PredicateExtractor:
     """Small controlled-vocabulary extractor for deterministic benchmark labels.
 
     Production grounders can supply equivalent predicates, but this class never
-    invents a claim without a visible matching element.
+    invents a claim without a visible matching element. Visual Function Lab
+    renders only ordinary user-facing confirmation text (never a predicate
+    name or a raw boolean) -- this extractor matches those exact phrases, the
+    same ones the /fullsuite page renders and the calibration grounder
+    targets, so learning never depends on leaked internal state.
     """
     def extract(self, observation: Observation, observation_id: str) -> tuple[VisualPredicate, ...]:
+        from .visual_function_lab import EVIDENCE_PHRASES
         items: dict[tuple[str, object], VisualPredicate] = {}
-        text = " ".join(x.text or x.value or x.aria_label or x.placeholder for x in observation.elements).casefold()
-        # Visual Function Lab renders these exact, human-readable status lines.
-        # Parse both true and false explicitly so absence is never mistaken for
-        # evidence that a predicate is false (or vice versa).
-        for name in ("document_open", "unsaved_changes", "export_dialog_visible", "export_completed", "dataset_loaded", "item_selected",
-                     "row_action_applied", "transformation_applied", "report_generated", "authenticated", "advanced_mode_enabled",
-                     "advanced_setting_edited", "form_complete", "configuration_applied"):
-            label = name.replace("_", " ") + ": "
-            for value, rendered in ((True, "true"), (False, "false")):
-                phrase = label + rendered
-                element = next((x for x in observation.elements if phrase in (x.text or x.value or x.aria_label or x.placeholder).casefold()), None)
-                if element: items[(name, value)] = grounded(name, value, observation_id, element)
-        for name, value in (("save_status", "saved"), ("save_status", "unsaved"), ("export_format", "pdf")):
-            phrase = name.replace("_", " ") + ": " + value
-            element = next((x for x in observation.elements if phrase in (x.text or x.value or x.aria_label or x.placeholder).casefold()), None)
+        def field(x: object) -> str:
+            return (x.text or x.value or x.aria_label or x.placeholder).casefold()
+        for (name, value), phrase in EVIDENCE_PHRASES.items():
+            needle = phrase.casefold()
+            element = next((x for x in observation.elements if needle in field(x)), None)
             if element: items[(name, value)] = grounded(name, value, observation_id, element)
-        rules = {
-            "document_open": ("document open", "editing ", "close document"),
-            "dataset_loaded": ("dataset loaded", "loaded rows"),
-            "item_selected": ("row selected", "selected row"),
-            "advanced_mode_enabled": ("advanced mode: on", "advanced mode enabled"),
-            "authenticated": ("signed in", "authenticated"),
-            "form_complete": ("form complete",),
-            "unsaved_changes": ("unsaved changes",),
-            "export_dialog_visible": ("export dialog", "choose export format"),
-            "report_generated": ("report generated",),
-            "transformation_applied": ("transformation applied",),
-            "configuration_applied": ("configuration applied",),
-        }
-        for name, phrases in rules.items():
-            element = next((x for x in observation.elements if any(p in (x.text or x.value or x.aria_label or x.placeholder).casefold() for p in phrases)), None)
-            if element and name not in {item.name for item in items.values()}:
-                items[(name, True)] = grounded(name, True, observation_id, element)
         return tuple(items.values())
 
 

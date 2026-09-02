@@ -70,13 +70,20 @@ def _selection_constraints(goal: str, constraints: tuple[GoalConstraint, ...]) -
     nouns = r"article|page|profile|entry|document|report|record"
     retrieval = re.search(rf"\b(?:{nouns})\s+about\s+(.+?)(?=\s+(?:with|that|which|where|only|written|published)\b|$)", normalized)
     subject = retrieval.group(1) if retrieval else ""
+    export_format = bool(re.search(r"\b(?:export|download)\b", normalized))
+    file_formats = {"pdf", "csv", "tsv", "xlsx", "xls", "docx", "doc", "json", "xml", "zip", "png", "jpg", "jpeg"}
     kept = []
     for item in constraints:
         span = " ".join(re.sub(r"[^\w]+", " ", item.source_span.casefold()).split())
         expected = " ".join(re.sub(r"[^\w]+", " ", item.expected.casefold()).split())
         names_subject = bool(subject and (span in {subject, f"about {subject}"} or expected == subject
                              or re.fullmatch(rf"(?:{nouns})\s+about\s+{re.escape(subject)}", span)))
-        if item.kind != "target_text" or not names_subject: kept.append(item)
+        # Output formats are completion parameters, not affected-item
+        # selection constraints.  The selected format and resulting file are
+        # verified by the workflow itself; treating "PDF" as row/card scope
+        # would incorrectly block the preceding document and export controls.
+        names_format = item.kind == "target_text" and export_format and expected in file_formats
+        if item.kind != "target_text" or not (names_subject or names_format): kept.append(item)
     return tuple(kept)
 
 
@@ -144,16 +151,10 @@ class GeminiPolicy:
                 "Do not call a constraint unavailable merely because an intermediate search, suggestion, category, or navigation list lacks it. A visible list proves unavailability only when it is explicitly exhaustive or contains the final selectable objects, and every visible object has been checked. "
                 "The graph_context completion field lists the visible controls required by an all/every editable goal. Prefer a distinct item from completion.remaining and do not submit while it is non-empty. Before a final search, submit, or done action, compare every explicit goal requirement with the visible form state and set any missing or contradictory mode, option, value, or cardinality first. A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
                 "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering or candidate comparison; first result is not proof. Use done only when "
-                "the user goal is complete on the destination screen, not while it is merely visible in search or autocomplete suggestions; for a goal explicitly requesting a download, click the download control with verify:{kind:'download_created'} and ground that target with its exact visible element_text or value. done is valid only after that click has verified download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
+                "the user goal is complete on the destination screen, not while it is merely visible in search or autocomplete suggestions; for a goal requesting a download or a file export, click the control that creates the file with verify:{kind:'download_created'} and ground that target with its exact visible element_text or value. done is valid only after that click has verified download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
                 "A done action must include either a state-only verify or grounding that cites currently visible evidence which appeared because of this workflow. Persistent headings, navigation, form labels, and submit buttons never prove completion. "
-                "Put download_created on the click that starts it, never done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"element_visible\",\"pattern\":\"Account\"}}. Each later action's current_label must match the prior "
+                "Put download_created only on the final click that actually creates the file, never on a control that merely opens export options/modal or selects a format, and never on done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"element_visible\",\"pattern\":\"Account\"}}. Each later action's current_label must match the prior "
                 "action's next_label. The agent will stop the plan if the visible state changes unexpectedly."
-                + (" Visual Function Lab is a stateful browser simulation: it never creates a browser download. "
-                   "Do not use download_created there; verify its visible status text or enabled controls instead. "
-                   "Treat a button click as effective only when a visible state/control change confirms it. "
-                   "Never use a button label as proof for done. For an export-as-PDF goal, done is valid only when the "
-                   "visible status element says 'export completed: true', and its verify pattern must be exactly that text."
-                   if self.benchmark_mode else "")
             ),
         }
         def generate() -> str:

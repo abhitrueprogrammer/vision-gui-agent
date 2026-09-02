@@ -22,6 +22,11 @@ class ScopedConstraintTests(unittest.TestCase):
         self.assertEqual(_selection_constraints("Show me the article about Hitler", (whole_subject,)), ())
         self.assertEqual(_selection_constraints("Show me the audited article about Hitler", (audited, subject)), (audited,))
 
+    def test_export_format_is_not_misclassified_as_item_scope(self):
+        pdf = GoalConstraint("format", "", kind="target_text", expected="PDF", source_span="export the Launch Brief as PDF")
+        brief = GoalConstraint("brief", "", kind="target_text", expected="Launch Brief", source_span="Launch Brief")
+        self.assertEqual(_selection_constraints("export the Launch Brief as PDF", (brief, pdf)), (brief,))
+
     def test_observational_goal_keeps_only_compiled_rankings(self):
         text = GoalConstraint("subject", "", kind="target_text", expected="September", source_span="September")
         ranking = GoalConstraint("latest", "", kind="extremum", expected="date", source_span="latest", direction="max", attribute_hint="date")
@@ -151,6 +156,16 @@ class ScopedConstraintTests(unittest.TestCase):
         button = Element(1, "", "button", "Download", "", "", "button", 0, 0, 10, 10, download="report.zip")
         decision = ActionDecision("click", 1, verify=VerificationCondition("download_created"), grounding=(EvidenceRecord("element_text", "Download", 1),))
         Agent._guard(decision, Observation("", "", [button], "", "Downloads"), {proven.id: proven})
+
+    def test_named_control_directly_proves_item_scope_without_container_context(self):
+        constraint = GoalConstraint("brief", "", kind="target_text", expected="Launch Brief", source_span="Launch Brief")
+        button = Element(1, "", "button", "Launch Brief", "", "", "button", 0, 0, 80, 30)
+        observation = Observation("", "", [button], "", "Documents")
+        ledger = {constraint.id: constraint}
+        decision = ActionDecision("click", 1, grounding=(EvidenceRecord("element_text", "Launch Brief", 1),))
+        Agent._prove_constraints(ledger, decision, observation, [])
+        self.assertEqual(ledger[constraint.id].status, "proven")
+        self.assertEqual(ledger[constraint.id].evidence[0].source, "element_text")
 
     def test_constrained_bulk_action_is_rejected(self):
         constraint = GoalConstraint("audited", "", kind="target_text", expected="Audited", source_span="Audited")

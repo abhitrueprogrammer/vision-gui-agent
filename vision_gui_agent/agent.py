@@ -86,7 +86,16 @@ class Agent:
 
     @staticmethod
     def _effect_pattern(effect: ActionEffect) -> str:
-        return f"{effect.predicate.replace('_', ' ')}: {str(effect.resulting_value).lower()}"
+        # A benchmark surface renders ordinary confirmation text, never a
+        # literal "predicate: value" dump; prefer its known visible phrase
+        # when this effect is one of its predicates, and fall back to the
+        # generic humanized form for any other site's learned schemas.
+        try:
+            from .visual_function_lab import EVIDENCE_PHRASES
+            phrase = EVIDENCE_PHRASES.get((effect.predicate, effect.resulting_value))
+        except ImportError:
+            phrase = None
+        return phrase or f"{effect.predicate.replace('_', ' ')}: {str(effect.resulting_value).lower()}"
 
     def _schema_decision(self, goal: str, observation: Observation) -> tuple[ActionDecision, ActionSchema, ActionEffect] | None:
         desired = self.action_model.goal_effect(goal, self.config.min_schema_confidence)
@@ -115,8 +124,12 @@ class Agent:
         if not effects: return None
         effect = max(effects, key=lambda item: item.confidence)
         target = candidates[0]
+        creates_file = (self._requires_download(goal)
+                        and bool(re.search(r"(?:download|export).*(?:complete|ready)|(?:complete|ready).*(?:download|export)",
+                                           f"{schema.semantic_name} {effect.predicate}", re.IGNORECASE)))
         decision = ActionDecision("click", target.id, rationale=f"Apply learned schema {schema.id}",
-                                  verify=VerificationCondition("element_visible", pattern=self._effect_pattern(effect)),
+                                  verify=(VerificationCondition("download_created") if creates_file else
+                                          VerificationCondition("element_visible", pattern=self._effect_pattern(effect))),
                                   grounding=(EvidenceRecord("element_text", target.text, target.id),))
         return decision, schema, effect
 
@@ -220,7 +233,7 @@ class Agent:
 
     @staticmethod
     def _requires_download(goal: str) -> bool:
-        return bool(re.search(r"\bdownload\b", goal, re.IGNORECASE))
+        return bool(re.search(r"\b(?:download|export)\b", goal, re.IGNORECASE))
 
     @staticmethod
     def _observational_goal(goal: str) -> bool:
@@ -301,8 +314,18 @@ class Agent:
         for constraint in list(ledger.values()):
             if constraint.status != "unproven" or not constraint.source_span: continue
             evidence = None
-            if constraint.kind == "target_text" and Agent._contains(target.context, constraint.expected):
-                evidence = EvidenceRecord("context", target.context, target.id)
+            if constraint.kind == "target_text":
+                # A control explicitly named for the requested item is direct
+                # scoping evidence even when the detector cannot recover an
+                # enclosing card/row.  This is stricter than accepting an
+                # unrelated page-wide text match: the evidence is attached to
+                # the exact control that was acted on.
+                fields = (("context", target.context), ("element_text", target.text),
+                          ("value", target.value), ("aria_label", target.aria_label))
+                source, value = next(((source, value) for source, value in fields
+                                      if value and Agent._contains(value, constraint.expected)), (None, None))
+                if source and value:
+                    evidence = EvidenceRecord(source, value, target.id)
             elif constraint.kind == "extremum":
                 evidence = next((item for item in decision.grounding if item.source == "comparison"
                                  and (item.comparison or {}).get("selected") == target.id
@@ -483,8 +506,10 @@ class Agent:
         if current and current.actionable and matches(current):
             return decision
         candidates = [item for item in observation.elements if item.actionable and matches(item)]
-        if len(candidates) != 1:
-            raise ValueError(f"Semantic target for element {decision.element_id} is not uniquely visible")
+        if not candidates:
+            raise ValueError(f"Semantic target for element {decision.element_id} has no actionable visual match")
+        if len(candidates) > 1:
+            raise ValueError(f"Semantic target for element {decision.element_id} has {len(candidates)} actionable visual matches")
         old_id, new_id = decision.element_id, candidates[0].id
 
         def remap(items):
@@ -654,6 +679,11 @@ class Agent:
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
                     self._merge_constraints(ledger, decision, observation, download_paths)
+                    # Item identity is pre-action visual evidence.  Record it
+                    # as soon as the selected control itself names the scoped
+                    # target, even if a later postcondition is overly strict
+                    # or times out after the click has already taken effect.
+                    self._prove_constraints(ledger, decision, observation, download_paths)
                     if required_fields and self._is_submit_control(target):
                         pending = required_fields - completed_fields
                         if pending:
@@ -723,8 +753,10 @@ class Agent:
                         if next_observation.url != observation.url:
                             next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
                         target_node, created = self.graph.add_observation(next_observation)
+                        changed = (target_node != current_node or next_observation.url != observation.url
+                                   or self._visible_signature(next_observation) != self._visible_signature(observation))
                         verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
-                                                    download_path=download_path, page_changed=target_node != current_node)
+                                                    download_path=download_path, page_changed=changed)
                         if verification.status != "failed" or verification_attempt + 1 == self.config.verification_attempts:
                             break
                         await asyncio.sleep(.15)

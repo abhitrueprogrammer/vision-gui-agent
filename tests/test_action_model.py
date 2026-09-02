@@ -18,7 +18,7 @@ from vision_gui_agent.visual_function_lab_server import serve_visual_function_la
 from vision_gui_agent.agent import Agent, AgentConfig
 from vision_gui_agent.benchmark_runner import score_action_model, validate
 from vision_gui_agent.benchmark_calibration import calibrate
-from vision_gui_agent.benchmark_agent import PixelBenchmarkGrounder
+from vision_gui_agent.benchmark_agent import CalibrationGrounder
 from vision_gui_agent.logging_store import RunLogger
 
 
@@ -30,10 +30,10 @@ def export_schemas():
     required = lambda name, value=True: ActionPrecondition(name, value, "required", 2, 0, ("a", "b"), 1)
     effect = lambda name, value=True: ActionEffect(name, value, 2, 0, ("a", "b"))
     return (
-        ActionSchema("open_document.v1", "open_document", "test", "button|button|open document", "harmless_reversible", effects=(effect("document_open"),)),
-        ActionSchema("export_document.v1", "export_document", "test", "button|button|export document", "harmless_reversible", (required("document_open"),), (effect("export_dialog_visible"),)),
-        ActionSchema("choose_export_format.v1", "choose_export_format", "test", "button|button|choose pdf format", "harmless_reversible", (required("export_dialog_visible"),), (effect("export_format", "pdf"),)),
-        ActionSchema("confirm_export.v1", "confirm_export", "test", "button|button|confirm export", "harmless_reversible", (required("export_dialog_visible"), required("export_format", "pdf")), (effect("export_completed"),)),
+        ActionSchema("open_document.v1", "open_document", "test", "button|button|launch brief", "harmless_reversible", effects=(effect("document_open"),)),
+        ActionSchema("open_export_modal.v1", "open_export_modal", "test", "button|button|export brief", "harmless_reversible", (required("document_open"),), (effect("export_modal_visible"),)),
+        ActionSchema("select_pdf_format.v1", "select_pdf_format", "test", "button|button|pdf document", "harmless_reversible", (required("export_modal_visible"),), (effect("export_format", "pdf"),)),
+        ActionSchema("confirm_export.v1", "confirm_export", "test", "button|button|confirm export", "harmless_reversible", (required("export_modal_visible"), required("export_format", "pdf")), (effect("export_completed"),)),
     )
 
 
@@ -127,7 +127,7 @@ class ActionModelTests(unittest.TestCase):
             agent = Agent(object(), AgentConfig(Path(directory), Path(directory) / "runs.sqlite3", Path(directory) / "graph.json", memory_mode="active-action-model"))
             agent.action_model = model
             agent.functional_planner = FunctionalPlanner(model, 4, .5)
-            observation = Observation("", "", [Element(7, "", "button", "Open document", "", "", "button", 0, 0, 20, 10)], "", "Lab")
+            observation = Observation("", "", [Element(7, "", "button", "Launch Brief", "", "", "button", 0, 0, 20, 10)], "", "Lab")
             decision, schema, expected = agent._schema_decision("export a document as PDF", observation)
         self.assertEqual((decision.element_id, schema.semantic_name, expected.predicate), (7, "open_document", "document_open"))
 
@@ -136,7 +136,7 @@ class ActionModelTests(unittest.TestCase):
             agent = Agent(object(), AgentConfig(Path(directory), Path(directory) / "runs.sqlite3", Path(directory) / "graph.json", memory_mode="active-action-model", min_schema_confidence=.5))
             agent.action_model = ActionModel(schemas=export_schemas())
             agent.functional_planner = FunctionalPlanner(agent.action_model, 4, .5)
-            observation = Observation("", "", [Element(9, "", "button", "Open documenl", "", "", "button", 0, 0, 20, 10)], "", "Lab")
+            observation = Observation("", "", [Element(9, "", "button", "Launch Briefs", "", "", "button", 0, 0, 20, 10)], "", "Lab")
             decision, _, _ = agent._schema_decision("export a document as PDF", observation)
         self.assertEqual(decision.element_id, 9)
 
@@ -144,7 +144,7 @@ class ActionModelTests(unittest.TestCase):
         class FinishWhenVisible:
             model = "schema-test"
             async def decide(self, _goal, observation, _context, _history):
-                target = next(item for item in observation.elements if item.text == "export completed: true")
+                target = next(item for item in observation.elements if item.text == "Launch brief.pdf is ready")
                 return ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))
 
         async def run():
@@ -158,9 +158,9 @@ class ActionModelTests(unittest.TestCase):
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}")
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
                             result = await Agent(FinishWhenVisible(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
-                                max_steps=6, memory_mode="active-action-model", min_schema_confidence=.5), PixelBenchmarkGrounder()).run(page, "export a document as PDF")
+                                max_steps=6, memory_mode="active-action-model", min_schema_confidence=.5), CalibrationGrounder()).run(page, "export a document as PDF")
                             return result, [item["action"] for item in server.RequestHandlerClass.evaluator.trace]
                         finally:
                             await browser.close()
@@ -169,7 +169,7 @@ class ActionModelTests(unittest.TestCase):
 
         result, actions = asyncio.run(run())
         self.assertTrue(result.completed, result.error)
-        self.assertEqual(actions, ["open_document", "export_document", "choose_export_format", "confirm_export"])
+        self.assertEqual(actions, ["open_document", "open_export_modal", "select_pdf_format", "confirm_export"])
 
     def test_safe_experiments_are_sandbox_only(self):
         self.assertFalse(safe_for_experiment("delete_document", "harmless_reversible", True))
@@ -231,28 +231,56 @@ class ActionModelTests(unittest.TestCase):
         self.assertIsNone(Agent._action_template(before, before, ActionDecision("click", 1)))
 
     def test_benchmark_rules_and_deterministic_reset(self):
-        self.assertGreaterEqual(len(RULES), 17); self.assertEqual(set(TASK_SPLIT), {"exploration", "development", "held_out", "layout_shift", "composition"})
-        lab = VisualFunctionLabEvaluator(); lab.reset(); self.assertFalse(lab.act("export_document")); self.assertEqual(lab.invalid_attempts, 1)
-        self.assertTrue(lab.act("open_document")); self.assertTrue(lab.act("export_document"))
+        self.assertGreaterEqual(len(RULES), 11); self.assertEqual(set(TASK_SPLIT), {"exploration", "development", "held_out", "layout_shift", "composition"})
+        lab = VisualFunctionLabEvaluator(); lab.reset(); self.assertFalse(lab.act("open_export_modal")); self.assertEqual(lab.invalid_attempts, 1)
+        self.assertTrue(lab.act("open_document")); self.assertTrue(lab.act("open_export_modal"))
         lab.reset(); self.assertEqual(lab.visible_state(), {})
 
     def test_all_declared_tasks_validate_on_every_layout_and_cover_all_actions(self):
         report = validate()
         self.assertTrue(report["passed"])
-        self.assertEqual(report["runs"], len(TASKS) * 3)
+        self.assertEqual(report["runs"], len(TASKS) * 2)
         self.assertEqual(report["uncovered_actions"], [])
         self.assertEqual(set(report["covered_actions"]), set(ACTIONS))
 
     def test_lab_server_renders_only_visible_controls(self):
+        from vision_gui_agent.visual_function_lab import ACTION_TOKENS
         server = serve_visual_function_lab(0)
         try:
-            url = f"http://127.0.0.1:{server.server_address[1]}"
+            url = f"http://127.0.0.1:{server.server_address[1]}/fullsuite"
             page = urlopen(url).read().decode()
-            self.assertIn("Open document", page); self.assertNotIn("invalid_attempts", page)
-            admin = urlopen(url + "/admin").read().decode()
-            self.assertIn("Reset current layout", admin); self.assertNotIn("Open document", admin)
-            urlopen(Request(url, data=b'{"action":"open_document"}', method="POST")).read()
-            self.assertIn("document open", urlopen(url).read().decode().casefold())
+            self.assertIn("Launch Brief", page); self.assertIn("Documents", page)
+            self.assertNotIn("invalid_attempts", page)
+            for leaked in ("open_document", "document_open", "export_completed", ": true", ": false"):
+                self.assertNotIn(leaked, page.casefold())
+            admin = urlopen(url.rsplit("/", 1)[0] + "/admin").read().decode()
+            self.assertIn("Visual Function Lab controls", admin); self.assertNotIn("Launch Brief", admin)
+            body = json.dumps({"token": ACTION_TOKENS["open_document"]}).encode()
+            urlopen(Request(url, data=body, method="POST")).read()
+            after = urlopen(url).read().decode()
+            self.assertIn("Editing Launch Brief", after)
+            for leaked in ("open_document", "document_open", ": true"):
+                self.assertNotIn(leaked, after.casefold())
+        finally:
+            server.shutdown(); server.server_close()
+
+    def test_lab_export_produces_a_real_pdf_download(self):
+        from vision_gui_agent.visual_function_lab import ACTION_TOKENS
+        server = serve_visual_function_lab(0)
+        try:
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            urlopen(base + "/reset?state=blank&layout=classic").read()
+            response = None
+            for action in ("open_document", "open_export_modal", "select_pdf_format", "confirm_export"):
+                body = json.dumps({"token": ACTION_TOKENS[action]}).encode()
+                response = json.loads(urlopen(Request(base + "/fullsuite", data=body, method="POST")).read())
+            self.assertEqual(response["download"], "/downloads/launch-brief.pdf")
+            download = urlopen(base + response["download"])
+            payload = download.read()
+            self.assertEqual(download.headers.get_content_type(), "application/pdf")
+            self.assertIn("Launch brief.pdf", download.headers["Content-Disposition"])
+            self.assertTrue(payload.startswith(b"%PDF-"))
+            self.assertTrue(payload.rstrip().endswith(b"%%EOF"))
         finally:
             server.shutdown(); server.server_close()
 
@@ -266,4 +294,4 @@ class ActionModelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             report = asyncio.run(calibrate(Path(directory), ("classic",)))
         self.assertTrue(report["passed"], report)
-        self.assertEqual(report["runs"], 7)
+        self.assertEqual(report["runs"], 3)

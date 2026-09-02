@@ -62,8 +62,8 @@ async def _run(args: argparse.Namespace) -> int:
         if args.benchmark_grounder:
             if args.desktop: raise ValueError("--benchmark-grounder is available only for the local browser benchmark")
             if args.grounder != "omniparser": raise ValueError("--benchmark-grounder cannot be combined with --grounder gemini")
-            from .benchmark_agent import PixelBenchmarkGrounder
-            grounder = PixelBenchmarkGrounder()
+            from .benchmark_agent import CalibrationGrounder
+            grounder = CalibrationGrounder()
         if args.desktop:
             if args.benchmark_reset: raise ValueError("--benchmark-reset is available only for the local browser benchmark")
             from .desktop import DesktopPage

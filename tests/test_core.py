@@ -100,6 +100,20 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(regrounded.element_id, 7)
         self.assertEqual(regrounded.grounding[0].element_id, 7)
 
+    def test_regrounding_reports_missing_and_ambiguous_matches_separately(self) -> None:
+        decision = ActionDecision(action="click", element_id=1,
+                                  grounding=(EvidenceRecord("element_text", "Continue", 1),))
+        missing = Observation("", "", [Element(1, "", "text", "Continue", "", "", "text", 0, 0, 20, 10,
+                                                     actionable=False)], "", "Dialog")
+        with self.assertRaisesRegex(ValueError, "no actionable visual match"):
+            Agent._reground(decision, missing)
+        ambiguous = Observation("", "", [
+            Element(2, "", "button", "Continue", "", "", "button", 0, 0, 20, 10),
+            Element(3, "", "button", "Continue", "", "", "button", 30, 0, 20, 10),
+        ], "", "Dialog")
+        with self.assertRaisesRegex(ValueError, "2 actionable visual matches"):
+            Agent._reground(decision, ambiguous)
+
     def test_replay_identity_uses_semantics_instead_of_transient_element_ids(self) -> None:
         first = ActionDecision("click", 1, grounding=(EvidenceRecord("element_text", "Continue", 1),))
         shifted = ActionDecision("click", 9, grounding=(EvidenceRecord("element_text", "Continue", 9),))

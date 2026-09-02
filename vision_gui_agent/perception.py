@@ -138,6 +138,52 @@ class OmniParserVisualGrounder:
                 return "textarea" if height >= 60 else "input"
         return "other"
 
+    @staticmethod
+    def _longest_run(values: Any) -> int:
+        longest = current = 0
+        for value in values:
+            current = current + 1 if value else 0
+            longest = max(longest, current)
+        return longest
+
+    @classmethod
+    def _outlined_control(cls, image: Image.Image,
+                          text_box: tuple[float, float, float, float]) -> tuple[float, float, float, float] | None:
+        """Recover a tight, rectangular control missed by the icon detector.
+
+        OCR text alone is never promoted.  Four continuous, axis-aligned dark
+        edges must visibly enclose it, with ordinary button-sized padding.
+        This covers plain HTML buttons while avoiding page text and card
+        borders, and keeps the fallback grounded entirely in screenshot pixels.
+        """
+        import numpy as np
+        pixels = np.asarray(image.convert("L"))
+        height, width = pixels.shape
+        left, top, right, bottom = (int(round(value)) for value in text_box)
+        if right <= left or bottom <= top: return None
+        x0, x1 = max(0, left - 44), min(width - 1, right + 44)
+        y0, y1 = max(0, top - 30), min(height - 1, bottom + 30)
+        dark = pixels < 225
+        minimum_vertical = max(24, bottom - top + 10)
+        left_edges = [x for x in range(x0, max(x0, left - 1))
+                      if cls._longest_run(dark[y0:y1 + 1, x]) >= minimum_vertical]
+        right_edges = [x for x in range(min(width, right + 2), x1 + 1)
+                       if cls._longest_run(dark[y0:y1 + 1, x]) >= minimum_vertical]
+        if not left_edges or not right_edges: return None
+        edge_left, edge_right = max(left_edges), min(right_edges)
+        if not (4 <= left - edge_left <= 40 and 4 <= edge_right - right <= 40): return None
+        span = dark[:, edge_left:edge_right + 1]
+        minimum_horizontal = max(30, int((edge_right - edge_left + 1) * .8))
+        top_edges = [y for y in range(y0, max(y0, top - 1))
+                     if int(span[y].sum()) >= minimum_horizontal]
+        bottom_edges = [y for y in range(min(height, bottom + 2), y1 + 1)
+                        if int(span[y].sum()) >= minimum_horizontal]
+        if not top_edges or not bottom_edges: return None
+        edge_top, edge_bottom = max(top_edges), min(bottom_edges)
+        control_width, control_height = edge_right - edge_left, edge_bottom - edge_top
+        if not (24 <= control_height <= 80 and control_width <= right - left + 88): return None
+        return float(edge_left), float(edge_top), float(control_width), float(control_height)
+
     async def detect(self, screenshot: Path) -> list[Element]:
         with Image.open(screenshot) as source:
             image = source.convert("RGB")
@@ -188,6 +234,19 @@ class OmniParserVisualGrounder:
             left, top, right, bottom = box
             elements.append(Element(len(elements) + 1, "", "menuitem", " ".join(record[1].split())[:200], "", "", "menuitem",
                                     left, top, right - left, bottom - top, actionable=True, confidence=record[2]))
+        # OmniParser's icon model intermittently misses visually plain bordered
+        # buttons.  Promote OCR only when screenshot pixels prove that a tight
+        # four-sided control encloses the label; ordinary headings/body text
+        # remain non-actionable.
+        for index, record in enumerate(records):
+            if index in matched: continue
+            control = self._outlined_control(image, self._box(record))
+            if control is None: continue
+            matched.add(index)
+            x, y, width, height = control
+            elements.append(Element(len(elements) + 1, "", "button", " ".join(record[1].split())[:200], "", "", "button",
+                                    x, y, width, height, actionable=True, confidence=record[2],
+                                    context=record[1].strip()[:500], context_bounds=control))
         for index, record in enumerate(records):
             if index in matched: continue
             left, top, right, bottom = self._box(record)

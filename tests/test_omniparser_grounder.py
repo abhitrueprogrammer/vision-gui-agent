@@ -68,6 +68,28 @@ class OmniParserGrounderTests(unittest.TestCase):
             element = asyncio.run(OmniParserVisualGrounder(Detector(), ocr).detect(screenshot))[0]
         self.assertEqual((element.tag, element.text), ("menuitem", "Bolt Cutters"))
 
+    def test_bordered_ocr_label_is_recovered_when_detector_misses_button(self):
+        class Boxes:
+            xyxy = type("Tensor", (), {"tolist": lambda _: []})()
+            conf = type("Tensor", (), {"tolist": lambda _: []})()
+        class Detector:
+            def predict(self, **_): return [type("Result", (), {"boxes": Boxes()})()]
+        ocr = lambda *_args, **_kwargs: [
+            ([[35, 25], [115, 25], [115, 39], [35, 39]], ("PDF document", .99)),
+            ([[20, 80], [120, 80], [120, 94], [20, 94]], ("Ordinary heading", .99)),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            screenshot = Path(directory) / "screen.png"
+            image = Image.new("RGB", (180, 120), "white")
+            ImageDraw.Draw(image).rectangle((20, 12, 130, 55), outline="#334155")
+            image.save(screenshot)
+            elements = asyncio.run(OmniParserVisualGrounder(Detector(), ocr).detect(screenshot))
+        recovered = next(item for item in elements if item.text == "PDF document")
+        heading = next(item for item in elements if item.text == "Ordinary heading")
+        self.assertEqual((recovered.tag, recovered.actionable), ("button", True))
+        self.assertEqual((recovered.x, recovered.y, recovered.width, recovered.height), (20, 12, 110, 43))
+        self.assertFalse(heading.actionable)
+
     def test_refinement_is_delegated_only_when_configured(self):
         target = type("Target", (), {})()
         class Refiner:

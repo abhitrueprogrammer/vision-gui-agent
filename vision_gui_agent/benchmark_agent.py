@@ -1,102 +1,115 @@
-"""Offline, pixel-only integration driver for Visual Function Lab.
+"""Offline, screenshot-only integration driver for the /fullsuite Visual Function Lab.
 
 This is a calibration harness, not a general GUI policy. It proves that the
-actual agent loop can perceive rendered controls, click their pixel centers,
-verify fresh screenshots, and complete every positive benchmark workflow
-without DOM or evaluator access.
+actual agent loop can perceive rendered controls purely from OCR text, click
+their pixel centers, verify fresh screenshots, and complete every positive
+benchmark workflow without DOM or evaluator access.
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
-
-from PIL import Image
+from typing import Any, Callable
 
 from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, Observation, VerificationCondition
-from .visual_function_lab import ACTIONS, BUTTON_COLORS, STATUS_COLORS, TaskSpec
+from .perception import OmniParserVisualGrounder
+from .visual_function_lab import ACTIONS, EVIDENCE_PHRASES, SIDEBAR, TaskSpec
 
 
-def _rgb(value: str) -> tuple[int, int, int]:
-    return tuple(int(value[index:index + 2], 16) for index in (1, 3, 5))  # type: ignore[return-value]
+def _normal(value: str) -> str:
+    return " ".join(value.casefold().split())
 
 
-class PixelBenchmarkGrounder:
-    """Ground benchmark buttons by their rendered colors in a screenshot."""
-    last_label = "Visual Function Lab"
-    _actions_by_color = {_rgb(color): name for name, color in BUTTON_COLORS.items()}
-    _tolerant_actions_by_color = {
-        (red + dr, green + dg, blue + db): name
-        for (red, green, blue), name in _actions_by_color.items()
-        for dr in range(-2, 3) for dg in range(-2, 3) for db in range(-2, 3)
-        if 0 <= red + dr <= 255 and 0 <= green + dg <= 255 and 0 <= blue + db <= 255
-    }
-    _status_by_color = {_rgb(color): label for label, color in STATUS_COLORS.items()}
-    _tolerant_status_by_color = {
-        (red + dr, green + dg, blue + db): label
-        for (red, green, blue), label in _status_by_color.items()
-        for dr in range(-2, 3) for dg in range(-2, 3) for db in range(-2, 3)
-        if 0 <= red + dr <= 255 and 0 <= green + dg <= 255 and 0 <= blue + db <= 255
-    }
+class CalibrationGrounder:
+    """Ground /fullsuite controls and confirmation text by OCR alone.
+
+    Deterministic given a fixed OCR engine and a fixed rendered page: it
+    matches visible text exactly against the benchmark's known control
+    labels and confirmation phrases, and clicks OCR box centers. It never
+    reads pixel colors, the DOM, or evaluator state.
+    """
+    last_label = "Project Workspace"
+
+    def __init__(self, ocr: Callable[..., Any] | None = None) -> None:
+        if ocr is None:
+            try:
+                from rapidocr import RapidOCR
+            except ImportError as exc:
+                raise RuntimeError("Calibration grounding requires rapidocr; run uv sync") from exc
+            ocr = RapidOCR(params={"Det.box_thresh": .35})
+        self.ocr = ocr
+        self._controls = {_normal(spec.label): name for name, spec in ACTIONS.items()}
+        self._evidence = {_normal(phrase) for phrase in EVIDENCE_PHRASES.values()}
+        self._nav = {_normal(label) for _, label in SIDEBAR}
 
     async def detect(self, screenshot: Path) -> list[Element]:
-        boxes: dict[tuple[str, str], list[int]] = {}
-        with Image.open(screenshot).convert("RGB") as image:
-            for y in range(image.height):
-                x = 0
-                while x < image.width:
-                    pixel = image.getpixel((x, y))
-                    action = self._tolerant_actions_by_color.get(pixel)
-                    status = self._tolerant_status_by_color.get(pixel)
-                    if action:
-                        kind, target = "button", action
-                    elif status:
-                        kind, target = "status", status
-                    else:
-                        x += 1
-                        continue
-                    start = x; x += 1
-                    while x < image.width and ((self._tolerant_actions_by_color.get(image.getpixel((x, y))) if kind == "button" else self._tolerant_status_by_color.get(image.getpixel((x, y)))) == target): x += 1
-                    # Only a broad, flat button-fill run is a target. This
-                    # rejects anti-aliased text pixels that happen to be close
-                    # to a palette color.
-                    if target is None or x - start < (30 if kind == "button" else 8): continue
-                    key = (kind, target)
-                    if key not in boxes: boxes[key] = [start, y, x - 1, y]
-                    else:
-                        box = boxes[key]; box[0] = min(box[0], start); box[1] = min(box[1], y); box[2] = max(box[2], x - 1); box[3] = max(box[3], y)
+        def read():
+            try: return self.ocr(str(screenshot), return_word_box=True)
+            except TypeError: return self.ocr(str(screenshot))
+        raw = await asyncio.to_thread(read)
+        records = OmniParserVisualGrounder._records(raw)
         elements: list[Element] = []
-        for (kind, target), box in sorted(boxes.items(), key=lambda item: (item[1][1], item[1][0])):
-            x1, y1, x2, y2 = box
-            if x2 - x1 > 8 and y2 - y1 > 8:
-                if kind == "button":
-                    spec = ACTIONS[target]
-                    elements.append(Element(len(elements) + 1, "", "button", spec.label, "", "", "button", x1, y1, x2 - x1 + 1, y2 - y1 + 1))
-                else:
-                    elements.append(Element(len(elements) + 1, "", "status", target, "", "", "span", x1, y1, x2 - x1 + 1, y2 - y1 + 1, actionable=False))
+        for points, text, score in records:
+            if score < .6 or not text.strip() or len(points) < 4: continue
+            normalized = _normal(text)
+            xs, ys = [point[0] for point in points], [point[1] for point in points]
+            x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
+            if normalized in self._controls:
+                elements.append(Element(len(elements) + 1, "", "button", " ".join(text.split()), "", "", "button",
+                                        x1, y1, x2 - x1, y2 - y1, actionable=True, confidence=score))
+            elif normalized in self._nav:
+                elements.append(Element(len(elements) + 1, "", "link", " ".join(text.split()), "", "", "link",
+                                        x1, y1, x2 - x1, y2 - y1, actionable=True, confidence=score))
+            elif normalized in self._evidence:
+                elements.append(Element(len(elements) + 1, "", "text", " ".join(text.split()), "", "", "text",
+                                        x1, y1, x2 - x1, y2 - y1, actionable=False, confidence=score))
         return elements
 
 
 class BenchmarkTaskPolicy:
     """A fixed task plan used only to exercise the real screenshot/input path."""
-    model = "pixel-benchmark-calibration"
+    model = "fullsuite-calibration"
 
     def __init__(self, task: TaskSpec) -> None:
-        self.task, self.index = task, 0
+        self.task, self.index, self._checked_reports = task, 0, False
 
     async def decide(self, _goal: str, observation: Observation, _context: dict, _history: list[ActionRecord]) -> list[ActionDecision]:
         if self.index >= len(self.task.actions):
-            effects = ACTIONS[self.task.actions[-1]].effects
-            labels = {f"{key.replace('_', ' ')}: {str(value).lower()}" for key, value in effects.items()}
-            target = next((item for item in observation.elements if not item.actionable and item.text in labels), None)
-            if target is None: raise ValueError("No visible final-state evidence available to ground benchmark completion")
-            return [ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))]
-        action = self.task.actions[self.index]; self.index += 1
+            final_action = self.task.actions[-1]
+            phrase = next((_normal(evidence) for (predicate, value), evidence in EVIDENCE_PHRASES.items()
+                          if (predicate, value) in ACTIONS[final_action].effects.items()), None)
+            target = next((item for item in observation.elements if not item.actionable and _normal(item.text) == phrase), None)
+            if target is not None:
+                return [ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))]
+            # Some confirmations land on a dedicated Reports section rather
+            # than the tab the action was taken from (matching a real app,
+            # where "generate a report" surfaces it in a Reports view); check
+            # there exactly once before giving up.
+            if not self._checked_reports:
+                self._checked_reports = True
+                reports_label = dict(SIDEBAR)["reports"]
+                nav_target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(reports_label)), None)
+                if nav_target is not None:
+                    return [ActionDecision(action="click", element_id=nav_target.id, grounding=(EvidenceRecord("element_text", reports_label, nav_target.id),),
+                                           rationale="Benchmark calibration navigation")]
+            raise ValueError("No visible final-state evidence available to ground benchmark completion")
+        action = self.task.actions[self.index]
         label = ACTIONS[action].label
-        target = next((item for item in observation.elements if item.actionable and item.text == label), None)
-        if target is None: raise ValueError(f"Rendered target not found by pixel grounder: {label}")
-        visible = {item.text for item in observation.elements}
-        changed = next((f"{key.replace('_', ' ')}: {str(value).lower()}"
-                        for key, value in ACTIONS[action].effects.items()
-                        if f"{key.replace('_', ' ')}: {str(value).lower()}" not in visible), None)
+        target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(label)), None)
+        if target is None:
+            # The control lives on a sidebar section that is not the one
+            # currently rendered -- navigate there first, the way a person
+            # would, then retry the same task step once it's back on screen.
+            nav_label = dict(SIDEBAR)[ACTIONS[action].workspace]
+            nav_target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(nav_label)), None)
+            if nav_target is None: raise ValueError(f"Rendered target not found by calibration grounder: {label}")
+            return [ActionDecision(action="click", element_id=nav_target.id, grounding=(EvidenceRecord("element_text", nav_label, nav_target.id),),
+                                   rationale="Benchmark calibration navigation")]
+        self.index += 1
+        visible = {_normal(item.text) for item in observation.elements}
+        changed = next((evidence for (predicate, value), evidence in EVIDENCE_PHRASES.items()
+                        if (predicate, value) in ACTIONS[action].effects.items() and _normal(evidence) not in visible), None)
         return [ActionDecision(action="click", element_id=target.id, grounding=(EvidenceRecord("element_text", label, target.id),),
-                               verify=VerificationCondition("element_visible", pattern=changed) if changed else None,
+                               verify=(VerificationCondition("download_created") if action == "confirm_export" else
+                                       VerificationCondition("element_visible", pattern=changed) if changed else None),
                                rationale="Benchmark calibration action")]

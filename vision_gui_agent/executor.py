@@ -48,6 +48,10 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
         if failure: raise ValueError(f"Download failed: {failure}")
         destination = _download_destination(download_dir or Path("artifacts/downloads"), download.suggested_filename)
         await download.save_as(str(destination))
+        # A download-triggering click may also update the page (for example,
+        # closing an export modal and showing a ready status).  Let that
+        # ordinary UI update settle before the next screenshot is grounded.
+        await page.wait_for_timeout(650)
         return str(destination) if destination.is_file() and destination.stat().st_size else None
     await page.mouse.click(x, y)
     if decision.action in {"fill", "set_date"}:
