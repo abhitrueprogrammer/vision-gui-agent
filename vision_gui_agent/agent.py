@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from difflib import SequenceMatcher
 import inspect
 import re
@@ -234,6 +235,53 @@ class Agent:
     @staticmethod
     def _requires_download(goal: str) -> bool:
         return bool(re.search(r"\b(?:download|export)\b", goal, re.IGNORECASE))
+
+    @staticmethod
+    def _is_final_file_control(element) -> bool:
+        if not element: return False
+        label = Agent._normal(" ".join((element.text, element.aria_label, element.value, element.download)))
+        return bool(element.download or re.search(
+            r"\bdownload\b|\b(?:confirm|create|generate|save)\b.*\b(?:export|file|pdf|document)\b|"
+            r"\b(?:export|file|pdf|document)\b.*\b(?:confirm|create|generate|save)\b", label))
+
+    @staticmethod
+    def _is_file_setup_control(element) -> bool:
+        if not element: return False
+        label = Agent._normal(" ".join((element.text, element.aria_label, element.value)))
+        formats = r"pdf|csv|tsv|xlsx?|docx?|json|xml|zip|png|jpe?g"
+        return bool(re.search(r"\b(?:export|download)\s+(?:options?|settings?|formats?)\b", label)
+                    or re.fullmatch(rf"(?:{formats})(?:\s+(?:document|file|format))?", label))
+
+    @staticmethod
+    def _normalize_verification(goal: str, decision: ActionDecision, target) -> ActionDecision:
+        """Repair incompatible model postconditions from visible semantics.
+
+        The model chooses the action, but executor contracts must remain
+        mechanically valid: only controls with an observed checked state can
+        use element_checked, setup controls cannot create a file, and the
+        final file-producing click must be observed through expect_download.
+        """
+        verification = decision.verify
+        if verification and verification.kind == "element_checked" and target and target.checked is None:
+            verification = VerificationCondition("page_changed")
+        if Agent._requires_download(goal) and decision.action == "click":
+            if Agent._is_final_file_control(target):
+                verification = VerificationCondition("download_created")
+            elif verification and verification.kind == "download_created" and Agent._is_file_setup_control(target):
+                verification = VerificationCondition("page_changed")
+        return replace(decision, verify=verification) if verification != decision.verify else decision
+
+    @staticmethod
+    def _attempt_key(decision: ActionDecision) -> str:
+        """Retry identity includes the observable execution contract.
+
+        A plain click and the same click wrapped in expect_download are not
+        interchangeable attempts: the latter is the only one that can retain
+        and prove the requested file.
+        """
+        verification = decision.verify.to_dict() if decision.verify else None
+        if verification: verification.pop("element_id", None)
+        return json.dumps({"action": StateGraph.replay_key(decision), "verify": verification}, sort_keys=True)
 
     @staticmethod
     def _observational_goal(goal: str) -> bool:
@@ -557,6 +605,7 @@ class Agent:
         templates: list[ReusableAction] = []
         workflow: list[ReusableAction] = []
         action_attempts: dict[str, int] = {}
+        attempt_replay_keys: dict[str, str] = {}
         ledger: dict[str, GoalConstraint] = {}
         compiler = getattr(self.policy, "compile_goal", None)
         if callable(compiler):
@@ -590,6 +639,10 @@ class Agent:
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
+                # A persisted graph node can conservatively absorb similar
+                # screenshots from adjacent states.  The current screenshot's
+                # observed heading is authoritative for this decision.
+                graph_context["current"]["label"] = observation.title or graph_context["current"]["label"]
                 graph_context["constraints"] = [item.to_dict() for item in ledger.values()]
                 graph_context["completion"] = self._completion_summary(required_fields, completed_fields)
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
@@ -598,7 +651,7 @@ class Agent:
                     selected_schema: ActionSchema | None = None
                     selected_effect: ActionEffect | None = None
                     selected_experiment: ExperimentPlan | None = None
-                    current_label = self.graph.graph.nodes[current_node]["label"]
+                    current_label = observation.title or self.graph.graph.nodes[current_node]["label"]
                     force_planner = bool(history and not history[-1].success)
                     if workflow and self.config.memory_mode != "none" and not force_planner:
                         template = workflow[0]
@@ -627,7 +680,8 @@ class Agent:
                             workflow = reusable
                             decision = self._reuse_action(workflow[0], observation, current_label)
                     if decision is None and self.config.memory_mode != "none" and not force_planner:
-                        seen = {key for key, attempts in action_attempts.items() if attempts >= self.config.max_action_attempts}
+                        seen = {attempt_replay_keys.get(key, key) for key, attempts in action_attempts.items()
+                                if attempts >= self.config.max_action_attempts}
                         decision = self.graph.replay(current_node, goal, seen)
                         if decision and self._is_high_impact(decision, observation): decision = None
                     if decision is None:
@@ -668,13 +722,17 @@ class Agent:
                     if decision.action == "set_range" and decision.verify is None:
                         decision = replace(decision, verify=VerificationCondition("element_range", element_id=target.id,
                                                                                   expected=decision.text or ""))
+                    decision = self._normalize_verification(goal, decision, target)
                     if decision.action != "done" and already_satisfied(observation, decision.verify):
                         if decision.action in {"fill", "select", "set_date", "set_range", "upload", "set_color"}:
                             raise ValueError("Requested field state is already satisfied; choose a different visible control")
                         decision = replace(decision, verify=None)
                     decision.validate_for(observation)
-                    key = self.graph.replay_key(replace(decision, element_id=None,
-                        grounding=decision.grounding or ((EvidenceRecord("element_text", target.text, None),) if target else ())))
+                    keyed_decision = replace(decision, element_id=None,
+                        grounding=decision.grounding or ((EvidenceRecord("element_text", target.text, None),) if target else ()))
+                    replay_key = self.graph.replay_key(keyed_decision)
+                    key = self._attempt_key(keyed_decision)
+                    attempt_replay_keys[key] = replay_key
                     attempt_limit = 1 if self._is_high_impact(decision, observation) else self.config.max_action_attempts
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
@@ -700,7 +758,8 @@ class Agent:
                 except ValueError as exc:
                     error = f"Decision rejected: {exc}"
                     rejected = decision or ActionDecision(action="done", rationale=error)
-                    rejected_key = self.graph.replay_key(rejected)
+                    rejected_key = self._attempt_key(rejected)
+                    attempt_replay_keys[rejected_key] = self.graph.replay_key(rejected)
                     action_attempts[rejected_key] = action_attempts.get(rejected_key, 0) + 1
                     history.append(ActionRecord(rejected, False, error))
                     logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings)

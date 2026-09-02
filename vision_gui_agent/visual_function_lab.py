@@ -32,7 +32,7 @@ ACTIONS: dict[str, ActionSpec] = {
         "Launch Brief", "Editing Launch Brief"),
     "open_export_modal": ActionSpec(
         "documents", {"document_open": True}, {"export_modal_visible": True},
-        "Export brief", "Export Launch Brief"),
+        "Export options", "Export Launch Brief"),
     "select_pdf_format": ActionSpec(
         "documents", {"export_modal_visible": True}, {"export_format": "pdf"},
         "PDF document", "PDF document selected"),

@@ -532,6 +532,19 @@ class CoreTests(unittest.TestCase):
             path = Path(temp_dir) / "report.zip"; path.write_bytes(b"download")
             Agent._guard(done, observation, {}, "Download the report", [str(path)])
 
+    def test_file_workflow_verification_contract_repairs_model_mistakes(self) -> None:
+        options = Element(1, "", "button", "Export options", "", "", "button", 0, 0, 80, 30)
+        pdf = Element(2, "", "other", "PDF document", "", "", "other", 0, 40, 80, 30)
+        confirm = Element(3, "", "button", "Confirm export", "", "", "button", 0, 80, 80, 30)
+        opener = Agent._normalize_verification("export as PDF", ActionDecision(
+            "click", 1, verify=VerificationCondition("download_created")), options)
+        selection = Agent._normalize_verification("export as PDF", ActionDecision(
+            "click", 2, verify=VerificationCondition("element_checked", element_id=2, expected="true")), pdf)
+        final = Agent._normalize_verification("export as PDF", ActionDecision("click", 3), confirm)
+        self.assertEqual((opener.verify.kind, selection.verify.kind, final.verify.kind),
+                         ("page_changed", "page_changed", "download_created"))
+        self.assertNotEqual(Agent._attempt_key(ActionDecision("click", 3)), Agent._attempt_key(final))
+
     def test_search_submit_is_not_high_impact(self) -> None:
         observation = Observation("", "", [Element(1, "[x]", "input", "", "", "Search by subject...", "", 0, 0, 1, 1, input_type="submit", value="Search")], "https://example.test", "Search")
         self.assertFalse(Agent._is_high_impact(ActionDecision(action="click", element_id=1), observation))

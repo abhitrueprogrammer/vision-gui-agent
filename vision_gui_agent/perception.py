@@ -399,7 +399,7 @@ async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGro
     elements = await grounder.detect(raw_path)
     draw_set_of_mark(raw_path, marked_path, elements)
     if isinstance(grounder, OmniParserVisualGrounder):
-        print(f"omniparser tagged screenshot: {marked_path}")
+        print(f"omniparser tagged screenshot: {marked_path.resolve()}")
     url = getattr(page, "url", "")
     if callable(url): url = url()
     if asyncio.iscoroutine(url): url = await url

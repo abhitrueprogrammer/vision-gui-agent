@@ -31,7 +31,7 @@ def export_schemas():
     effect = lambda name, value=True: ActionEffect(name, value, 2, 0, ("a", "b"))
     return (
         ActionSchema("open_document.v1", "open_document", "test", "button|button|launch brief", "harmless_reversible", effects=(effect("document_open"),)),
-        ActionSchema("open_export_modal.v1", "open_export_modal", "test", "button|button|export brief", "harmless_reversible", (required("document_open"),), (effect("export_modal_visible"),)),
+        ActionSchema("open_export_modal.v1", "open_export_modal", "test", "button|button|export options", "harmless_reversible", (required("document_open"),), (effect("export_modal_visible"),)),
         ActionSchema("select_pdf_format.v1", "select_pdf_format", "test", "button|button|pdf document", "harmless_reversible", (required("export_modal_visible"),), (effect("export_format", "pdf"),)),
         ActionSchema("confirm_export.v1", "confirm_export", "test", "button|button|confirm export", "harmless_reversible", (required("export_modal_visible"), required("export_format", "pdf")), (effect("export_completed"),)),
     )
@@ -283,6 +283,53 @@ class ActionModelTests(unittest.TestCase):
             self.assertTrue(payload.rstrip().endswith(b"%%EOF"))
         finally:
             server.shutdown(); server.server_close()
+
+    def test_agent_repairs_bad_model_verification_choices_and_captures_export(self):
+        class MistakenPolicy:
+            model = "mistaken-verification-policy"
+            async def decide(self, _goal, observation, _context, _history):
+                visible = {item.text: item for item in observation.elements}
+                if "Launch brief.pdf is ready" in visible:
+                    target = visible["Launch brief.pdf is ready"]
+                    return [ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))]
+                if "Confirm export" in visible and "PDF document selected" in visible:
+                    target = visible["Confirm export"]
+                    return [ActionDecision("click", target.id, grounding=(EvidenceRecord("element_text", target.text, target.id),))]
+                if "PDF document" in visible:
+                    target = visible["PDF document"]
+                    return [ActionDecision("click", target.id,
+                        verify=VerificationCondition("element_checked", element_id=target.id, expected="true"),
+                        grounding=(EvidenceRecord("element_text", target.text, target.id),))]
+                label = "Export options" if "Export options" in visible else "Launch Brief"
+                target = visible[label]
+                return [ActionDecision("click", target.id,
+                    verify=VerificationCondition("download_created") if label == "Export options" else None,
+                    grounding=(EvidenceRecord("element_text", target.text, target.id),))]
+
+        async def run():
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); server = serve_visual_function_lab(0)
+                try:
+                    server.RequestHandlerClass.evaluator.reset()
+                    async with async_playwright() as playwright:
+                        browser = await playwright.chromium.launch()
+                        try:
+                            page = await browser.new_page(viewport={"width": 1440, "height": 1000})
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
+                            result = await Agent(MistakenPolicy(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
+                                max_steps=6, memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
+                            valid_pdf = bool(result.download_paths and Path(result.download_paths[0]).read_bytes().startswith(b"%PDF-"))
+                            return result, valid_pdf
+                        finally:
+                            await browser.close()
+                finally:
+                    server.shutdown(); server.server_close()
+
+        result, valid_pdf = asyncio.run(run())
+        self.assertTrue(result.completed, result.error)
+        self.assertTrue(valid_pdf)
+        self.assertEqual([record.decision.verify.kind if record.decision.verify else None for record in result.history[:-1]],
+                         [None, "page_changed", "page_changed", "download_created"])
 
     def test_stateless_mode_does_not_load_or_write_graph_memory(self):
         with tempfile.TemporaryDirectory() as directory:
