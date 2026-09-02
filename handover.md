@@ -93,7 +93,11 @@ The agent must **never** use: DOM selectors, accessibility trees, application AP
 | `GAP_ANALYSIS.md` | Review 1 gap → resolution → verification matrix |
 | `PROJECT_STATUS.md` | High-level implementation status summary |
 | `LARVEL_BUG.md` | Known Docker permission issue with the Toolshop test app |
-| `plan.md` | Original epics and user stories (historical reference) |
+| `demo.md` | Ready-to-run demo commands against the `/fullsuite` workspace (PDF export, report creation, sign-in + settings flows) |
+| `docs/agent-flow.excalidraw` | Editable diagram of the observe–decide–act runtime flow |
+| `third_party/OmniParser` | Git submodule; local OmniParser checkout used by the default grounder |
+
+`plan.md` (original epics/user stories) was removed once its content was superseded by the spec and this handover.
 
 ### Test Suite (`tests/`)
 
@@ -105,6 +109,7 @@ The agent must **never** use: DOM selectors, accessibility trees, application AP
 | `test_scoped_constraints.py` | Goal constraint system, evidence validation |
 | `test_form_contract.py` | Form field handling contracts |
 | `test_artifact_serialization.py` | Artifact JSON serialization correctness |
+| `test_omniparser_grounder.py` | `OmniParserVisualGrounder` detection, OCR reconciliation, Gemini refine hand-off |
 
 ---
 
@@ -230,6 +235,10 @@ uv run vision-gui-agent http://127.0.0.1:4200 "Open the document and export it a
     --memory-mode none --max-steps 12 --artifacts artifacts/benchmark-run --benchmark-grounder
 ```
 
+### The `/fullsuite` Demo Workspace
+
+`visual_function_lab_server.py` also serves a realistic project-workspace dashboard at `/fullsuite` (Documents, Data, and Account/Settings tabs backed by the same hidden rule engine as the benchmark). It is **not** part of the frozen 48-run benchmark — it exists for live/manual demonstration of multi-step goals (e.g. "export the Launch Brief as PDF", "create a Q3 Forecast report", "sign in and enable project approval with required reviewers"). `demo.md` has ready-to-run commands for it, and it is reset the same way as the benchmark: `curl 'http://127.0.0.1:4200/reset?state=blank&layout=classic'`.
+
 ---
 
 ## 8. Baselines and Ablations Required
@@ -298,6 +307,8 @@ uv sync
 uv run playwright install chromium
 ```
 
+`third_party/OmniParser` is a git submodule holding the default local grounder; its detector weights must be downloaded as documented upstream before first use (or point `OMNIPARSER_HOME` at an external checkout — see §14). `uv sync` also pulls `torch`/`torchvision` (CPU wheels, via the `pytorch-cpu` index in `pyproject.toml`) and `huggingface-hub` for it.
+
 ### Environment Variables (`.env`)
 
 ```dotenv
@@ -305,7 +316,7 @@ GEMINI_API_KEY=your-primary-key
 GEMINI_API_KEY_2=your-secondary-key
 ```
 
-The `.env` file is git-ignored. Two key slots enable round-robin retries on quota exhaustion. Select a slot with `--gemini-key-slot 1|2`.
+The `.env` file is git-ignored. Two key slots enable round-robin retries on quota exhaustion. Select a slot with `--gemini-key-slot 1|2`. Gemini is still required even with the default OmniParser grounder — it plans and can refine low-confidence OmniParser targets.
 
 ### Run a Browser Task
 
@@ -353,16 +364,18 @@ From `pyproject.toml`:
 
 | Package | Purpose |
 | --- | --- |
-| `google-genai` ≥ 2.18.1 | Gemini API for VLM policy and optional visual grounding |
+| `google-genai` ≥ 2.18.1 | Gemini API for VLM policy, optional refine step, and optional full visual grounding |
 | `imagehash` ≥ 4.3.2 | Perceptual hashing for state deduplication |
 | `networkx` ≥ 3.6.1 | Directed state graph |
-| `numpy` ≥ 2.0.0 | Numeric operations for CV/perception |
+| `numpy` == 1.26.4 | Numeric operations for CV/perception (pinned for OmniParser/torch compatibility) |
 | `pillow` ≥ 12.3.0 | Image processing |
 | `playwright` ≥ 1.62.0 | Browser automation (input devices only) |
 | `pyautogui` ≥ 0.9.54 | Desktop mouse/keyboard automation |
 | `python-dotenv` ≥ 1.2.2 | Environment variable loading |
-| `rapidocr` ≥ 3.9.2 | Local OCR for text detection |
+| `rapidocr` ≥ 3.9.2 | Local OCR for text detection, reconciled with OmniParser regions |
 | `onnxruntime` ≥ 1.20.0 | ONNX inference for local OCR models |
+| `torch`, `torchvision` (CPU wheels) | OmniParser's YOLOv9 detector runtime |
+| `huggingface-hub` | Fetches OmniParser detector weights/revisions |
 
 ---
 
@@ -412,9 +425,9 @@ The experiment selector **hard-blocks**: deletion, send/submit, purchases/paymen
 
 | Mode | How It Works |
 | --- | --- |
-| **OmniParser (default)** | `OmniParserVisualGrounder` uses OmniParser + RapidOCR. Screenshots stay local; Gemini receives only the element list for planning. |
-| **Gemini** (`--grounder gemini`) | Screenshots are sent to Gemini for visual detection. Higher quality but uses API quota. |
-| **Benchmark pixel** (`--benchmark-grounder`) | `PixelBenchmarkGrounder` identifies controls by their distinct flat color fills. Deterministic, no OCR/API needed. Lab-only. |
+| **OmniParser (default, `--grounder omniparser`)** | `OmniParserVisualGrounder` runs OmniParser's YOLOv9 detector (from `third_party/OmniParser`, or an external checkout via `OMNIPARSER_HOME`) reconciled with RapidOCR for labels. Screenshots stay local; Gemini receives only the numbered element list for planning. Wired in `cli.py` with a `GeminiVisualGrounder` as its `refiner`: when the agent selects a target that is non-actionable or below confidence 0.7, `Agent.run()` calls `grounder.refine()` to re-ground just that element in a padded Gemini crop (see `agent.py` around the `hasattr(self.grounder, "refine")` check). |
+| **Gemini** (`--grounder gemini`) | Screenshots are sent to Gemini for visual detection end-to-end (no OmniParser). Higher quality but uses more API quota; opt-in only. |
+| **Benchmark pixel** (`--benchmark-grounder`) | `PixelBenchmarkGrounder` identifies controls by their distinct flat color fills. Deterministic, no OCR/API needed. Lab-only; combinable only with `--grounder omniparser` (its default) and requires `--benchmark-reset`. |
 
 ---
 
@@ -422,16 +435,16 @@ The experiment selector **hard-blocks**: deletion, send/submit, purchases/paymen
 
 ### Passing
 
-- **121 unit/integration tests** across 6 test files
+- **124 unit/integration tests** across 7 test files (`uv run python -m unittest discover -s tests`, ~1 min including OmniParser/RapidOCR model loads)
 - **48 task/layout benchmark runs** (all 17 actions covered)
 - **21 positive workflow/layout calibration runs** (real Chromium + Playwright)
-- Gemini Flash Lite preflight completed the PDF-export task with independent evaluator confirmation
+- Gemini Flash Lite preflight completed the PDF-export task (via `/fullsuite`) with independent evaluator confirmation
 - Python compilation clean (`compileall`)
 - Git diff whitespace check clean
 
 ### Known Limitations
 
-1. **Generic Gemini grounder** has returned overlapping/mislocalized boxes in some runs. Two-stage remedy implemented (rough detection → padded crop refinement), but a **generic-grounder real-application trial is not yet authorized by evidence**. The local OCR grounder is now the default.
+1. **Generic Gemini grounder** (`--grounder gemini`, opt-in only) has returned overlapping/mislocalized boxes in some runs. Two-stage remedy implemented (rough detection → padded crop refinement), but a **generic-grounder real-application trial is not yet authorized by evidence**. The OmniParser + RapidOCR grounder is now the default, with Gemini used only to plan and to refine individual low-confidence targets.
 
 2. **No real-application case study yet** — required before paper submission (spec §10.6 suggests LibreOffice Writer in a disposable environment).
 
@@ -473,9 +486,9 @@ The spec requires showing:
 
 4. **Graph + action model coexist**: the graph handles navigation topology; the action model handles semantic functional reasoning. Either can be disabled independently for ablation.
 
-5. **Two-stage visual grounding**: rough full-screen detection, then a refined Gemini request over a padded crop of the selected control (crop-relative → screen coordinates).
+5. **Two-stage visual grounding**: OmniParser (+ RapidOCR) does full-screen detection by default; only when the selected target is non-actionable or low-confidence does a second, Gemini-based request re-ground that one control over a padded crop (crop-relative → screen coordinates).
 
-6. **Local OCR default**: screenshots never leave the machine unless `--grounder gemini` is explicitly passed.
+6. **Local grounding default**: full screenshots never leave the machine unless `--grounder gemini` is explicitly passed — the default OmniParser path only ever sends Gemini the element list (for planning) or a small crop (for refine), not the whole screen.
 
 ---
 
