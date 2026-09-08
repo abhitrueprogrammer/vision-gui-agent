@@ -2,9 +2,11 @@
 
 A screenshot-native automation agent for browsers, desktop applications, and legacy interfaces. It detects visible controls from pixels, acts through mouse and keyboard input, remembers UI states in a persistent graph, and plans from natural-language goals without querying a DOM, accessibility tree, or application API.
 
-The implementation also supports evidence-backed semantic action schemas: visually grounded predicates, passive effect learning, precondition evidence and contradictions, safe sandbox-only experiment selection, and bounded compositional planning. `docs/AUTHORITATIVE_IMPLEMENTATION_SPEC.md` is the governing specification.
+The implementation also supports evidence-backed semantic action schemas: visually grounded predicates, passive effect learning, precondition evidence and contradictions, safe sandbox-only experiment selection, and bounded compositional planning. [Authoritative implementation specification](docs/AUTHORITATIVE_IMPLEMENTATION_SPEC.md) is the governing specification.
 
 ## Setup
+
+Use Python 3.12 and `uv`. Run these commands from the repository root:
 
 ```bash
 uv sync
@@ -18,15 +20,17 @@ GEMINI_API_KEY=first-key
 GEMINI_API_KEY_2=second-key
 ```
 
-OmniParser + RapidOCR grounding is the default: screenshots stay local while Gemini plans from the detected controls. The repository includes OmniParser at `third_party/OmniParser`; download its detector weights as documented upstream. An external checkout can override it:
+OmniParser + RapidOCR grounding is the default. The `third_party/OmniParser` directory is empty in this checkout, so provide a compatible OmniParser checkout there or set `OMNIPARSER_HOME` to its location:
 
 ```bash
-git clone https://github.com/microsoft/OmniParser /opt/OmniParser
-export OMNIPARSER_HOME=/opt/OmniParser
-uv sync
+export OMNIPARSER_HOME=/path/to/OmniParser
 ```
 
-Use `--grounder gemini` only to opt back into Gemini visual detection. OmniParser regions are authoritative for clickability; OCR supplies labels, and uncertain region types remain generic click targets.
+The integration specifically expects `util/yolov9.py` exposing `YOLOv9Detector` and initializes it with `revision="refs/pr/37"`. A checkout with a different API will need an adapter; an arbitrary upstream checkout is not guaranteed to work. Detector initialization may need network access to retrieve model weights.
+
+To run without an OmniParser checkout, pass `--grounder gemini` for Gemini visual detection. With the default grounder, OmniParser regions determine clickability and OCR supplies labels; uncertain region types remain generic click targets.
+
+**Data flow:** OmniParser and RapidOCR detect controls locally, but the Gemini policy receives the numbered screenshot and visual inventory. Target refinement can also send screenshot crops to Gemini. Default grounding does not make a run local-only.
 
 ## Run in a browser
 
@@ -34,11 +38,40 @@ Use `--grounder gemini` only to opt back into Gemini visual detection. OmniParse
 uv run vision-gui-agent http://localhost:4200 "Log in and open account settings" --headed
 ```
 
-Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model-v2.json`; SQLite transitions retain predicate and evidence fields for audit. Active experiments remain disabled unless a resettable sandbox has explicitly enabled them.
+The target application must already be running. Browser runs are headless unless `--headed` is supplied. For example, without OmniParser:
+
+```bash
+uv run vision-gui-agent http://localhost:4200 "Log in and open account settings" --grounder gemini --headed --verbose
+```
+
+Common options (defaults from the CLI):
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `--model` | `gemini-3.6-flash` | Gemini model identifier; select one available to your account. |
+| `--grounder` | `omniparser` | Control detection: `omniparser` or `gemini`. |
+| `--max-steps` | `12` | Maximum agent steps. |
+| `--artifacts` | `artifacts` | Run output and persistent memory directory. |
+| `--memory-mode` | `graph` | Memory configuration described below. |
+| `--gemini-key-slot` | All configured keys | Pin a run to key slot `1` or `2`, disabling cross-key fallback. |
+| `--verbose` | Off | Print decisions and verification details. |
+
+Use `uv run vision-gui-agent --help` for all options. Exit codes are `0` for completion, `1` for an incomplete run, and `2` for CLI or handled runtime errors.
+
+Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model-v2.json`; SQLite transitions retain predicate and evidence fields for audit. Active experiments default to a budget of zero. A nonzero `--experiment-budget` requires `--memory-mode active-action-model`, `--benchmark-reset`, and `--benchmark-grounder` together.
 
 ## Visual Function Lab
 
 Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Frozen task groups and the three layout names are in `benchmark/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
+
+The evaluator check and browser-agent calibration are separate commands:
+
+```bash
+uv run vision-gui-benchmark
+uv run vision-gui-calibrate --artifacts artifacts/benchmark-calibration
+```
+
+Calibration starts its own local server and exercises the actual screenshot/input agent loop with a deterministic policy and pixel grounder. It requires Chromium but no Gemini key or OmniParser checkout. It does not measure Gemini planning quality.
 
 ## Run against the visible desktop
 
@@ -75,3 +108,11 @@ uv run python -m unittest discover -s tests
 ```
 
 The suite includes a real Chromium end-to-end flow whose agent-side perception uses screenshot pixels only, plus regression checks for layout-shift recovery, semantic re-grounding, desktop input adaptation, persistence, safety constraints, action-schema evidence, atomic export, planning, and benchmark reset.
+
+## Project layout
+
+- `vision_gui_agent/`: agent loop, perception, policy, execution, verification, memory, and benchmark tools.
+- `tests/`: unit and browser integration regression tests.
+- `benchmark/task_split.json`: frozen benchmark task groups.
+- [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md): evaluation workflow and scoring protocol.
+- [Implementation specification](docs/AUTHORITATIVE_IMPLEMENTATION_SPEC.md): architecture and requirements.
