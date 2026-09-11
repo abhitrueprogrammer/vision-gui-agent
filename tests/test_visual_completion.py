@@ -18,7 +18,7 @@ def element(ident, tag, text="", *, value="", x=0, y=0, actionable=True, placeho
 
 
 class VisualCompletionTests(unittest.TestCase):
-    def test_page_changed_uses_graph_identity_only(self):
+    def test_overlay_and_navigation_change_are_supporting_evidence_only(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             before_path, overlay_path, results_path = (base / name for name in ("before.png", "overlay.png", "results.png"))
@@ -31,10 +31,10 @@ class VisualCompletionTests(unittest.TestCase):
             results = Observation(str(results_path), str(results_path), [element(3, "text", "Chennai–Mumbai", actionable=False)], "https://test/results", "Results")
             graph = StateGraph(); source, _ = graph.add_observation(before)
             same, _ = graph.add_observation(overlay_observation); different, _ = graph.add_observation(results)
-            self.assertEqual(source, same); self.assertNotEqual(source, different)
+            self.assertNotEqual(source, same); self.assertNotEqual(source, different)
             failed = asyncio.run(verify(None, before, overlay_observation, VerificationCondition("page_changed"), 6, page_changed=source != same))
             passed = asyncio.run(verify(None, before, results, VerificationCondition("page_changed"), 6, page_changed=source != different))
-            self.assertEqual((failed.status, passed.status), ("failed", "passed"))
+            self.assertEqual((failed.status, passed.status), ("ambiguous", "ambiguous"))
 
     def test_numeric_pseudo_checkboxes_are_not_checkbox_change_proofs(self):
         self.assertTrue(Agent._numeric_checkbox(element(1, "checkbox", "2")))
@@ -72,7 +72,7 @@ class VisualCompletionTests(unittest.TestCase):
         latest = Observation("", "", [element(29, "input", "Name", value="Ada", x=10),
                                          element(30, "input", "Name", value="Wrong", x=10)], "", "")
         condition = VerificationCondition("element_value", element_id=28, expected="Ada")
-        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "failed")
+        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "unavailable")
 
     def test_type_specific_form_postconditions(self):
         source = Observation("", "", [element(1, "file", "Attachment", x=10), element(2, "color", "Color", x=30), element(3, "range", "Volume", x=50)], "", "Form")

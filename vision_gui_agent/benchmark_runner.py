@@ -19,14 +19,16 @@ def _classification(truth: set[tuple[str, str, str]], learned: set[tuple[str, st
 
 
 def score_action_model(model: ActionModel, minimum_confidence: float = .5) -> dict:
-    key = lambda action, predicate, value: (action, predicate, json.dumps(value, sort_keys=True))
+    aliases = {"_".join(spec.label.casefold().split()): action for action, spec in ACTIONS.items()}
+    canonical = lambda name: aliases.get(name, name)
+    key = lambda action, predicate, value: (canonical(action), predicate, json.dumps(value, sort_keys=True))
     expected_preconditions = {key(action, predicate, value) for action, spec in ACTIONS.items() for predicate, value in spec.preconditions.items()}
     expected_effects = {key(action, predicate, value) for action, spec in ACTIONS.items() for predicate, value in spec.effects.items()}
     learned_preconditions = {key(schema.semantic_name, item.predicate, item.required_value) for schema in model.schemas.values()
                              for item in schema.preconditions if item.status == "required"}
     learned_effects = {key(schema.semantic_name, item.predicate, item.resulting_value) for schema in model.schemas.values()
                        for item in schema.effects if item.confidence >= minimum_confidence}
-    return {"schema_coverage": len(set(ACTIONS) & {item.semantic_name for item in model.schemas.values()}) / len(ACTIONS),
+    return {"schema_coverage": len(set(ACTIONS) & {canonical(item.semantic_name) for item in model.schemas.values()}) / len(ACTIONS),
             "preconditions": _classification(expected_preconditions, learned_preconditions),
             "effects": _classification(expected_effects, learned_effects)}
 
@@ -45,7 +47,7 @@ def validate(task_ids: list[str] | None = None, layouts: tuple[str, ...] = LAYOU
             results.append({"task": task_id, "layout": layout, "passed": passed, "expected_effective": task.expected_effective,
                             "actions": list(task.actions), "invalid_attempts": evaluator.invalid_attempts})
     coverage = Counter(action for task in TASKS.values() for action in task.actions)
-    report = {"passed": all(item["passed"] for item in results), "runs": len(results), "actions": len(ACTIONS),
+    report = {"track": "symbolic", "independent_gui_completion": None, "passed": all(item["passed"] for item in results), "runs": len(results), "actions": len(ACTIONS),
             "covered_actions": sorted(coverage), "uncovered_actions": sorted(set(ACTIONS) - set(coverage)), "results": results,
             "task_splits": TASK_SPLIT}
     if action_model is not None: report["action_model"] = score_action_model(action_model)

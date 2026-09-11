@@ -386,7 +386,9 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
 
 async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGrounder | None) -> Observation:
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    raw_path, marked_path = artifact_dir / f"step-{step:03d}.png", artifact_dir / f"step-{step:03d}-marked.png"
+    from uuid import uuid4
+    capture = f"step-{step:03d}-{uuid4().hex}"
+    raw_path, marked_path = artifact_dir / f"{capture}.png", artifact_dir / f"{capture}-marked.png"
     if grounder is None:
         raise RuntimeError("A screenshot-native visual grounder is required")
     for screenshot_attempt in range(3):

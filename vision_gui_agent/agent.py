@@ -19,10 +19,10 @@ from .executor import execute
 from .experimentation import ExperimentSelector
 from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
-from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition
+from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition, VerificationResult
 from .predicates import PredicateExtractor
 from .perception import VisualGrounder, observe
-from .state_graph import StateGraph
+from .state_graph import StateGraph, instance_matches
 from .verification import already_satisfied, control_key, verify
 
 
@@ -42,6 +42,7 @@ class AgentConfig:
     experiment_budget: int = 0
     experiment_sandbox: bool = False
     action_model_path: Path | None = None
+    evaluation_context: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -262,8 +263,6 @@ class Agent:
         final file-producing click must be observed through expect_download.
         """
         verification = decision.verify
-        if verification and verification.kind == "element_checked" and target and target.checked is None:
-            verification = VerificationCondition("page_changed")
         if Agent._requires_download(goal) and decision.action == "click":
             if Agent._is_final_file_control(target):
                 verification = VerificationCondition("download_created")
@@ -538,26 +537,11 @@ class Agent:
         """Map a remembered semantic target to its current visual id after layout/order changes."""
         if decision.element_id is None:
             return decision
-        evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.expected and item.source in {"element_text", "role", "tag", "value"}]
-        if not evidence:
-            return decision
-        exact_evidence = [item for item in evidence if item.source in {"element_text", "value"}]
-        fields = {"element_text": "text", "role": "role", "tag": "tag", "value": "value"}
-
-        def matches(element) -> bool:
-            if exact_evidence:
-                return all(Agent._target_evidence_matches(item, element) for item in exact_evidence)
-            return all(Agent._normal(item.expected or "") in Agent._normal(getattr(element, fields[item.source], ""))
-                       for item in evidence if item.expected)
-
-        current = next((item for item in observation.elements if item.id == decision.element_id), None)
-        if current and current.actionable and matches(current):
-            return decision
-        candidates = [item for item in observation.elements if item.actionable and matches(item)]
+        candidates = instance_matches(decision, observation.elements)
         if not candidates:
-            raise ValueError(f"Semantic target for element {decision.element_id} has no actionable visual match")
-        if len(candidates) > 1:
-            raise ValueError(f"Semantic target for element {decision.element_id} has {len(candidates)} actionable visual matches")
+            raise ValueError("Semantic target has no actionable visual match")
+        if len(candidates) != 1:
+            raise ValueError(f"Semantic target has {len(candidates)} actionable visual matches")
         old_id, new_id = decision.element_id, candidates[0].id
 
         def remap(items):
@@ -565,9 +549,11 @@ class Agent:
 
         constraints = tuple(replace(item, evidence=remap(item.evidence)) for item in decision.constraints)
         verification = decision.verify
-        if verification and verification.kind in {"element_value", "element_checked", "element_filename", "element_color", "element_range"} and verification.element_id == old_id:
+        if verification and verification.kind in {"element_value", "element_checked", "element_filename", "element_color", "element_range", "element_changed"} and verification.element_id == old_id:
             verification = replace(verification, element_id=new_id)
-        return replace(decision, element_id=new_id, grounding=remap(decision.grounding), constraints=constraints, verify=verification)
+        result = replace(decision, element_id=new_id, grounding=remap(decision.grounding), constraints=constraints, verify=verification)
+        result.validate_for(observation)
+        return result
 
     @staticmethod
     def _reuse_workflow(templates: list[ReusableAction], observation, current_label: str) -> list[ReusableAction] | None:
@@ -576,28 +562,30 @@ class Agent:
                 return templates[index:]
         return None
 
-    def _hydrate_completed_workflows(self, workflows: dict[str, list[tuple[ActionDecision, Observation]]], goal: str) -> None:
+    def _hydrate_completed_workflows(self, workflows: dict[str, list[tuple[ActionDecision, Observation, Observation, str]]], goal: str) -> None:
         for run_id, records in workflows.items():
             if self.graph.has_completed_run(run_id):
                 continue
-            for index, (decision, source) in enumerate(records):
-                if decision.action == "done":
-                    node, _ = self.graph.add_observation(source)
-                    self.graph.add_transition(node, node, decision, True, goal, run_id)
-                    continue
-                if index + 1 >= len(records):
-                    continue
-                _, target = records[index + 1]
+            for decision, source, target, status in records:
                 source_node, _ = self.graph.add_observation(source)
                 target_node, _ = self.graph.add_observation(target)
-                self.graph.add_transition(source_node, target_node, decision, True, goal, run_id)
+                self.graph.add_transition(source_node, target_node, decision, True, goal, run_id, verification_status=status)
             self.graph.mark_run_completed(run_id)
 
     async def run(self, page: Page, goal: str) -> RunResult:
         self.config.artifact_dir.mkdir(parents=True, exist_ok=True)
         logger, run_id = RunLogger(self.config.database_path), uuid4().hex
-        self._hydrate_completed_workflows(logger.completed_workflows(goal), goal)
-        logger.start_run(run_id, goal, getattr(self.policy, "model", type(self.policy).__name__))
+        if self.config.memory_mode != "none":
+            self._hydrate_completed_workflows(logger.completed_workflows(goal), goal)
+        logger.start_run(run_id, goal, getattr(self.policy, "model", type(self.policy).__name__), {
+            "policy": type(self.policy).__name__, "grounder": type(self.grounder).__name__,
+            "memory_mode": self.config.memory_mode, "max_steps": self.config.max_steps,
+            "verification_attempts": self.config.verification_attempts,
+            "evaluation_track": "normal" if type(self.grounder).__name__ in {"OmniParserVisualGrounder", "GeminiVisualGrounder"} else
+                                "gemini_calibration_grounding" if type(self.policy).__name__ == "GeminiPolicy" else "scripted",
+            "grounder_weights": "unrecorded", "memory_nodes": self.graph.graph.number_of_nodes(),
+            **(self.config.evaluation_context or {}),
+        })
         history: list[ActionRecord] = []
         download_paths: list[str] = []
         path: list[str] = []
@@ -684,16 +672,19 @@ class Agent:
                                 if attempts >= self.config.max_action_attempts}
                         decision = self.graph.replay(current_node, goal, seen)
                         if decision and self._is_high_impact(decision, observation): decision = None
+                    if decision is not None:
+                        try:
+                            decision = self._reground(decision, observation)
+                        except ValueError:
+                            decision = None; workflow.clear(); planned.clear()
                     if decision is None:
                         started = perf_counter()
                         try:
                             response = await self.policy.decide(goal, observation, graph_context, history)
                         finally:
                             timings["model_ms"] = (perf_counter() - started) * 1000
-                        planned = self._safe_plan(list(response) if isinstance(response, list) else [response])
+                        planned = self._safe_plan(list(response) if isinstance(response, list) else [response])[:1]
                         decision = planned.pop(0)
-                    if self.config.memory_mode != "none":
-                        decision = self._reground(decision, observation)
                     if decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
                         refined = await self.grounder.refine(Path(observation.screenshot_path), target) if target and (not target.actionable or target.confidence < .7) else None
@@ -783,12 +774,17 @@ class Agent:
                     print(f"[step {step}] expected verification: {decision.verify.to_dict() if decision.verify else 'not requested'}")
                 if decision.action == "done":
                     verification = await verify(page, observation, observation, decision.verify, self.config.hash_threshold)
-                    success = verification.status != "failed"
+                    success = verification.status in {"passed", "not_requested", "ambiguous"}
+                    if success and verification.status != "ambiguous":
+                        verification = VerificationResult("goal_complete", "Goal evidence passed runtime completion guards")
+                    else:
+                        success = False
                     error = None if success else verification.reason
                     history.append(ActionRecord(decision, success, error, verification))
-                    logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification)
+                    logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification,
+                               before_observation=observation, after_observation=observation, dispatch_status="not_applicable")
                     if self._recordable_graph_action(decision, observation):
-                        self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error)
+                        self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
                     if success:
                         self._merge_constraints(ledger, decision, observation, download_paths)
@@ -801,6 +797,7 @@ class Agent:
                     continue
 
                 try:
+                    source_observation = observation
                     action_attempts[key] = action_attempts.get(key, 0) + 1
                     action_executed = True
                     started = perf_counter()
@@ -816,19 +813,16 @@ class Agent:
                                    or self._visible_signature(next_observation) != self._visible_signature(observation))
                         verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
                                                     download_path=download_path, page_changed=changed)
-                        if verification.status != "failed" or verification_attempt + 1 == self.config.verification_attempts:
+                        if verification.status in {"passed", "not_requested"} or verification_attempt + 1 == self.config.verification_attempts:
                             break
                         await asyncio.sleep(.15)
                     next_observe_ms = (perf_counter() - observed_at) * 1000
-                    # "not_requested" means the action ran with no explicit check, not that it
-                    # failed -- treat it the same as the sibling `done` branch above does. An
-                    # omitted verify is expected (the policy is told it's fine to skip one for
-                    # harmless actions); only a verification that actually ran and failed should
-                    # count as a failure.
-                    success = verification.status != "failed"
+                    # Dispatch success is retained for control flow; only meaningful
+                    # postconditions can become reusable or causal evidence.
+                    success = verification.status in {"passed", "not_requested", "ambiguous"}
                     error = None if success else verification.reason
                     if self._recordable_graph_action(decision, observation):
-                        self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error)
+                        self.graph.add_transition(current_node, target_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose:
                         status = "new" if created else "existing"
                         print(f"[step {step}] execution: {'success' if success else 'failed'}; verification: {verification.status}; {verification.reason}; observed: {next_observation.title!r} "
@@ -836,12 +830,13 @@ class Agent:
                         if verification.download_path: print(f"[step {step}] download: {verification.download_path}")
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, target_node, decision, success, next_observation,
-                               graph_context, error, timings, verification)
+                               graph_context, error, timings, verification, before_observation=observation,
+                               after_observation=next_observation, dispatch_status="dispatched")
                     if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
                         semantic = self._semantic_action(decision, observation)
                         before = self.predicates.extract(observation, f"{run_id}:{step}:before")
                         after = self.predicates.extract(next_observation, f"{run_id}:{step}:after")
-                        outcome = "effective" if success and verification.status == "passed" else "ineffective" if not success else "ambiguous"
+                        outcome = "effective" if verification.status == "passed" else "ambiguous"
                         evidence_id = f"{run_id}:{step}"
                         schema = self.action_model.ingest(semantic, before, after, outcome, evidence_id,
                                                           intervention=selected_experiment is not None) if semantic else None
@@ -860,11 +855,10 @@ class Agent:
                         continue
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
-                    if next_observation.url != observation.url:
-                        planned.clear()
-                    template = self._action_template(observation, next_observation, decision)
-                    if template and template not in templates:
-                        templates.append(template)
+                    if verification.status != "passed" or next_observation.url != observation.url:
+                        planned.clear(); workflow.clear()
+                    # Cross-page templates lack a functional state contract. Keep
+                    # runtime reuse on the verified graph path until one exists.
                     if workflow:
                         expected = workflow.pop(0)
                         if (self._page_signature(next_observation) != expected.post_page or
@@ -879,18 +873,21 @@ class Agent:
                     error = str(exc)
                     if self.config.verbose:
                         print(f"[step {step}] execution: failed; error: {error}")
+                    failure_observation = None
                     try:
                         next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
+                        failure_observation = next_observation
                         # Failure labels come only from the observed page; never from a prediction.
                         target_node, _ = self.graph.add_observation(next_observation, next_observation.title or "action_failed")
                         observation = next_observation
                     except Exception:
                         target_node = current_node
                     history.append(ActionRecord(decision, False, error))
-                    logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings)
+                    logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings,
+                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error")
                     if selected_experiment:
                         logger.finish_experiment(run_id, selected_experiment.id, "execution_error", None, f"{run_id}:{step}")
-                    if self._recordable_graph_action(decision, observation):
+                    if self._recordable_graph_action(decision, source_observation):
                         self.graph.add_transition(current_node, target_node, decision, False, goal, run_id, error)
                     workflow.clear()
                     planned.clear()

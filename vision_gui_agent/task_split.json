@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "layouts": [
+    "classic",
+    "compact"
+  ],
+  "exploration": [
+    "export_launch_brief",
+    "create_q3_report",
+    "enable_approval_workflow"
+  ],
+  "development": [
+    "export_before_open",
+    "report_before_selection",
+    "save_before_reviewers"
+  ],
+  "held_out": [],
+  "layout_shift": [],
+  "composition": []
+}

@@ -9,6 +9,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from .agent import Agent, AgentConfig
+from .logging_store import RunLogger
 from .benchmark_agent import BenchmarkTaskPolicy, CalibrationGrounder
 from .visual_function_lab import LAYOUTS, PROTOCOL_VERSION, TASKS
 from .visual_function_lab_server import serve_visual_function_lab
@@ -32,20 +33,28 @@ async def calibrate(artifacts: Path, layouts: tuple[str, ...] = LAYOUTS) -> dict
                         result = await Agent(BenchmarkTaskPolicy(task), AgentConfig(
                             run_dir, run_dir / "runs.sqlite3", run_dir / "state-graph.json",
                             max_steps=len(task.actions) + 4, memory_mode="none",
+                            evaluation_context={"evaluation_track": "fixed_policy_calibration", "task": task.id,
+                                                "layout": layout, "reset": task.initial_state, "viewport": [1440,1000]},
                         ), CalibrationGrounder()).run(page, task.goal)
                         observed = [item["action"] for item in evaluator.trace]
                         downloaded = [path for path in result.download_paths
                                       if Path(path).is_file() and Path(path).read_bytes().startswith(b"%PDF-")]
                         passed = (result.completed and observed == list(task.actions)
-                                  and all(item["effective"] for item in evaluator.trace)
+                                  and evaluator.score(task.id)
                                   and (task.id != "export_launch_brief" or bool(downloaded)))
+                        logger = RunLogger(run_dir / "runs.sqlite3")
+                        try:
+                            logger.record_evaluation(result.run_id, {"passed": passed, "actions": observed,
+                                "terminal_score": evaluator.score(task.id), "invalid_attempts": evaluator.invalid_attempts})
+                        finally:
+                            logger.close()
                         results.append({"task": task.id, "layout": layout, "passed": passed, "run_id": result.run_id,
                                         "actions": observed, "downloads": downloaded, "error": result.error})
             finally:
                 await browser.close()
     finally:
         server.shutdown(); server.server_close()
-    return {"protocol": PROTOCOL_VERSION, "passed": all(item["passed"] for item in results), "runs": len(results), "results": results}
+    return {"track": "fixed_policy_calibration", "protocol": PROTOCOL_VERSION, "passed": all(item["passed"] for item in results), "runs": len(results), "results": results}
 
 
 def main() -> None:

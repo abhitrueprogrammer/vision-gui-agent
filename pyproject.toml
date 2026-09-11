@@ -41,3 +41,6 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
 torchvision = { index = "pytorch-cpu" }
+
+[tool.setuptools.package-data]
+vision_gui_agent = ["task_split.json"]

@@ -14,12 +14,12 @@ def normal(value: str) -> str:
 
 def _visible(observation: Observation, pattern: str) -> bool:
     needle = normal(pattern)
-    return any(needle in normal(f"{element.text} {element.value} {element.context} {element.role} {element.tag}") for element in observation.elements)
+    return any(needle in normal(f"{element.text} {element.value}") for element in observation.elements)
 
 
 def _enabled(observation: Observation, pattern: str) -> bool:
     needle = normal(pattern)
-    return any(element.actionable and needle in normal(f"{element.text} {element.value} {element.context} {element.role} {element.tag}") for element in observation.elements)
+    return any(element.actionable and element.enabled and needle in normal(f"{element.text} {element.value}") for element in observation.elements)
 
 
 def control_key(element) -> tuple[str, str, str]:
@@ -67,6 +67,23 @@ def _same_visual_element(source: Observation, latest: Observation, element_id: i
     return ranked[0][1]
 
 
+def observed_value(target) -> str | None:
+    # Context and labels are not the value. OCR text wholly matched inside an
+    # editable field can be exact value evidence, but nearby prose cannot.
+    if target is None:
+        return None
+    if target.value != "":
+        return " ".join(target.value.split())
+    if target.tag == "text":
+        return " ".join(target.text.split())
+    return None
+
+
+def value_matches(target, expected: str) -> bool:
+    actual = observed_value(target)
+    return actual is not None and actual == " ".join(expected.split())
+
+
 def already_satisfied(observation: Observation, condition: VerificationCondition | None) -> bool:
     """Whether a state-only postcondition was true before an action."""
     if condition is None:
@@ -76,16 +93,16 @@ def already_satisfied(observation: Observation, condition: VerificationCondition
     if condition.kind == "element_enabled":
         return _enabled(observation, condition.pattern or "")
     if condition.kind == "element_absent":
-        return not _visible(observation, condition.pattern or "")
+        return False  # Missing proposals alone cannot establish absence.
     if condition.kind == "element_value":
         target = _same_visual_element(observation, observation, condition.element_id)
-        return bool(target and normal(condition.expected or "") in normal(f"{target.value} {target.text} {target.context}"))
+        return value_matches(target, condition.expected or "")
     if condition.kind == "element_checked":
         target = _same_visual_element(observation, observation, condition.element_id)
         return bool(target and target.checked is not None and str(target.checked).casefold() == normal(condition.expected or ""))
     if condition.kind == "element_filename":
         target = _same_visual_element(observation, observation, condition.element_id)
-        return bool(target and Path(condition.expected or "").name in normal(f"{target.value} {target.text}"))
+        return bool(target and observed_value(target) is not None and Path(observed_value(target)).name == Path(condition.expected or "").name)
     if condition.kind == "element_color":
         target = _same_visual_element(observation, observation, condition.element_id)
         return bool(target and normal(condition.expected or "") == normal(target.value))
@@ -105,16 +122,20 @@ async def verify(page: Page, source: Observation, latest: Observation, condition
     elif condition.kind == "element_enabled":
         passed = _enabled(latest, condition.pattern or "") and (source is latest or not _enabled(source, condition.pattern or ""))
     elif condition.kind == "element_absent":
-        passed = not _visible(latest, condition.pattern or "")
+        return VerificationResult("unavailable", "Proposal absence does not establish visual absence")
     elif condition.kind == "element_value":
         target = _same_visual_element(source, latest, condition.element_id)
-        passed = bool(target and normal(condition.expected or "") in normal(f"{target.value} {target.text} {target.context}"))
+        if observed_value(target) is None:
+            return VerificationResult("unavailable", "Exact field value was not observed")
+        passed = value_matches(target, condition.expected or "")
     elif condition.kind == "element_checked":
         target = _same_visual_element(source, latest, condition.element_id)
+        if target is None or target.checked is None:
+            return VerificationResult("unavailable", "Checked state was not observed")
         passed = bool(target and target.checked is not None and str(target.checked).casefold() == normal(condition.expected or ""))
     elif condition.kind == "element_filename":
         target = _same_visual_element(source, latest, condition.element_id)
-        passed = bool(target and Path(condition.expected or "").name in normal(f"{target.value} {target.text}"))
+        passed = bool(target and observed_value(target) is not None and Path(observed_value(target)).name == Path(condition.expected or "").name)
     elif condition.kind == "element_color":
         target = _same_visual_element(source, latest, condition.element_id)
         passed = bool(target and normal(condition.expected or "") == normal(target.value))
@@ -137,4 +158,6 @@ async def verify(page: Page, source: Observation, latest: Observation, condition
         passed = page_changed
     else:  # download_created
         passed = bool(download_path and Path(download_path).is_file() and Path(download_path).stat().st_size)
+    if condition.kind in {"page_changed", "element_changed"} and passed:
+        return VerificationResult("ambiguous", f"{condition.kind}: visual change is supporting evidence only")
     return VerificationResult("passed" if passed else "failed", f"{condition.kind} {'passed' if passed else 'did not pass'}", download_path)

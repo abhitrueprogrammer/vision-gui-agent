@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import shutil
+import subprocess
 import json
 import sqlite3
 import time
@@ -12,6 +15,7 @@ class RunLogger:
     """SQLite run data, deliberately denormalized enough for future policy training."""
 
     def __init__(self, path: Path) -> None:
+        self.snapshot_dir = path.parent / (path.name + ".observations")
         path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(path)
         self.connection.execute("""CREATE TABLE IF NOT EXISTS runs (
@@ -43,26 +47,40 @@ class RunLogger:
                                  "verification_reason": "TEXT", "download_path": "TEXT", "bridge_used": "TEXT", "detector_confidence": "REAL",
                                  "requested_postcondition": "TEXT", "independent_verification": "TEXT", "before_predicates_json": "TEXT",
                                  "after_predicates_json": "TEXT", "semantic_action": "TEXT", "intended_effect": "TEXT", "outcome_class": "TEXT",
-                                 "schema_id": "TEXT", "decision_source": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
+                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
             if name not in existing: self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
-        for name, definition in {"model": "TEXT", "completed": "INTEGER", "steps": "INTEGER", "final_node": "TEXT", "error": "TEXT", "status": "TEXT NOT NULL DEFAULT 'running'"}.items():
+        for name, definition in {"provenance_json": "TEXT", "model": "TEXT", "completed": "INTEGER", "steps": "INTEGER", "final_node": "TEXT", "error": "TEXT", "status": "TEXT NOT NULL DEFAULT 'running'"}.items():
             if name not in run_columns: self.connection.execute(f"ALTER TABLE runs ADD COLUMN {name} {definition}")
         self.connection.execute("UPDATE runs SET completed=0, error=COALESCE(error, 'aborted on next startup'), status='aborted' WHERE status='running'")
         self.connection.execute("PRAGMA user_version=2")
         self.connection.commit()
 
-    def start_run(self, run_id: str, goal: str, model: str) -> None:
+    def start_run(self, run_id: str, goal: str, model: str, provenance: dict | None = None) -> None:
         self.connection.execute("INSERT INTO runs(run_id, goal, model) VALUES(?, ?, ?)", (run_id, goal, model))
+        metadata = dict(provenance or {})
+        metadata.setdefault("evaluation_track", "unspecified")
+        metadata["independent_evaluator_outcome"] = None
+        try:
+            repo = Path(__file__).resolve().parent
+            metadata["commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, stderr=subprocess.DEVNULL, timeout=3).decode().strip()
+            diff = subprocess.check_output(["git", "diff", "HEAD", "--"], cwd=repo, stderr=subprocess.DEVNULL, timeout=3)
+            metadata["tracked_diff_sha256"] = hashlib.sha256(diff).hexdigest()
+        except (OSError, subprocess.SubprocessError):
+            metadata["commit"] = None
+        self.connection.execute("UPDATE runs SET provenance_json=? WHERE run_id=?", (json.dumps(metadata, default=json_value), run_id))
         self.connection.commit()
 
     def log(self, run_id: str, step: int, source: str | None, target: str | None, decision: ActionDecision,
             success: bool, observation: Observation, graph_context: dict, error: str | None = None,
-            timings: dict[str, float] | None = None, verification: VerificationResult | None = None) -> None:
+            timings: dict[str, float] | None = None, verification: VerificationResult | None = None, *,
+            before_observation: Observation | None = None, after_observation: Observation | None = None,
+            dispatch_status: str = "unknown") -> None:
         timings = timings or {}
         verification = verification or VerificationResult("not_requested", "No postcondition requested")
         action = decision.to_dict()
-        target_element = next((item for item in observation.elements if item.id == decision.element_id), None)
+        source_observation = before_observation or observation
+        target_element = next((item for item in source_observation.elements if item.id == decision.element_id), None)
         if action.get("text") is not None and (decision.action == "upload" or target_element and "password" in (target_element.input_type + " " + target_element.text).casefold()):
             action["text"] = "[redacted]"
         cursor = self.connection.execute(
@@ -72,9 +90,13 @@ class RunLogger:
              timings.get("model_ms", 0), timings.get("execute_ms", 0),
              json.dumps(decision.verify.to_dict()) if decision.verify else None, verification.status, verification.reason, verification.download_path,
              decision.action if decision.action in {"upload", "set_color"} else None,
-             next((item.confidence for item in observation.elements if item.id == decision.element_id), None),
-             decision.verify.kind if decision.verify else None, verification.status),
+             next((item.confidence for item in source_observation.elements if item.id == decision.element_id), None),
+             decision.verify.kind if decision.verify else None, None),
         )
+        before = self._snapshot(before_observation) if before_observation else None
+        after = self._snapshot(after_observation) if after_observation else None
+        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=? WHERE id=?",
+                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, cursor.lastrowid))
         started = time.perf_counter()
         self.connection.commit()
         self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))
@@ -108,11 +130,21 @@ class RunLogger:
                                 (int(completed), steps, final_node, error, "completed" if completed else "failed", run_id))
         self.connection.commit()
 
+    def record_evaluation(self, run_id: str, verdict: dict) -> None:
+        """Harness-only result; never infer this from agent verification."""
+        row = self.connection.execute("SELECT provenance_json FROM runs WHERE run_id=?", (run_id,)).fetchone()
+        if row is None:
+            raise ValueError("unknown evaluated run")
+        provenance = json.loads(row[0] or "{}")
+        provenance["independent_evaluator_outcome"] = verdict
+        self.connection.execute("UPDATE runs SET provenance_json=? WHERE run_id=?", (json.dumps(provenance), run_id))
+        self.connection.commit()
+
     def metrics(self) -> dict[str, float | int]:
         run_count, completed, average_steps = self.connection.execute(
             "SELECT COUNT(*), COALESCE(SUM(completed), 0), COALESCE(AVG(steps), 0) FROM runs WHERE completed IS NOT NULL"
         ).fetchone()
-        return {"runs": run_count, "completed": completed, "success_rate": completed / run_count if run_count else 0.0,
+        return {"measurement": "internal_completion_only", "runs": run_count, "completed": completed, "internal_completion_rate": completed / run_count if run_count else 0.0,
                 "average_steps": average_steps}
 
     def model_metrics(self) -> list[dict[str, float | int | str]]:
@@ -124,28 +156,57 @@ class RunLogger:
         return [{"model": model, "runs": runs, "average_model_ms": average or 0.0}
                 for model, runs, average in rows]
 
-    def completed_workflows(self, goal: str) -> dict[str, list[tuple[ActionDecision, Observation]]]:
+    def _snapshot(self, observation: Observation) -> dict:
+        """Content-address pixels and metadata; later captures cannot rewrite a trace."""
+        raw = observation.to_dict()
+        self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        for field in ("screenshot_path", "marked_screenshot_path"):
+            source = Path(raw[field])
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            target = self.snapshot_dir / (digest + source.suffix)
+            if not target.exists():
+                shutil.copyfile(source, target)
+            raw[field] = str(target.resolve())
+        raw["observation_id"] = hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
+        return raw
+
+    @staticmethod
+    def _observation(raw: dict) -> Observation:
+        return Observation(raw["screenshot_path"], raw["marked_screenshot_path"],
+                           [Element(**item) for item in raw["elements"]], raw["url"], raw["title"])
+
+    def completed_workflows(self, goal: str) -> dict:
         rows = self.connection.execute("""
-            SELECT t.run_id, t.action_json, t.observation_json FROM transitions t
-            JOIN runs r ON r.run_id = t.run_id
-            WHERE r.goal=? AND r.completed=1 AND t.success=1 ORDER BY t.run_id, t.step
+            SELECT t.run_id, t.step, t.action_json, t.before_observation_json, t.after_observation_json,
+                   t.success, t.verification_status FROM transitions t JOIN runs r ON r.run_id=t.run_id
+            WHERE r.goal=? AND r.completed=1 ORDER BY t.run_id, t.step, t.id
         """, (goal,)).fetchall()
-        workflows: dict[str, list[tuple[ActionDecision, Observation]]] = {}
-        for run_id, action, observation in rows:
-            raw = json.loads(observation)
-            if not Path(raw["screenshot_path"]).exists():
+        workflows, rejected, previous = {}, set(), {}
+        for run_id, step, action, before, after, success, status in rows:
+            if run_id in rejected:
                 continue
-            item = Observation(raw["screenshot_path"], raw["marked_screenshot_path"],
-                               [Element(**element) for element in raw["elements"]], raw["url"], raw["title"])
-            workflows.setdefault(run_id, []).append((ActionDecision.from_dict(json.loads(action)), item))
+            left, right = json.loads(before) if before else None, json.loads(after) if after else None
+            prior = previous.get(run_id)
+            if (not left or not right or not success or (prior is None and step != 0) or
+                    (prior and (step != prior[0] + 1 or left["observation_id"] != prior[1])) or
+                    any(not Path(raw[field]).is_file() for raw in (left, right)
+                        for field in ("screenshot_path", "marked_screenshot_path"))):
+                rejected.add(run_id); workflows.pop(run_id, None)
+                continue
+            previous[run_id] = (step, right["observation_id"])
+            workflows.setdefault(run_id, []).append((ActionDecision.from_dict(json.loads(action)),
+                                                    self._observation(left), self._observation(right), status))
         return workflows
 
     def training_examples(self) -> list[dict]:
-        """Export action-selection examples without coupling data collection to a model vendor."""
-        rows = self.connection.execute("SELECT observation_json, graph_context_json, action_json, success, error, verification_status, verification_reason, download_path FROM transitions ORDER BY id").fetchall()
-        return [{"observation": json.loads(observation), "graph_context": json.loads(context), "action": json.loads(action), "success": bool(success), "error": error,
+        """Only explicit source/action/target records are attributable training inputs."""
+        rows = self.connection.execute("""SELECT before_observation_json, after_observation_json, graph_context_json,
+            action_json, success, error, verification_status, verification_reason, download_path, dispatch_status
+            FROM transitions WHERE before_observation_json IS NOT NULL AND after_observation_json IS NOT NULL ORDER BY id""").fetchall()
+        return [{"observation": json.loads(before), "after_observation": json.loads(after), "graph_context": json.loads(context),
+                 "action": json.loads(action), "success": bool(success), "error": error, "dispatch_status": dispatch,
                  "verification": {"status": status, "reason": reason, "download_path": path}}
-                for observation, context, action, success, error, status, reason, path in rows]
+                for before, after, context, action, success, error, status, reason, path, dispatch in rows]
 
     def close(self) -> None:
         self.connection.close()

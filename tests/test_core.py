@@ -75,7 +75,7 @@ class CoreTests(unittest.TestCase):
             graph = StateGraph(); first, created = graph.add_observation(observation); second, created_again = graph.add_observation(observation)
             self.assertTrue(created); self.assertFalse(created_again); self.assertEqual(first, second)
 
-    def test_layout_shift_reuses_semantically_identical_state(self) -> None:
+    def test_layout_shift_similarity_does_not_prove_functional_identity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             first_path, shifted_path = Path(temp_dir) / "first.png", Path(temp_dir) / "shifted.png"
             Image.new("RGB", (120, 80), "white").save(first_path)
@@ -87,8 +87,8 @@ class CoreTests(unittest.TestCase):
             graph = StateGraph(hash_threshold=0)
             first, created = graph.add_observation(Observation(str(first_path), str(first_path), elements(2), "", "Settings"))
             shifted, created_again = graph.add_observation(Observation(str(shifted_path), str(shifted_path), elements(45), "", "Settings"))
-            self.assertTrue(created); self.assertFalse(created_again); self.assertEqual(first, shifted)
-            self.assertEqual(graph.graph.nodes[first]["screenshot"], str(shifted_path))
+            self.assertTrue(created); self.assertTrue(created_again); self.assertNotEqual(first, shifted)
+            self.assertEqual(graph.graph.nodes[first]["screenshot"], str(first_path))
 
     def test_remembered_action_is_regrounded_by_visible_semantics(self) -> None:
         decision = ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Continue", 1),))
@@ -275,14 +275,14 @@ class CoreTests(unittest.TestCase):
             first = Observation(str(first_path), str(first_path), [Element(1, "[x]", "button", "Go", "", "", "", 0, 0, 10, 10)], "https://example.test", "First")
             second = Observation(str(second_path), str(second_path), [], "https://example.test/next", "Second")
             graph = StateGraph(hash_threshold=0); source, _ = graph.add_observation(first); target, _ = graph.add_observation(second)
-            graph.add_transition(source, target, ActionDecision(action="click", element_id=1), True, "open settings", "run-1")
-            graph.add_transition(target, target, ActionDecision(action="done"), True, "open settings", "run-1")
+            graph.add_transition(source, target, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "open settings", "run-1", verification_status="passed")
+            graph.add_transition(target, target, ActionDecision(action="done"), True, "open settings", "run-1", verification_status="goal_complete")
             self.assertIsNone(graph.replay(source, "open settings"))
             graph.mark_run_completed("run-1")
             self.assertIsNotNone(graph.replay(source, "open settings"))
             self.assertIsNone(graph.replay(source, "log in"))
             legacy = StateGraph(hash_threshold=0); legacy_source, _ = legacy.add_observation(first); legacy_target, _ = legacy.add_observation(second)
-            legacy.add_transition(legacy_source, legacy_target, ActionDecision(action="click", element_id=1), True)
+            legacy.add_transition(legacy_source, legacy_target, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), True)
             self.assertIsNone(legacy.replay(legacy_source, "open settings"))
 
     def test_planner_handles_self_loops_and_failures(self) -> None:
@@ -295,20 +295,21 @@ class CoreTests(unittest.TestCase):
                 Element(3, "[z]", "button", "Login", "", "", "", 0, 0, 10, 10),
             ], "https://example.test/login", "Login")
             graph = StateGraph(hash_threshold=0)
-            graph.graph.add_nodes_from([("login", {}), ("account", {})])
+            graph.graph.add_nodes_from([("login", {"replay_safe": True}), ("account", {"replay_safe": True})])
             login, account = "login", "account"
             dashboard_path = Path(temp_dir) / "dashboard.png"
             Image.new("RGB", (100, 100), "black").save(dashboard_path)
             dashboard = Observation(str(dashboard_path), str(dashboard_path), [], "https://example.test/account", "Account")
-            graph.add_transition(login, login, ActionDecision(action="fill", element_id=1, text="customer@example.test"), True, "log in", "run-1")
-            graph.add_transition(login, account, ActionDecision(action="click", element_id=3), True, "log in", "run-1")
-            graph.add_transition(login, login, ActionDecision(action="click", element_id=3), False, "log in", "run-2", "blocked")
-            graph.add_transition(account, account, ActionDecision(action="done"), True, "log in", "run-1")
+            graph.add_transition(login, login, ActionDecision(action="fill", element_id=1, text="customer@example.test", grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "log in", "run-1", verification_status="passed")
+            graph.add_transition(login, account, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "log in", "run-1", verification_status="passed")
+            graph.add_transition(login, login, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), False, "log in", "run-2", "blocked", verification_status="failed")
+            graph.add_transition(account, account, ActionDecision(action="done"), True, "log in", "run-1", verification_status="goal_complete")
+            graph.graph.nodes[login]["elements"] = [Element(i, "", "input" if i == 1 else "button", label, "", "", "", 0, 0, 10, 10).__dict__ for i, label in ((1,"Go"),(3,"Next"))]
             graph.mark_run_completed("run-1")
             first = graph.replay(login, "log in")
             second = graph.replay(login, "log in", {graph.replay_key(first)})
             self.assertEqual((first.action, second.action), ("fill", "click"))
-            self.assertLess(graph._reliability(login, ActionDecision(action="click", element_id=3), "log in"), 0.75)
+            self.assertLess(graph._reliability(login, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), "log in"), 0.75)
 
     def test_planner_prefers_reliable_route_and_retry_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -316,16 +317,19 @@ class CoreTests(unittest.TestCase):
             for path, color in zip(paths, ("white", "black", "red", "blue")): Image.new("RGB", (20, 20), color).save(path)
             make = lambda path, ident: Observation(str(path), str(path), [Element(ident, "[x]", "button", "Go", "", "", "", 0, 0, 1, 1)], "https://example.test", "Page")
             graph = StateGraph(hash_threshold=0); start, bad, good, done = "start", "bad", "good", "done"
-            graph.graph.add_nodes_from((node, {}) for node in (start, bad, good, done))
-            graph.add_transition(start, bad, ActionDecision(action="click", element_id=1), True, "goal", "good")
-            graph.add_transition(start, start, ActionDecision(action="click", element_id=1), False, "goal", "bad")
-            graph.add_transition(start, good, ActionDecision(action="click", element_id=3), True, "goal", "good")
-            graph.add_transition(bad, done, ActionDecision(action="click", element_id=2), True, "goal", "good")
-            graph.add_transition(good, done, ActionDecision(action="click", element_id=3), True, "goal", "good")
-            graph.add_transition(done, done, ActionDecision(action="done"), True, "goal", "good")
+            graph.graph.add_nodes_from((node, {"replay_safe": True}) for node in (start, bad, good, done))
+            graph.add_transition(start, bad, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "goal", "good", verification_status="passed")
+            graph.add_transition(start, start, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), False, "goal", "bad", verification_status="failed")
+            graph.add_transition(start, good, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
+            graph.add_transition(bad, done, ActionDecision(action="click", element_id=2, grounding=(EvidenceRecord("element_text", "Other", 2),)), True, "goal", "good", verification_status="passed")
+            graph.add_transition(good, done, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
+            graph.add_transition(done, done, ActionDecision(action="done"), True, "goal", "good", verification_status="goal_complete")
+            for node in (start, bad, good, done):
+                graph.graph.nodes[node]["elements"] = [Element(i, "", "button", label, "", "", "", 0, 0, 10, 10).__dict__ for i,label in ((1,"Go"),(2,"Other"),(3,"Next"))]
             graph.mark_run_completed("good")
             self.assertEqual(graph.replay(start, "goal").element_id, 3)
-            self.assertEqual(graph.replay(start, "goal", {graph.replay_key(ActionDecision(action="click", element_id=3))}).element_id, 1)
+            self.assertEqual(graph.replay(start, "goal", {graph.replay_key(ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)))}).element_id, 1)
+
 
     def test_failed_actions_are_recorded_and_retried_only_twice(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -359,7 +363,7 @@ class CoreTests(unittest.TestCase):
             self.assertTrue(result.history[0].success)
             self.assertIsNone(result.history[0].error)
 
-    def test_agent_batches_actions_and_records_timings(self) -> None:
+    def test_agent_replans_after_each_action_and_records_timings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             base, image_path = Path(temp_dir), Path(temp_dir) / "screen.png"
             changed_path = Path(temp_dir) / "changed.png"
@@ -374,6 +378,8 @@ class CoreTests(unittest.TestCase):
                 calls = 0
                 async def decide(self, *_):
                     self.calls += 1
+                    if self.calls > 1:
+                        return ActionDecision("done", grounding=(EvidenceRecord("element_text", "Complete", 2),))
                     return [ActionDecision(action="click", element_id=1, current_label="Start", next_label="Form"),
                             ActionDecision(action="done", current_label="Form", grounding=(EvidenceRecord("element_text", "Complete", 2),))]
 
@@ -381,7 +387,7 @@ class CoreTests(unittest.TestCase):
             config = AgentConfig(base / "artifacts", base / "runs.sqlite3", base / "graph.json")
             with patch("vision_gui_agent.agent.observe", new=AsyncMock(side_effect=[observation, changed])), patch("vision_gui_agent.agent.execute", new=AsyncMock()):
                 result = asyncio.run(Agent(policy, config).run(object(), "complete form"))
-            self.assertTrue(result.completed); self.assertEqual(policy.calls, 1)
+            self.assertTrue(result.completed); self.assertEqual(policy.calls, 2)
             import sqlite3
             db = sqlite3.connect(config.database_path)
             try:
@@ -430,13 +436,13 @@ class CoreTests(unittest.TestCase):
         result = asyncio.run(verify(None, source, latest, VerificationCondition("element_value", element_id=12, expected="Software Engineering"), 6))
         self.assertEqual(result.status, "passed")
 
-    def test_visible_field_context_is_valid_value_evidence(self) -> None:
+    def test_visible_field_context_is_not_exact_value_evidence(self) -> None:
         source = Observation("", "", [Element(1, "", "button", "Depart", "", "", "button", 0, 0, 100, 40,
                                                    context="Depart Add date")], "", "Form")
         latest = Observation("", "", [Element(7, "", "button", "Depart", "", "", "button", 0, 0, 100, 40,
                                                    context="Depart 01/09/2026")], "", "Form")
         condition = VerificationCondition("element_value", element_id=1, expected="01/09/2026")
-        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "passed")
+        self.assertEqual(asyncio.run(verify(None, source, latest, condition, 6)).status, "unavailable")
 
     def test_element_visible_requires_a_newly_visible_element(self) -> None:
         source = Observation("", "", [Element(1, "", "text", "Ready", "", "", "text", 0, 0, 10, 10)], "", "Before")
@@ -457,14 +463,14 @@ class CoreTests(unittest.TestCase):
             before.save(before_path); after.save(after_path)
             element = Element(1, "", "checkbox", "Choose", "", "", "checkbox", 10, 10, 11, 11)
             result = asyncio.run(verify(None, Observation(str(before_path), "", [element], "", ""), Observation(str(after_path), "", [element], "", ""), VerificationCondition("element_changed", element_id=1), 6))
-            self.assertEqual(result.status, "passed")
+            self.assertEqual(result.status, "ambiguous")
 
     def test_graph_url_identity_includes_query_and_legacy_load(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             base, image = Path(temp_dir), Path(temp_dir) / "screen.png"; Image.new("RGB", (20, 20), "white").save(image)
             make = lambda url: Observation(str(image), str(image), [], url, "Same")
             graph = StateGraph(); first, _ = graph.add_observation(make("HTTPS://EXAMPLE.TEST:443/a?x=1#part")); same, created = graph.add_observation(make("https://example.test/a?x=1")); other, _ = graph.add_observation(make("https://example.test/a?x=2"))
-            self.assertEqual(first, same); self.assertFalse(created); self.assertNotEqual(first, other)
+            self.assertNotEqual(first, same); self.assertTrue(created); self.assertNotEqual(first, other)
             graph.export(base / "graph.json")
             data = __import__('json').loads((base / "graph.json").read_text())
             for node in data["nodes"]: node.pop("normalized_url", None)
@@ -542,7 +548,7 @@ class CoreTests(unittest.TestCase):
             "click", 2, verify=VerificationCondition("element_checked", element_id=2, expected="true")), pdf)
         final = Agent._normalize_verification("export as PDF", ActionDecision("click", 3), confirm)
         self.assertEqual((opener.verify.kind, selection.verify.kind, final.verify.kind),
-                         ("page_changed", "page_changed", "download_created"))
+                         ("page_changed", "element_checked", "download_created"))
         self.assertNotEqual(Agent._attempt_key(ActionDecision("click", 3)), Agent._attempt_key(final))
 
     def test_search_submit_is_not_high_impact(self) -> None:

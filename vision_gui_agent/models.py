@@ -54,7 +54,7 @@ class VerificationCondition:
 
 @dataclass(frozen=True)
 class VerificationResult:
-    status: Literal["passed", "failed", "not_requested"]
+    status: Literal["passed", "failed", "not_requested", "unavailable", "ambiguous", "goal_complete"]
     reason: str
     download_path: str | None = None
 

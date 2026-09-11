@@ -1,8 +1,8 @@
 # Vision GUI Agent
 
-A screenshot-native automation agent for browsers, desktop applications, and legacy interfaces. It detects visible controls from pixels, acts through mouse and keyboard input, remembers UI states in a persistent graph, and plans from natural-language goals without querying a DOM, accessibility tree, or application API.
+Screenshot-based GUI target discovery with local OmniParser/OCR proposals, hosted Gemini planning/refinement, browser or desktop input, and optional browser-native execution helpers. Normal target discovery uses screenshots; color, upload and download execution use browser APIs. This is not fully local or independent of all APIs.
 
-The implementation also supports evidence-backed semantic action schemas: visually grounded predicates, passive effect learning, precondition evidence and contradictions, safe sandbox-only experiment selection, and bounded compositional planning. [Authoritative implementation specification](docs/AUTHORITATIVE_IMPLEMENTATION_SPEC.md) is the governing specification.
+Learned planning and predicates currently use controlled benchmark vocabulary; general planning or causal learning outside it is unverified. Active experiments default to zero. See [capability and evaluation limits](BENCHMARK_TESTING.md).
 
 ## Setup
 
@@ -62,7 +62,7 @@ Use comparable memory configurations with `--memory-mode none`, `graph`, `passiv
 
 ## Visual Function Lab
 
-Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Frozen task groups and the three layout names are in `benchmark/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
+Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Versioned task groups and the two layout names are in `benchmark/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
 
 The evaluator check and browser-agent calibration are separate commands:
 

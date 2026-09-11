@@ -8,6 +8,8 @@ predicate names and boolean state are never rendered to the page.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any
@@ -116,13 +118,20 @@ TASKS: dict[str, TaskSpec] = {
     "save_before_reviewers": TaskSpec("save_before_reviewers", "show settings cannot save without selected reviewers", "approval_enabled",
                                       ("save_settings",), False),
 }
-TASK_SPLIT = {
-    "exploration": ["export_launch_brief", "create_q3_report", "enable_approval_workflow"],
-    "development": ["export_before_open", "report_before_selection", "save_before_reviewers"],
-    "held_out": ["export_launch_brief", "create_q3_report", "enable_approval_workflow"],
-    "layout_shift": ["export_launch_brief", "create_q3_report", "enable_approval_workflow"],
-    "composition": ["export_launch_brief", "create_q3_report", "enable_approval_workflow"],
-}
+def load_task_split(path: Path) -> dict:
+    manifest = json.loads(path.read_text())
+    if manifest["version"] != 3 or tuple(manifest["layouts"]) != LAYOUTS:
+        raise ValueError("unsupported task split manifest")
+    groups = {name: manifest[name] for name in ("exploration", "development", "held_out", "layout_shift", "composition")}
+    seen = set()
+    for tasks in groups.values():
+        if len(tasks) != len(set(tasks)) or set(tasks) - TASKS.keys() or seen.intersection(tasks):
+            raise ValueError("unknown or overlapping split tasks")
+        seen.update(tasks)
+    return groups
+
+
+TASK_SPLIT = load_task_split(Path(__file__).with_name("task_split.json"))
 
 
 @dataclass
@@ -150,11 +159,18 @@ class VisualFunctionLabEvaluator:
     def run_task(self, task: TaskSpec, layout: str = "classic") -> bool:
         self.reset(task.initial_state, layout)
         outcomes = [self.act(action) for action in task.actions]
-        return all(outcomes) if task.expected_effective else not any(outcomes)
+        return self.score(task.id)
 
     def score(self, task_id: str) -> bool:
         task = TASKS[task_id]
-        return not any(item["effective"] for item in self.trace) if not task.expected_effective else bool(self.trace and all(item["effective"] for item in self.trace))
+        if [item["action"] for item in self.trace] != list(task.actions):
+            return False
+        if not task.expected_effective:
+            return all(not item["effective"] for item in self.trace) and self.state == INITIAL_STATES[task.initial_state]
+        expected = dict(INITIAL_STATES[task.initial_state])
+        for action in task.actions:
+            expected.update(ACTIONS[action].effects)
+        return all(item["effective"] for item in self.trace) and all(self.state.get(key) == value for key, value in expected.items())
 
     def visible_state(self) -> dict[str, Any]:
         return dict(self.state)

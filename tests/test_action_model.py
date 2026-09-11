@@ -193,7 +193,7 @@ class ActionModelTests(unittest.TestCase):
                              ("completed", "ineffective", 0))
             logger.close()
 
-    def test_verified_failure_becomes_negative_action_model_evidence(self):
+    def test_perceptual_failure_does_not_become_negative_causal_evidence(self):
         class Policy:
             model = "test"
             async def decide(self, *_):
@@ -217,7 +217,7 @@ class ActionModelTests(unittest.TestCase):
                 return ActionModel.load(root / "action-model.json").schemas["try.v1"]
 
         schema = asyncio.run(run())
-        self.assertEqual((schema.effects[0].support, schema.effects[0].contradiction), (2, 1))
+        self.assertEqual((schema.effects[0].support, schema.effects[0].contradiction), (2, 0))
 
     def test_benchmark_scores_learned_preconditions_and_effects(self):
         schemas = tuple(ActionSchema(f"{name}.v1", name, "test", f"button|button|{name}", "harmless_reversible",
@@ -225,6 +225,9 @@ class ActionModelTests(unittest.TestCase):
                      tuple(ActionEffect(key, value, 2) for key, value in spec.effects.items())) for name, spec in ACTIONS.items())
         metrics = score_action_model(ActionModel(schemas=schemas))
         self.assertEqual((metrics["schema_coverage"], metrics["preconditions"]["f1"], metrics["effects"]["f1"]), (1, 1, 1))
+        from dataclasses import replace
+        runtime = tuple(replace(schema, semantic_name="_".join(ACTIONS[schema.semantic_name].label.casefold().split())) for schema in schemas)
+        self.assertEqual(score_action_model(ActionModel(schemas=runtime)), metrics)
 
     def test_high_impact_actions_do_not_enter_replay_templates(self):
         before = Observation("", "", [Element(1, "", "button", "Delete account", "", "", "button", 0, 0, 10, 10)], "", "Lab")
@@ -329,7 +332,7 @@ class ActionModelTests(unittest.TestCase):
         self.assertTrue(result.completed, result.error)
         self.assertTrue(valid_pdf)
         self.assertEqual([record.decision.verify.kind if record.decision.verify else None for record in result.history[:-1]],
-                         [None, "page_changed", "page_changed", "download_created"])
+                         [None, "page_changed", "element_checked", "download_created"])
 
     def test_stateless_mode_does_not_load_or_write_graph_memory(self):
         with tempfile.TemporaryDirectory() as directory:
