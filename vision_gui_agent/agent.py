@@ -15,13 +15,14 @@ from playwright.async_api import Page
 
 from .decision import Policy
 from .action_model import ActionModel
-from .executor import execute
+from .executor import execute, requires_hybrid
+from .capture import StaleObservation
 from .experimentation import ExperimentSelector
 from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
 from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition, VerificationResult
 from .predicates import PredicateExtractor
-from .perception import VisualGrounder, observe
+from .perception import GroundingAbstention, VisualGrounder, draw_set_of_mark, observe, refinement_reasons
 from .state_graph import StateGraph, instance_matches
 from .verification import already_satisfied, control_key, verify
 
@@ -43,6 +44,7 @@ class AgentConfig:
     experiment_sandbox: bool = False
     action_model_path: Path | None = None
     evaluation_context: dict | None = None
+    execution_mode: str = "pixels"
 
 
 @dataclass(frozen=True)
@@ -579,7 +581,7 @@ class Agent:
             self._hydrate_completed_workflows(logger.completed_workflows(goal), goal)
         logger.start_run(run_id, goal, getattr(self.policy, "model", type(self.policy).__name__), {
             "policy": type(self.policy).__name__, "grounder": type(self.grounder).__name__,
-            "memory_mode": self.config.memory_mode, "max_steps": self.config.max_steps,
+            "execution_mode": self.config.execution_mode, "memory_mode": self.config.memory_mode, "max_steps": self.config.max_steps,
             "verification_attempts": self.config.verification_attempts,
             "evaluation_track": "normal" if type(self.grounder).__name__ in {"OmniParserVisualGrounder", "GeminiVisualGrounder"} else
                                 "gemini_calibration_grounding" if type(self.policy).__name__ == "GeminiPolicy" else "scripted",
@@ -589,6 +591,7 @@ class Agent:
         history: list[ActionRecord] = []
         download_paths: list[str] = []
         path: list[str] = []
+        discovery_attempts = 0
         planned: list[ActionDecision] = []
         templates: list[ReusableAction] = []
         workflow: list[ReusableAction] = []
@@ -631,6 +634,7 @@ class Agent:
                 # screenshots from adjacent states.  The current screenshot's
                 # observed heading is authoritative for this decision.
                 graph_context["current"]["label"] = observation.title or graph_context["current"]["label"]
+                graph_context["execution_mode"] = self.config.execution_mode
                 graph_context["constraints"] = [item.to_dict() for item in ledger.values()]
                 graph_context["completion"] = self._completion_summary(required_fields, completed_fields)
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
@@ -685,10 +689,30 @@ class Agent:
                             timings["model_ms"] = (perf_counter() - started) * 1000
                         planned = self._safe_plan(list(response) if isinstance(response, list) else [response])[:1]
                         decision = planned.pop(0)
+                    if decision.action == "inspect":
+                        if discovery_attempts >= 2 or not hasattr(self.grounder, "discover"):
+                            raise GroundingAbstention("Missing-target recovery unavailable or budget exhausted")
+                        discovery_attempts += 1
+                        recovered = await self.grounder.discover(Path(observation.screenshot_path), (decision.text or "") + "; goal: " + goal)
+                        if not recovered:
+                            raise GroundingAbstention("The requested visible target was not found")
+                        before_discovery = observation
+                        next_id = max((e.id for e in observation.elements), default=0)+1
+                        enriched = observation.elements + [replace(e,id=next_id+i) for i,e in enumerate(recovered)]
+                        marked = Path(observation.marked_screenshot_path).with_name(f"recovered-{uuid4().hex}.png")
+                        draw_set_of_mark(Path(observation.screenshot_path),marked,enriched)
+                        observation = replace(observation,elements=enriched,marked_screenshot_path=str(marked))
+                        history.append(ActionRecord(decision,True))
+                        logger.log(run_id,step,current_node,current_node,decision,True,observation,graph_context,
+                                   before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable")
+                        continue
                     if decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
-                        refined = await self.grounder.refine(Path(observation.screenshot_path), target) if target and (not target.actionable or target.confidence < .7) else None
-                        if refined:
+                        if target and refinement_reasons(target, observation.elements, decision):
+                            refined = await self.grounder.refine(Path(observation.screenshot_path), target,
+                                                                goal=goal, decision=decision, elements=observation.elements)
+                            if refined is None or not refined.actionable:
+                                raise GroundingAbstention("Selected target could not be confirmed")
                             observation = replace(observation, elements=[refined if item.id == refined.id else item for item in observation.elements])
                     target = next((item for item in observation.elements if item.id == decision.element_id), None)
                     if target and target.tag == "checkbox" and not self._numeric_checkbox(target) and (decision.verify is None or decision.verify.kind in {"element_visible", "element_enabled"}):
@@ -719,6 +743,8 @@ class Agent:
                             raise ValueError("Requested field state is already satisfied; choose a different visible control")
                         decision = replace(decision, verify=None)
                     decision.validate_for(observation)
+                    if requires_hybrid(decision) and self.config.execution_mode != "hybrid":
+                        raise ValueError("Browser-native helper requires --execution-mode hybrid")
                     keyed_decision = replace(decision, element_id=None,
                         grounding=decision.grounding or ((EvidenceRecord("element_text", target.text, None),) if target else ()))
                     replay_key = self.graph.replay_key(keyed_decision)
@@ -756,6 +782,8 @@ class Agent:
                     logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings)
                     planned.clear(); workflow.clear()
                     if self.config.verbose: print(f"[step {step}] {error}")
+                    if isinstance(exc, GroundingAbstention):
+                        observation = await observe(page, self.config.artifact_dir / run_id, step, self.grounder)
                     continue
                 except Exception as exc:
                     last_response = getattr(self.policy, "last_response", None)
@@ -798,10 +826,12 @@ class Agent:
 
                 try:
                     source_observation = observation
+                    dispatch_info = {}
                     action_attempts[key] = action_attempts.get(key, 0) + 1
-                    action_executed = True
                     started = perf_counter()
-                    download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads")
+                    download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads",
+                                                  execution_mode=self.config.execution_mode, dispatch_info=dispatch_info)
+                    action_executed = True
                     timings["execute_ms"] = (perf_counter() - started) * 1000
                     observed_at = perf_counter()
                     for verification_attempt in range(self.config.verification_attempts):
@@ -831,7 +861,7 @@ class Agent:
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, target_node, decision, success, next_observation,
                                graph_context, error, timings, verification, before_observation=observation,
-                               after_observation=next_observation, dispatch_status="dispatched")
+                               after_observation=next_observation, dispatch_status="dispatched", dispatch_info=dispatch_info)
                     if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
                         semantic = self._semantic_action(decision, observation)
                         before = self.predicates.extract(observation, f"{run_id}:{step}:before")
@@ -869,6 +899,16 @@ class Agent:
                     self._merge_constraints(ledger, decision, next_observation, download_paths)
                     observation = next_observation
                     observe_ms = next_observe_ms
+                except StaleObservation as exc:
+                    action_attempts[key] -= 1
+                    verification = VerificationResult("unavailable", str(exc))
+                    history.append(ActionRecord(decision, False, str(exc), verification))
+                    logger.log(run_id,step,current_node,None,decision,False,source_observation,graph_context,
+                               str(exc),timings,verification,before_observation=source_observation,
+                               dispatch_status="not_dispatched",dispatch_info=dispatch_info)
+                    observation = await observe(page,self.config.artifact_dir/run_id,step+1,self.grounder)
+                    planned.clear(); workflow.clear()
+                    continue
                 except Exception as exc:
                     error = str(exc)
                     if self.config.verbose:
@@ -884,7 +924,7 @@ class Agent:
                         target_node = current_node
                     history.append(ActionRecord(decision, False, error))
                     logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings,
-                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error")
+                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error", dispatch_info=dispatch_info)
                     if selected_experiment:
                         logger.finish_experiment(run_id, selected_experiment.id, "execution_error", None, f"{run_id}:{step}")
                     if self._recordable_graph_action(decision, source_observation):

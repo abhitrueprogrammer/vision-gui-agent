@@ -32,7 +32,7 @@ async def calibrate(artifacts: Path, layouts: tuple[str, ...] = LAYOUTS) -> dict
                         run_dir = artifacts / layout / task.id
                         result = await Agent(BenchmarkTaskPolicy(task), AgentConfig(
                             run_dir, run_dir / "runs.sqlite3", run_dir / "state-graph.json",
-                            max_steps=len(task.actions) + 4, memory_mode="none",
+                            max_steps=len(task.actions) + 4, memory_mode="none", execution_mode="hybrid",
                             evaluation_context={"evaluation_track": "fixed_policy_calibration", "task": task.id,
                                                 "layout": layout, "reset": task.initial_state, "viewport": [1440,1000]},
                         ), CalibrationGrounder()).run(page, task.goal)

@@ -15,8 +15,39 @@ from typing import Any, Callable, Protocol
 from PIL import Image, ImageDraw, ImageFont
 from playwright.async_api import Error as PlaywrightError, Page
 
-from .models import Element, Observation
+from .models import ActionDecision, Element, Observation
 from .gemini import GeminiClientPool
+from .capture import capture_screen
+
+
+class GroundingAbstention(ValueError):
+    """The selected instance could not be confirmed; no input may be dispatched."""
+
+
+def _observed_state(item: dict) -> tuple[str, ...]:
+    return tuple(key for key in ("checked", "enabled", "readonly", "selected", "value")
+                 if isinstance(item.get(key), str if key == "value" else bool))
+
+
+def refinement_reasons(target: Element, elements: list[Element], decision: ActionDecision) -> tuple[str, ...]:
+    reasons = []
+    if not target.actionable or "actionability" in target.uncertainties:
+        reasons.append("actionability")
+    if target.tag == "other" or (decision.action in {"fill", "select", "set_date", "set_checked"}
+                                  and target.proposal_sources and not target.semantic_confirmed):
+        reasons.append("control_type")
+    if min(target.width, target.height) < 24:
+        reasons.append("small_target")
+    label = " ".join(target.text.casefold().split())
+    if label and sum(" ".join(item.text.casefold().split()) == label for item in elements) > 1:
+        reasons.append("repeated_label")
+    if target.proposal_sources and decision.action in {"fill","select","set_date","set_checked"} and not {"enabled","readonly"}.issubset(target.state_observed):
+        reasons.append("editability")
+    if decision.action == "set_checked" and target.checked is None:
+        reasons.append("checked_state")
+    if target.localization_confidence is not None and target.localization_confidence < .7:
+        reasons.append("localization")
+    return tuple(reasons)
 
 
 class VisualGrounder(Protocol):
@@ -51,8 +82,13 @@ class OmniParserVisualGrounder:
         self.ocr: Callable[..., Any] = ocr
         self._injected, self.refiner = injected, refiner
 
-    async def refine(self, screenshot: Path, target: Element) -> Element | None:
-        return await self.refiner.refine(screenshot, target) if self.refiner else None
+    async def refine(self, screenshot: Path, target: Element, **context) -> Element | None:
+        return await self.refiner.refine(screenshot, target, **context) if self.refiner else None
+
+    async def discover(self, screenshot: Path, query: str) -> list[Element]:
+        if not self.refiner:
+            raise GroundingAbstention("Missing-target recovery has no semantic grounder")
+        return await self.refiner.discover(screenshot, query)
 
     @staticmethod
     def _box(record: tuple[list[tuple[float, float]], str, float]) -> tuple[float, float, float, float]:
@@ -107,35 +143,12 @@ class OmniParserVisualGrounder:
 
     @staticmethod
     def _price_anchored(caption_box: tuple[float, float, float, float], price_box: tuple[float, float, float, float]) -> bool:
-        """A price line below a caption, within one card's width, is a reliable
-        product-card signal even when the photo above the caption was never
-        detected as a region: OmniParser's icon detector is trained on UI
-        chrome, not photography, so it never draws a box for _card_caption to
-        anchor on. The price is not always directly under the caption -- a
-        middle row of badges/ratings can push it down, and it is sometimes
-        right-aligned within the card instead of left-aligned under the
-        caption -- so this allows a wider vertical gap and checks horizontal
-        position against a typical card width instead of requiring overlap."""
-        left, top, right, bottom = caption_box
-        price_left, _, price_right, price_bottom = price_box
-        return 0 <= price_bottom - bottom <= 90 and -20 <= price_left - left <= 340
+        """Proximity alone is not evidence of a shared product container."""
+        return False
 
     @staticmethod
     def _kind(image: Image.Image, region: tuple[float, float, float, float]) -> str:
-        """Conservative visual type classifier; uncertain regions stay generic-clickable."""
-        x, y, width, height = (int(value) for value in region)
-        if width < 3 or height < 3: return "other"
-        ratio = width / height
-        if width >= 160 and 20 <= height <= 70 and ratio >= 3:
-            return "input"
-        # Empty, wide outlined areas are the one shape we can classify safely enough for text entry.
-        crop = image.crop((x, y, x + width, y + height)).convert("L")
-        if ratio >= 2.2 and width >= 80 and height >= 22:
-            pixels = __import__("numpy").asarray(crop)
-            border = __import__("numpy").concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
-            middle = pixels[max(1, height // 4):max(2, height - height // 4), max(1, width // 4):max(2, width - width // 4)]
-            if middle.size and border.mean() + 18 < middle.mean():
-                return "textarea" if height >= 60 else "input"
+        """Geometry proposes a region; focused semantics establishes its type."""
         return "other"
 
     @staticmethod
@@ -219,21 +232,11 @@ class OmniParserVisualGrounder:
             context = text if len(contained) > 1 else ""
             elements.append(Element(len(elements) + 1, "", kind, text, "", "", kind, x, y, width, height,
                                     actionable=True, confidence=confidence, context=context,
-                                    context_bounds=region if context else None))
-        # A caption with no detected image region above it (product photos are
-        # never recognized as a region) still gets marked clickable when a price
-        # line sits directly beneath it -- the strongest available on-screen
-        # signal that this text names a product card.
-        for index, record in enumerate(records):
-            if index in matched or self._is_price(record[1]): continue
-            box = self._box(record)
-            price = next((other for other_index, other in enumerate(records)
-                          if other_index != index and self._is_price(other[1]) and self._price_anchored(box, self._box(other))), None)
-            if price is None: continue
-            matched.add(index)
-            left, top, right, bottom = box
-            elements.append(Element(len(elements) + 1, "", "menuitem", " ".join(record[1].split())[:200], "", "", "menuitem",
-                                    left, top, right - left, bottom - top, actionable=True, confidence=record[2]))
+                                    context_bounds=region if context else None,
+                                    proposal_sources=("detector", "ocr") if labels else ("detector",),
+                                    recognition_confidence=min((record[2] for _,record in labels),default=None),
+                                    localization_confidence=confidence, uncertainties=("control_type", "actionability"),
+                                    label_bounds=self._box(labels[0][1]) if len(labels)==1 else None))
         # OmniParser's icon model intermittently misses visually plain bordered
         # buttons.  Promote OCR only when screenshot pixels prove that a tight
         # four-sided control encloses the label; ordinary headings/body text
@@ -246,12 +249,32 @@ class OmniParserVisualGrounder:
             x, y, width, height = control
             elements.append(Element(len(elements) + 1, "", "button", " ".join(record[1].split())[:200], "", "", "button",
                                     x, y, width, height, actionable=True, confidence=record[2],
-                                    context=record[1].strip()[:500], context_bounds=control))
+                                    context=record[1].strip()[:500], context_bounds=control,
+                                    proposal_sources=("ocr", "outline"), recognition_confidence=record[2],
+                                    uncertainties=("control_type",), label_bounds=self._box(record)))
         for index, record in enumerate(records):
             if index in matched: continue
             left, top, right, bottom = self._box(record)
             elements.append(Element(len(elements) + 1, "", "text", " ".join(record[1].split())[:200], "", "", "text",
-                                    left, top, right - left, bottom - top, actionable=False, confidence=record[2]))
+                                    left, top, right - left, bottom - top, actionable=False, confidence=record[2],
+                                    proposal_sources=("ocr",), recognition_confidence=record[2], uncertainties=("actionability",)))
+        contextual = []
+        for element in elements:
+            box = (element.x, element.y, element.x + element.width, element.y + element.height)
+            parents = [other for other in elements if "detector" in other.proposal_sources
+                       and other.width * other.height > element.width * element.height
+                       and self._inside(box, (other.x, other.y, other.width, other.height))]
+            parent = min(parents, key=lambda item: item.width * item.height, default=None)
+            children = [other for other in elements if other.id != element.id and "detector" in other.proposal_sources
+                        and other.width * other.height < element.width * element.height
+                        and self._inside((other.x,other.y,other.x+other.width,other.y+other.height),
+                                         (element.x,element.y,element.width,element.height))]
+            contextual.append(replace(element,
+                context=parent.text if parent else element.context,
+                context_bounds=(parent.x,parent.y,parent.width,parent.height) if parent else element.context_bounds,
+                actionable=element.actionable and not bool(children),
+                uncertainties=element.uncertainties + (("container",) if children else ())))
+        elements = contextual
         # A page heading is conventionally the largest text on screen; picking the
         # topmost text instead just latches onto persistent site chrome (a promo
         # banner, cookie notice) that sits above the real content on every page.
@@ -271,7 +294,8 @@ class GeminiVisualGrounder:
         self.client, self.types, self.model = self._clients.client, self._clients.types, model
         self.last_label = "Visual screen"
 
-    async def refine(self, screenshot: Path, target: Element) -> Element | None:
+    async def refine(self, screenshot: Path, target: Element, *, goal: str = "",
+                     decision: ActionDecision | None = None, elements: list[Element] | None = None) -> Element | None:
         """Re-ground one model-selected target in a padded screenshot crop."""
         with Image.open(screenshot).convert("RGB") as image:
             pad_x, pad_y = max(48, target.width), max(36, target.height)
@@ -285,9 +309,19 @@ class GeminiVisualGrounder:
                       f"labelled {target.text!r}. Return JSON only: {{\"found\":true|false,\"x\":number,\"y\":number,"
                       "\"width\":number,\"height\":number,\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"actionable\":true|false}}. "
                       "Coordinates are crop-relative pixels and must tightly cover that region. Mark actionable true only when it is visibly interactive.")
+            prompt += (" The first image is a full-screen overview; the second is the native target crop. "
+                       "Confirm the intended instance against the goal and row context, not merely matching text. "
+                       "Also return instance_confirmed:boolean, checked:boolean|null, enabled:boolean|null, "
+                       "readonly:boolean|null, value:string|null, context:string and input_type:string. "
+                       "Report only visible state; found=false if the intended instance is absent or ambiguous. "
+                       + json.dumps({"goal":goal,"action":decision.to_dict() if decision else None,
+                                     "selected_context":target.context,"crop_origin":[left,top],
+                                     "candidates":[{"id":e.id,"text":e.text,"context":e.context,
+                                                    "box":[e.x,e.y,e.width,e.height]} for e in (elements or [target])]}))
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
-                contents=[self.types.Part.from_bytes(data=output.getvalue(), mime_type="image/jpeg"), prompt],
+                contents=[self.types.Part.from_bytes(data=model_image(str(screenshot),max_width=None), mime_type="image/jpeg"),
+                          self.types.Part.from_bytes(data=output.getvalue(), mime_type="image/jpeg"), prompt],
                 config=self.types.GenerateContentConfig(response_mime_type="application/json",
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)),
             ))
@@ -300,37 +334,56 @@ class GeminiVisualGrounder:
             # rather than crash on .get() against a list.
             if isinstance(result, list):
                 result = result[0] if len(result) == 1 and isinstance(result[0], dict) else {}
-            if not isinstance(result, dict) or not result.get("found"): return None
+            if not isinstance(result, dict) or result.get("found") is not True: return None
+            if target.proposal_sources and not target.semantic_confirmed and result.get("actionable") is not True:
+                return None
         except Exception:
-            # Refinement is a best-effort double-check of an already-usable detection;
-            # the caller already treats None as "use the original detection unchanged."
-            # A transient network/API failure here (timeout, quota, server error) must
-            # not take down the whole run over an optional double-check.
-            return None
+            raise GroundingAbstention("Semantic refinement is unavailable") from None
         try:
             x, y, width, height = (float(result[name]) for name in ("x", "y", "width", "height"))
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None
         if not all(math.isfinite(value) for value in (x, y, width, height)) or width < 2 or height < 2:
             return None
-        x1, y1 = max(0.0, left + x), max(0.0, top + y)
+        if x < 0 or y < 0 or x + width > crop.width or y + height > crop.height:
+            return None
+        if elements and sum(e.text.casefold() == target.text.casefold() for e in elements) > 1 and result.get("instance_confirmed") is not True:
+            return None
+        x1, y1 = left + x, top + y
         x2, y2 = min(float(right), x1 + width), min(float(bottom), y1 + height)
         kind = str(result.get("kind", target.tag)).strip().lower()
         kind = kind if kind in {"button", "link", "input", "select", "textarea", "checkbox", "menuitem", "text", "other"} else target.tag
         actionable = result.get("actionable") if isinstance(result.get("actionable"), bool) else target.actionable
-        return replace(target, x=x1, y=y1, width=x2 - x1, height=y2 - y1, tag=kind, role=kind, actionable=actionable) if x2 - x1 >= 2 and y2 - y1 >= 2 else None
+        if result.get("enabled") is False: actionable = False
+        observed = _observed_state(result)
+        return replace(target, x=x1, y=y1, width=x2-x1, height=y2-y1, tag=kind, role=kind, actionable=actionable,
+                       checked=result.get("checked") if isinstance(result.get("checked"),bool) else None,
+                       enabled=result.get("enabled") if isinstance(result.get("enabled"),bool) else target.enabled,
+                       readonly=result.get("readonly") if isinstance(result.get("readonly"),bool) else target.readonly,
+                       value=result.get("value") if isinstance(result.get("value"),str) else target.value,
+                       input_type=result.get("input_type") if isinstance(result.get("input_type"),str) else target.input_type,
+                       context=result.get("context") if isinstance(result.get("context"),str) else target.context,
+                       proposal_sources=tuple(target.proposal_sources)+("gemini_refinement",),
+                       uncertainties=(), semantic_confirmed=True, state_observed=observed,
+                       localization_confidence=None) if x2-x1 >= 2 and y2-y1 >= 2 else None
 
-    async def detect(self, screenshot: Path) -> list[Element]:
+    async def discover(self, screenshot: Path, query: str) -> list[Element]:
+        return await self.detect(screenshot, query=query)
+
+    async def detect(self, screenshot: Path, *, query: str = "") -> list[Element]:
         with Image.open(screenshot) as image:
             image_size = image.size
 
         def generate() -> str:
             prompt = f"""Inspect this {image_size[0]}x{image_size[1]} screenshot only. Do not use or assume HTML, DOM, accessibility metadata, URLs, or hidden state.
 Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}}. Include every visible actionable control and the small number of headings, messages, selected values, or status text needed to distinguish this screen. Each item must be {{\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"label\":\"visible text, visible field value, or short visual description\",\"value\":\"visible field value or empty\",\"actionable\":true|false,\"context\":\"visible row/container text or empty\",\"context_bounds\":[x,y,width,height] or null,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}. For a visible list, table, cart, selected-items, folder, or summary row, include its full visible row text as context and its row bounds; include a visible quantity using words such as 'quantity 2'. Coordinates must be pixels in the stated native screenshot size, boxes must tightly cover the visible region, and uncertain regions must be omitted. Text/status evidence is actionable=false."""
+            if query:
+                prompt += " Recover only visible targets matching this intended control: " + query + ". Return no candidates if absent or ambiguous."
+            prompt += " Report checked, selected, enabled, readonly as boolean or null only when visibly established; report input_type only when visible type evidence exists. Never guess hidden state."
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 # Detection coordinates must use the screenshot's native pixel grid.
-                contents=[self.types.Part.from_bytes(data=model_image(str(screenshot), max_width=10000), mime_type="image/jpeg"), prompt + " Visibly greyed-out, faded, or disabled controls are not actionable; report them as actionable=false if included."],
+                contents=[self.types.Part.from_bytes(data=model_image(str(screenshot), max_width=None), mime_type="image/jpeg"), prompt + " Visibly greyed-out, faded, or disabled controls are not actionable; report them as actionable=false if included."],
                 config=self.types.GenerateContentConfig(
                     response_mime_type="application/json",
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True),
@@ -371,10 +424,20 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
             if not isinstance(context, str): context = ""
             try:
                 values = [float(value) for value in bounds] if isinstance(bounds, list) and len(bounds) == 4 else []
-                context_bounds = (values[0], values[1], values[2], values[3]) if values else None
+                context_bounds = tuple(values) if (values and all(math.isfinite(v) for v in values)
+                    and values[0] >= 0 and values[1] >= 0 and values[2] > 0 and values[3] > 0
+                    and values[0]+values[2] <= image_size[0] and values[1]+values[3] <= image_size[1]) else None
             except (TypeError, ValueError): context_bounds = None
             candidate = Element(len(elements) + 1, "", kind, label, "", "", kind, x1, y1, x2 - x1, y2 - y1,
-                                value=str(item.get("value", "")).strip()[:200], actionable=actionable, context=context.strip()[:500], context_bounds=context_bounds)
+                                value=str(item.get("value", "")).strip()[:200],
+                                actionable=actionable and item.get("enabled") is not False,
+                                checked=item.get("checked") if isinstance(item.get("checked"), bool) else None,
+                                enabled=item.get("enabled") if isinstance(item.get("enabled"), bool) else True,
+                                readonly=item.get("readonly") if isinstance(item.get("readonly"), bool) else False,
+                                selected=item.get("selected") is True,
+                                input_type=str(item.get("input_type", "")), context=context.strip()[:500], context_bounds=context_bounds,
+                                proposal_sources=("gemini",), semantic_confirmed=True,
+                                state_observed=_observed_state(item))
             if any(_same_detection(candidate, existing) for existing in elements):
                 continue
             elements.append(candidate)
@@ -393,7 +456,7 @@ async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGro
         raise RuntimeError("A screenshot-native visual grounder is required")
     for screenshot_attempt in range(3):
         try:
-            await page.screenshot(path=str(raw_path), full_page=False)
+            capture, url = await capture_screen(page, raw_path)
             break
         except PlaywrightError:
             if screenshot_attempt == 2: raise
@@ -402,12 +465,9 @@ async def observe(page: Page, artifact_dir: Path, step: int, grounder: VisualGro
     draw_set_of_mark(raw_path, marked_path, elements)
     if isinstance(grounder, OmniParserVisualGrounder):
         print(f"omniparser tagged screenshot: {marked_path.resolve()}")
-    url = getattr(page, "url", "")
-    if callable(url): url = url()
-    if asyncio.iscoroutine(url): url = await url
-    # Adapter metadata separates graph nodes; visible semantics still come only
-    # from the screenshot grounder.
-    return Observation(str(raw_path), str(marked_path), elements, str(url or ""), getattr(grounder, "last_label", "Visual screen"))
+    return Observation(str(raw_path), str(marked_path), elements, url,
+                       getattr(grounder, "last_label", "Visual screen"), capture)
+
 
 
 def _same_detection(left: Element, right: Element) -> bool:
@@ -429,11 +489,11 @@ def _detection_quality(element: Element) -> tuple[bool, bool, int, int]:
     return element.actionable, element.tag != "text", sum(char.isalpha() for char in label), -sum(not (char.isalnum() or char.isspace()) for char in label)
 
 
-def model_image(path: str, max_width: int = 960, quality: int = 70) -> bytes:
+def model_image(path: str, max_width: int | None = 960, quality: int = 70) -> bytes:
     """Return a smaller JPEG for vision requests; preserve PNG artifacts for the graph."""
     with Image.open(path) as source:
         image = source.convert("RGB")
-        if image.width > max_width:
+        if max_width is not None and image.width > max_width:
             image.thumbnail((max_width, image.height))
         output = BytesIO()
         image.save(output, format="JPEG", quality=quality, optimize=True)
@@ -441,14 +501,54 @@ def model_image(path: str, max_width: int = 960, quality: int = 70) -> bytes:
 
 
 def draw_set_of_mark(source: Path, destination: Path, elements: list[Element]) -> None:
-    image, draw, font = Image.open(source).convert("RGB"), None, ImageFont.load_default(); draw = ImageDraw.Draw(image)
-    for element in elements:
-        x1, y1, x2, y2 = int(element.x), int(element.y), int(element.x + element.width), int(element.y + element.height)
-        color = "#ff2056" if element.actionable else "#246bfd"
-        draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
-        bbox = draw.textbbox((0, 0), str(element.id), font=font)
-        badge_height = bbox[3] - bbox[1] + 4
-        label_y = y1 - badge_height if y1 >= badge_height else min(image.height - badge_height, y2 + 2)
-        draw.rectangle((x1, label_y, x1 + bbox[2] + 5, label_y + bbox[3] + 4), fill=color)
-        draw.text((x1 + 2, label_y + 1), str(element.id), fill="white", font=font)
+    with Image.open(source).convert("RGB") as raw:
+        badges,size=badge_layout(raw.size,elements)
+        image=Image.new("RGB",size,"white");image.paste(raw,(0,0))
+    draw=ImageDraw.Draw(image);font=ImageFont.load_default(size=18)
+    for element,badge in zip(elements,badges):
+        color="#ff2056" if element.actionable else "#246bfd"
+        draw.rectangle((int(element.x),int(element.y),int(element.x+element.width),int(element.y+element.height)),outline=color,width=2)
+        draw.rectangle(badge,fill=color)
+        draw.text((badge[0]+4,badge[1]+1),str(element.id),fill="white",font=font)
     image.save(destination)
+
+
+def selection_tiles(observation: Observation, limit: int = 12) -> list[tuple[dict, bytes]]:
+    """Native pixels for small/repeated candidates; the overview retains all IDs."""
+    labels = [e.text.casefold() for e in observation.elements]
+    candidates = [e for e in observation.elements if min(e.width,e.height)<24 or
+                  (e.text and labels.count(e.text.casefold())>1)]
+    tiles=[]
+    with Image.open(observation.screenshot_path).convert('RGB') as source:
+        for element in candidates[:limit]:
+            x,y,w,h=element.context_bounds or (element.x-48,element.y-36,element.width+96,element.height+72)
+            left,top=max(0,int(x)),max(0,int(y))
+            right,bottom=min(source.width,int(x+w)),min(source.height,int(y+h))
+            if right<=left or bottom<=top:continue
+            crop=source.crop((left,top,right,bottom))
+            tile=Image.new('RGB',(max(110,crop.width),crop.height+28),'white')
+            tile.paste(crop,(0,28));ImageDraw.Draw(tile).text((4,3),f'ID {element.id}',font=ImageFont.load_default(size=18),fill='black')
+            output=BytesIO();tile.save(output,format='PNG')
+            tiles.append(({'id':element.id,'native_crop':[left,top,right-left,bottom-top],'header_height':28},output.getvalue()))
+    return tiles
+
+
+def badge_layout(size: tuple[int,int], elements: list[Element]) -> tuple[list[tuple[int,int,int,int]], tuple[int,int]]:
+    """Place readable IDs outside control content, with a margin for dense screens."""
+    width,height=size;placed=[];font=ImageFont.load_default(size=18)
+    controls=[(int(e.x),int(e.y),int(e.x+e.width),int(e.y+e.height)) for e in elements]
+    overlap=lambda a,b:a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3]
+    margin_index=0
+    for element,control in zip(elements,controls):
+        bb=font.getbbox(str(element.id));bw=bb[2]-bb[0]+8;bh=24
+        x,y,r,b=control
+        choices=[(x,y-bh-2),(x,b+2),(x-bw-2,y),(r+2,y)]
+        chosen=None
+        for left,top in choices:
+            box=(left,top,left+bw,top+bh)
+            if left>=0 and top>=0 and box[2]<=width and box[3]<=height and not any(overlap(box,other) for other in controls+placed):
+                chosen=box;break
+        if chosen is None:
+            chosen=(width+8,margin_index*28+4,width+8+bw,margin_index*28+28);margin_index+=1
+        placed.append(chosen)
+    return placed,(max([width]+[b[2]+4 for b in placed]),max([height]+[b[3]+4 for b in placed]))

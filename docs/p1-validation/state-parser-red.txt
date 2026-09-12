@@ -1,0 +1,16 @@
+test_corpus_keeps_oracle_safe_points_without_price_false_positive (test_p1.SemanticBoundaryRegression.test_corpus_keeps_oracle_safe_points_without_price_false_positive) ... ok
+test_duplicate_instance_and_unavailable_refinement_abstain (test_p1.SemanticBoundaryRegression.test_duplicate_instance_and_unavailable_refinement_abstain) ... ok
+test_invalid_model_state_is_not_observed_editability (test_p1.SemanticBoundaryRegression.test_invalid_model_state_is_not_observed_editability) ... FAIL
+
+======================================================================
+FAIL: test_invalid_model_state_is_not_observed_editability (test_p1.SemanticBoundaryRegression.test_invalid_model_state_is_not_observed_editability)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 269, in test_invalid_model_state_is_not_observed_editability
+    self.assertNotIn('enabled',element.state_observed)
+AssertionError: 'enabled' unexpectedly found in ('enabled', 'readonly')
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.048s
+
+FAILED (failures=1)

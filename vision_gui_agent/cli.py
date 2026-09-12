@@ -49,6 +49,7 @@ async def _run(args: argparse.Namespace) -> int:
             action_model_path=Path(args.artifacts) / "action-model-v2.json",
             max_steps=args.max_steps,
             verbose=args.verbose,
+            execution_mode=args.execution_mode,
             memory_mode=args.memory_mode,
             min_schema_confidence=args.min_schema_confidence,
             max_plan_depth=args.max_plan_depth,
@@ -112,6 +113,7 @@ def main() -> None:
     parser.add_argument("--benchmark-reset", choices=INITIAL_STATES, help="named deterministic Visual Function Lab reset state")
     parser.add_argument("--benchmark-grounder", action="store_true", help="use the screenshot-only calibration grounder for Visual Function Lab")
     parser.add_argument("--gemini-key-slot", type=int, choices=[1, 2], help="select a configured Gemini key slot without exposing it")
+    parser.add_argument("--execution-mode", choices=["pixels", "hybrid"], default="pixels", help="opt into browser-native upload/color/download helpers with hybrid")
     parser.add_argument("--metrics", action="store_true", help="print metrics for recorded runs")
     args = parser.parse_args()
     if args.metrics:

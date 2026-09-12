@@ -188,7 +188,7 @@ class ReplayRegression(unittest.TestCase):
             policy=type('Policy',(),{'decide':AsyncMock(side_effect=choose)})()
             agent=Agent(policy,AgentConfig(root,root/'runs.db',root/'graph.json',max_steps=2,memory_mode=mode))
             delivered=[]
-            async def dispatch(page, obs, decision, *args):
+            async def dispatch(page, obs, decision, *args, **kwargs):
                 delivered.append(obs.elements[0].id)
                 self.assertEqual(decision.element_id, ident)
             with patch('vision_gui_agent.agent.observe',AsyncMock(side_effect=[before,after])),patch('vision_gui_agent.agent.execute',dispatch):

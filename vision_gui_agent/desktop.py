@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from io import BytesIO
 
 
 class DesktopMouse:
@@ -35,7 +36,7 @@ class DesktopKeyboard:
 class DesktopPage:
     """Small Playwright-shaped adapter over the real OS screen and input devices."""
 
-    def __init__(self, backend=None) -> None:
+    def __init__(self, backend=None, *, input_size=None, origin=(0, 0)) -> None:
         if backend is None:
             try:
                 import pyautogui as backend
@@ -43,13 +44,23 @@ class DesktopPage:
                 raise RuntimeError("Desktop control needs a graphical session and the pyautogui dependency") from exc
         backend.FAILSAFE = True
         self.backend = backend
+        self.input_size, self.origin = input_size, origin
         self.mouse, self.keyboard = DesktopMouse(backend), DesktopKeyboard(backend)
 
-    async def screenshot(self, path: str, full_page: bool = False) -> None:
+    async def input_geometry(self) -> dict:
+        size=self.input_size
+        if size is None and hasattr(self.backend, "size"):
+            size=tuple(await asyncio.to_thread(self.backend.size))
+        return {"size":size,"origin":self.origin,"space":"desktop_input_pixels"}
+
+    async def screenshot(self, path: str | None = None, full_page: bool = False) -> bytes:
         del full_page
         image = await asyncio.to_thread(self.backend.screenshot)
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        image.save(path)
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            image.save(path)
+        output=BytesIO();image.save(output,format="PNG")
+        return output.getvalue()
 
     async def wait_for_timeout(self, milliseconds: float) -> None:
         await asyncio.sleep(milliseconds / 1000)

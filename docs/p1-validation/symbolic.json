@@ -1,0 +1,177 @@
+{
+  "track": "symbolic",
+  "independent_gui_completion": null,
+  "passed": true,
+  "runs": 12,
+  "actions": 12,
+  "covered_actions": [
+    "authenticate",
+    "confirm_export",
+    "enable_approval",
+    "generate_report",
+    "open_dataset",
+    "open_document",
+    "open_export_modal",
+    "open_settings",
+    "save_settings",
+    "select_pdf_format",
+    "select_region",
+    "select_reviewers"
+  ],
+  "uncovered_actions": [],
+  "results": [
+    {
+      "task": "export_launch_brief",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_document",
+        "open_export_modal",
+        "select_pdf_format",
+        "confirm_export"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "export_launch_brief",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_document",
+        "open_export_modal",
+        "select_pdf_format",
+        "confirm_export"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "create_q3_report",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_dataset",
+        "select_region",
+        "generate_report"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "create_q3_report",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_dataset",
+        "select_region",
+        "generate_report"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "enable_approval_workflow",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_settings",
+        "authenticate",
+        "enable_approval",
+        "select_reviewers",
+        "save_settings"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "enable_approval_workflow",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": true,
+      "actions": [
+        "open_settings",
+        "authenticate",
+        "enable_approval",
+        "select_reviewers",
+        "save_settings"
+      ],
+      "invalid_attempts": 0
+    },
+    {
+      "task": "export_before_open",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "open_export_modal"
+      ],
+      "invalid_attempts": 1
+    },
+    {
+      "task": "export_before_open",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "open_export_modal"
+      ],
+      "invalid_attempts": 1
+    },
+    {
+      "task": "report_before_selection",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "generate_report"
+      ],
+      "invalid_attempts": 1
+    },
+    {
+      "task": "report_before_selection",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "generate_report"
+      ],
+      "invalid_attempts": 1
+    },
+    {
+      "task": "save_before_reviewers",
+      "layout": "classic",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "save_settings"
+      ],
+      "invalid_attempts": 1
+    },
+    {
+      "task": "save_before_reviewers",
+      "layout": "compact",
+      "passed": true,
+      "expected_effective": false,
+      "actions": [
+        "save_settings"
+      ],
+      "invalid_attempts": 1
+    }
+  ],
+  "task_splits": {
+    "exploration": [
+      "export_launch_brief",
+      "create_q3_report",
+      "enable_approval_workflow"
+    ],
+    "development": [
+      "export_before_open",
+      "report_before_selection",
+      "save_before_reviewers"
+    ],
+    "held_out": [],
+    "layout_shift": [],
+    "composition": []
+  }
+}

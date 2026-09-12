@@ -50,11 +50,14 @@ Common options (defaults from the CLI):
 | --- | --- | --- |
 | `--model` | `gemini-3.6-flash` | Gemini model identifier; select one available to your account. |
 | `--grounder` | `omniparser` | Control detection: `omniparser` or `gemini`. |
+| `--execution-mode` | `pixels` | Use `hybrid` explicitly for browser upload, color and verified downloads. |
 | `--max-steps` | `12` | Maximum agent steps. |
 | `--artifacts` | `artifacts` | Run output and persistent memory directory. |
 | `--memory-mode` | `graph` | Memory configuration described below. |
 | `--gemini-key-slot` | All configured keys | Pin a run to key slot `1` or `2`, disabling cross-key fallback. |
 | `--verbose` | Off | Print decisions and verification details. |
+
+P1 adds semantic confirmation for uncertain proposals, bounded missing-target inspection, readable native images, and capture-to-input geometry/freshness checks. See [the P1 implementation and validation record](docs/P1_IMPLEMENTATION.md) for measured results and limitations.
 
 Use `uv run vision-gui-agent --help` for all options. Exit codes are `0` for completion, `1` for an incomplete run, and `2` for CLI or handled runtime errors.
 

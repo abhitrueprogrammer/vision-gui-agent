@@ -41,7 +41,7 @@ class FormContractTests(unittest.TestCase):
                         ActionDecision("set_checked", 7, checked=True), ActionDecision("set_color", 9, text="#12ab34"), ActionDecision("set_date", 10, text="2026-09-02"),
                         ActionDecision("set_range", 11, text="12"), ActionDecision("click", 12),
                     ):
-                        await execute(page, observation, decision)
+                        await execute(page, observation, decision, execution_mode="hybrid")
                 state = await page.evaluate('''() => Object.fromEntries(['text','password','notes','choice','file','off','on','color','date','range','result'].map(id => {
                     const element = document.getElementById(id); return [id, id === 'file' ? element.files[0]?.name : ['off','on'].includes(id) ? element.checked : id === 'result' ? element.textContent : element.value]
                 }))''')

@@ -1,0 +1,6 @@
+test_browser_actions_cover_supported_form_controls (test_form_contract.FormContractTests.test_browser_actions_cover_supported_form_controls) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 7.473s
+
+OK

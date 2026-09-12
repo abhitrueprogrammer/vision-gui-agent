@@ -7,7 +7,7 @@ from typing import Protocol
 
 from .gemini import GeminiClientPool, configured_gemini_keys
 from .models import ActionDecision, ActionRecord, GoalConstraint, Observation
-from .perception import model_image
+from .perception import model_image, selection_tiles
 
 
 class Policy(Protocol):
@@ -21,7 +21,10 @@ def _compact_elements(observation: Observation) -> list[dict]:
     for element in observation.elements:
         item = {"id": element.id, "tag": element.tag, "role": element.role, "text": element.text,
                 "value": element.value, "actionable": element.actionable,
-                "enabled": element.enabled, "readonly": element.readonly, "confidence": round(element.confidence, 2),
+                "uncertainties": list(element.uncertainties), "semantic_confirmed":element.semantic_confirmed,
+                "enabled": element.enabled, "readonly": element.readonly,
+                "source_scores": {"recognition":element.recognition_confidence,"localization":element.localization_confidence},
+                "state_observed": list(element.state_observed),
                 "box": [round(value) for value in (element.x, element.y, element.width, element.height)]}
         for name in ("aria_label", "placeholder", "download", "context"):
             value = getattr(element, name)
@@ -125,16 +128,17 @@ class GeminiPolicy:
         prompt = {
             "goal": goal,
             "screen_label": observation.title,
+            "image_contract": "The overview uses native pixels with readable IDs, sometimes in an external margin. Additional ID tiles preserve native crop pixels. Select IDs, never rescale coordinates.",
             "elements": _compact_elements(observation),
             "graph_context": graph_context,
             "recent_actions": [record.to_dict() for record in history[-8:]],
             "instructions": (
                 "Choose exactly one next action. Return a JSON array containing one object only. Fields: action "
-                "(click|fill|select|set_checked|set_date|set_range|upload|set_color|press|scroll|done), element_id when needed, text for "
+                "(click|fill|select|set_checked|set_date|set_range|upload|set_color|press|scroll|inspect|done), element_id when needed, text for "
                 "fill/select/set_date/set_range/upload/set_color, checked (boolean) for set_checked, key for press, direction for scroll, current_label (short semantic "
                 "name of the visible state), next_label (predicted resulting state), rationale, impact "
                 "(harmless|high), grounding (a list of observable evidence objects, never strings: "
-                "{source:'element_text|value|role|tag',expected:'visible text',element_id:12}; "
+                "{source:'element_text|value|role|tag|context',expected:'visible text',element_id:12}; "
                 "use {source:'comparison',comparison:{candidates:[...],direction:'min|max',attribute:'element_text',selected:...}} when applicable). "
                 "The agent normally maintains and proves constraints itself. Include constraints only to mark an existing graph_context constraint unavailable, preserving its id and definition exactly and giving a visible-state reason. Labels are predictions, not facts. "
                 "Optionally include verify: exactly one of {kind:'page_changed'}, "
@@ -142,8 +146,8 @@ class GeminiPolicy:
                 "{kind:'element_value',element_id:4,expected:'example'}, {kind:'element_checked',element_id:4,expected:'true'}, {kind:'element_filename',element_id:4,expected:'report.pdf'}, {kind:'element_color',element_id:4,expected:'#12ab34'}, {kind:'element_range',element_id:4,expected:'12'}, {kind:'element_changed',element_id:4}, or {kind:'download_created'}. "
                 "Patterns are non-empty literal substrings; visible-label matching ignores case and whitespace. "
                 "Include verify when an action has a meaningful observable result, preferring the most specific reliable condition over page_changed; use element_checked only when that element's payload includes a checked boolean. For a button-like option without checked, verify newly visible selected/status text or use page_changed. Use element_enabled for a control that becomes usable and element_changed when a clicked control changes selection appearance but exposes no readable value; never invent kinds. "
-                "A later planned action runs only after the prior requested verification passes. Omit verify for harmless actions without a reliable observation. "
-                "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. The screenshot is authoritative when OCR misreads a small numeric control. Do not repeat rejected or ineffective actions, and never fill/select a visible field that already has the requested value; choose a distinct remaining field. For a visually editable field, use fill directly even if its detected tag is imperfect; clicking it repeatedly only focuses it. Use set_checked with the requested boolean instead of blindly toggling checkboxes or radios. Use set_date for an ISO date, set_range for a non-negative integer keyboard step value, upload only for an explicit local path, and set_color only for an explicit #rrggbb value. Select a visible autocomplete suggestion before leaving or submitting its field; typed but uncommitted autocomplete text is incomplete. For a calendar cell, verify the clicked cell with element_changed; then verify an Apply/Done click by the dialog control becoming absent instead of guessing the receiving field's display format. Prefer element_value, element_checked, or newly visible goal-result evidence; use page_changed only for an expected state transition. "
+                "Replan from the current observation after every action. Omit verify for harmless actions without a reliable observation. "
+                "Only use listed element ids whose actionable field is true. Items with actionable=false are state evidence for reasoning and verification only. The element list was detected from the screenshot; cite its visible label, visible value, or kind in grounding, never infer semantics from ids. The screenshot is authoritative when OCR misreads a small numeric control. Do not repeat rejected or ineffective actions, and never fill/select a visible field that already has the requested value; choose a distinct remaining field. A field with uncertain type or editability requires inspection/refinement before fill. Use set_checked with the requested boolean instead of blindly toggling checkboxes or radios. Use set_date for an ISO date, set_range for a non-negative integer keyboard step value, upload only for an explicit local path, and set_color only for an explicit #rrggbb value. Select a visible autocomplete suggestion before leaving or submitting its field; typed but uncommitted autocomplete text is incomplete. For a calendar cell, verify the clicked cell with element_changed; then verify an Apply/Done click by the dialog control becoming absent instead of guessing the receiving field's display format. Prefer element_value, element_checked, or newly visible goal-result evidence; use page_changed only for an expected state transition. "
                 "A visible container, category, or navigation item is not proof of the contents behind it. Do not declare a requirement unavailable while a visible, ordinary control can reveal relevant contents; do not replace such exploration with scrolling. "
                 "Comparison evidence must name its observed attribute and list candidate element ids, values, direction (min|max), and selected id. "
                 "For an entity_quantity requirement, set the visible quantity control to the requested value and verify it before one state-changing add/select action. A generic notification proves only that an action happened, never the final item identity or quantity. Navigate to the final collection and wait until each requested entity and exact quantity are visibly associated in one row/container before done. "
@@ -157,8 +161,16 @@ class GeminiPolicy:
                 "action's next_label. The agent will stop the plan if the visible state changes unexpectedly."
             ),
         }
+        tiles = selection_tiles(observation)
+        prompt["target_tiles"] = [metadata for metadata,_ in tiles]
+        prompt["instructions"] += (" If no actionable proposal covers the intended visible target, request action:'inspect' with text describing that target and row/context; inspection dispatches no input and has a two-request budget. "
+                                    "For repeated labels include context evidence as well as element_text. Proposal uncertainty requests focused semantic confirmation before dispatch. "
+                                    "Only one action runs before observing again. Generic pixel changes are supporting evidence, not completion proof. "
+                                    "Native helpers require hybrid execution; unsupported control types/states must be inspected or refused.")
         def generate() -> str:
-            contents = [self.types.Part.from_bytes(data=model_image(observation.marked_screenshot_path), mime_type="image/jpeg"), json.dumps(prompt)]
+            contents = [self.types.Part.from_bytes(data=model_image(observation.marked_screenshot_path,max_width=None), mime_type="image/jpeg")]
+            contents += [self.types.Part.from_bytes(data=data,mime_type="image/png") for _,data in tiles]
+            contents.append(json.dumps(prompt))
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 contents=contents,

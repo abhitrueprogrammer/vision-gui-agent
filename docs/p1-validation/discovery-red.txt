@@ -1,0 +1,48 @@
+test_detected_row_context_distinguishes_repeated_controls (test_p1.DiscoveryRegression.test_detected_row_context_distinguishes_repeated_controls) ... FAIL
+test_gemini_preserves_observed_checkbox_state_and_disabled_state (test_p1.DiscoveryRegression.test_gemini_preserves_observed_checkbox_state_and_disabled_state) ... FAIL
+test_price_does_not_make_unrelated_heading_actionable (test_p1.DiscoveryRegression.test_price_does_not_make_unrelated_heading_actionable) ... FAIL
+test_wide_colored_button_is_not_an_input (test_p1.DiscoveryRegression.test_wide_colored_button_is_not_an_input) ... FAIL
+
+======================================================================
+FAIL: test_detected_row_context_distinguishes_repeated_controls (test_p1.DiscoveryRegression.test_detected_row_context_distinguishes_repeated_controls)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 48, in test_detected_row_context_distinguishes_repeated_controls
+    self.assertEqual([e.context for e in saves],['Row A Save','Row B Save'])
+AssertionError: Lists differ: ['', ''] != ['Row A Save', 'Row B Save']
+
+First differing element 0:
+''
+'Row A Save'
+
+- ['', '']
++ ['Row A Save', 'Row B Save']
+
+======================================================================
+FAIL: test_gemini_preserves_observed_checkbox_state_and_disabled_state (test_p1.DiscoveryRegression.test_gemini_preserves_observed_checkbox_state_and_disabled_state)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 59, in test_gemini_preserves_observed_checkbox_state_and_disabled_state
+    self.assertTrue(element.checked)
+AssertionError: None is not true
+
+======================================================================
+FAIL: test_price_does_not_make_unrelated_heading_actionable (test_p1.DiscoveryRegression.test_price_does_not_make_unrelated_heading_actionable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 38, in test_price_does_not_make_unrelated_heading_actionable
+    self.assertFalse(next(e for e in elements if e.text=='Account overview').actionable)
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_wide_colored_button_is_not_an_input (test_p1.DiscoveryRegression.test_wide_colored_button_is_not_an_input)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 31, in test_wide_colored_button_is_not_an_input
+    self.assertNotIn(OmniParserVisualGrounder._kind(Image.new('RGB',(300,100),'blue'),(20,20,180,40)), {'input','textarea'})
+AssertionError: 'input' unexpectedly found in {'textarea', 'input'}
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.012s
+
+FAILED (failures=4)

@@ -8,7 +8,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .models import ActionDecision, Element, ExperimentPlan, Observation, VerificationResult, json_value
+from .models import CaptureMetadata, ActionDecision, Element, ExperimentPlan, Observation, VerificationResult, json_value
 
 
 class RunLogger:
@@ -47,7 +47,7 @@ class RunLogger:
                                  "verification_reason": "TEXT", "download_path": "TEXT", "bridge_used": "TEXT", "detector_confidence": "REAL",
                                  "requested_postcondition": "TEXT", "independent_verification": "TEXT", "before_predicates_json": "TEXT",
                                  "after_predicates_json": "TEXT", "semantic_action": "TEXT", "intended_effect": "TEXT", "outcome_class": "TEXT",
-                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
+                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "dispatch_info_json": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
             if name not in existing: self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
         for name, definition in {"provenance_json": "TEXT", "model": "TEXT", "completed": "INTEGER", "steps": "INTEGER", "final_node": "TEXT", "error": "TEXT", "status": "TEXT NOT NULL DEFAULT 'running'"}.items():
@@ -75,7 +75,7 @@ class RunLogger:
             success: bool, observation: Observation, graph_context: dict, error: str | None = None,
             timings: dict[str, float] | None = None, verification: VerificationResult | None = None, *,
             before_observation: Observation | None = None, after_observation: Observation | None = None,
-            dispatch_status: str = "unknown") -> None:
+            dispatch_status: str = "unknown", dispatch_info: dict | None = None) -> None:
         timings = timings or {}
         verification = verification or VerificationResult("not_requested", "No postcondition requested")
         action = decision.to_dict()
@@ -95,8 +95,8 @@ class RunLogger:
         )
         before = self._snapshot(before_observation) if before_observation else None
         after = self._snapshot(after_observation) if after_observation else None
-        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=? WHERE id=?",
-                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, cursor.lastrowid))
+        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=?, dispatch_info_json=? WHERE id=?",
+                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, json.dumps(dispatch_info or {}), cursor.lastrowid))
         started = time.perf_counter()
         self.connection.commit()
         self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))
@@ -173,7 +173,8 @@ class RunLogger:
     @staticmethod
     def _observation(raw: dict) -> Observation:
         return Observation(raw["screenshot_path"], raw["marked_screenshot_path"],
-                           [Element(**item) for item in raw["elements"]], raw["url"], raw["title"])
+                           [Element(**item) for item in raw["elements"]], raw["url"], raw["title"],
+                           CaptureMetadata(**raw["capture"]) if raw.get("capture") else None)
 
     def completed_workflows(self, goal: str) -> dict:
         rows = self.connection.execute("""

@@ -1,0 +1,50 @@
+test_native_bridge_requires_explicit_hybrid_mode_before_input (test_p1.CapabilityRegression.test_native_bridge_requires_explicit_hybrid_mode_before_input) ... ok
+test_moving_target_is_refused_before_dispatch (test_p1.CoordinateRegression.test_moving_target_is_refused_before_dispatch) ... FAIL
+test_url_belongs_to_capture_not_end_of_inference (test_p1.CoordinateRegression.test_url_belongs_to_capture_not_end_of_inference) ... FAIL
+test_detected_row_context_distinguishes_repeated_controls (test_p1.DiscoveryRegression.test_detected_row_context_distinguishes_repeated_controls) ... ok
+test_gemini_preserves_observed_checkbox_state_and_disabled_state (test_p1.DiscoveryRegression.test_gemini_preserves_observed_checkbox_state_and_disabled_state) ... ok
+test_price_does_not_make_unrelated_heading_actionable (test_p1.DiscoveryRegression.test_price_does_not_make_unrelated_heading_actionable) ... ok
+test_wide_colored_button_is_not_an_input (test_p1.DiscoveryRegression.test_wide_colored_button_is_not_an_input) ... ok
+test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement (test_p1.RefinementRegression.test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement) ... ok
+test_negative_crop_coordinates_are_rejected (test_p1.RefinementRegression.test_negative_crop_coordinates_are_rejected) ... ok
+test_readable_badges_do_not_overlap_controls_or_each_other (test_p1.RefinementRegression.test_readable_badges_do_not_overlap_controls_or_each_other) ... ok
+test_recovery_dispatches_nothing_and_enriches_the_next_policy_observation (test_p1.RefinementRegression.test_recovery_dispatches_nothing_and_enriches_the_next_policy_observation) ... ok
+
+======================================================================
+FAIL: test_moving_target_is_refused_before_dispatch (test_p1.CoordinateRegression.test_moving_target_is_refused_before_dispatch)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 156, in test_moving_target_is_refused_before_dispatch
+    with tempfile.TemporaryDirectory() as tmp: asyncio.run(scenario(Path(tmp)))
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/abhitruechamp/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/home/abhitruechamp/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/abhitruechamp/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 152, in scenario
+    with self.assertRaisesRegex(ValueError,'changed|stale'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_url_belongs_to_capture_not_end_of_inference (test_p1.CoordinateRegression.test_url_belongs_to_capture_not_end_of_inference)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 141, in test_url_belongs_to_capture_not_end_of_inference
+    self.assertEqual(obs.url,'https://test/before')
+AssertionError: 'https://test/after' != 'https://test/before'
+- https://test/after
+?              ^ ^ -
++ https://test/before
+?              ^^ ^^
+
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.958s
+
+FAILED (failures=2)

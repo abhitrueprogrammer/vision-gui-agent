@@ -27,12 +27,14 @@ For model experiments start `uv run visual-function-lab --port 4200`, reset the 
 
 | Action | Normal OmniParser / Gemini discovery | Browser backend | Desktop backend |
 | --- | --- | --- | --- |
-| Click, ordinary fill | Basic visual proposals; target/type accuracy unmeasured | Ordinary coordinate/keyboard path tested | Injected adapter tested; live DPI/Unicode unverified |
-| Select/date | Partial typing; general formatting semantics unverified | Injected control contracts tested | Unverified |
-| Set checked | Checked state not populated | Requires known state from richer grounder; click change is only supporting evidence | Unverified |
-| Upload, range, color | Required types/state not populated; cannot claim end-to-end support | Injected elements only; upload/color use native/DOM bridges | Unsupported browser bridges |
-| Download | Visual button discovery possible | File event and nonempty download checks tested | No browser file event support |
+| Click, ordinary fill | Detector/OCR proposals require semantic confirmation; Gemini preserves type, visible value and observed editability | Coordinate/keyboard effects and DPR 1/2 tested; model accuracy unmeasured | Synthetic mapping/refusal tested; live DPI/Unicode unverified |
+| Select/date | Gemini can supply basic types/input_type; editable actions require observed enabled/readonly | Existing injected contracts; general formatting semantics unverified | Unverified |
+| Set checked | Gemini parses visible boolean state; unknown state refused | Known-state executor contract tested; no live model perception/effect claim | Unverified |
+| Upload, range, color | No advertised normal-grounder end-to-end coverage; unsupported types refused | Injected elements only; upload/color require explicit hybrid mode and matching native target | Browser bridges unavailable |
+| Download | Visual button discovery possible | File events and nonempty download checks require explicit hybrid mode | No browser file event support |
 
-This table distinguishes tested executor contracts from actual normal-grounder coverage; it does not advertise injected-element tests as end-to-end native-control support. Rendered-control discovery/effect coverage remains P1/P2 work. Discovery uses pixels, while execution depends on Playwright/PyAutoGUI and optional browser helpers. Default Gemini planning/refinement sends image data to hosted inference.
+`--execution-mode pixels` is the default; `--execution-mode hybrid` enables browser helpers. Calibration explicitly selects hybrid for its existing export workflow. Hybrid mode does not expand normal-grounder native-control coverage. Rendered-control discovery/effect with live Gemini, date/range/locale semantics, and live desktop testing remain unverified/P2 coverage. Discovery uses pixels; geometry reads viewport metadata; execution depends on Playwright/PyAutoGUI and the declared helpers. Default Gemini planning/refinement sends image data to hosted inference.
+
+P1 includes six authored screenshot fixtures with seven annotated targets and click-safe regions. Run `python -m vision_gui_agent.perception_validation tests/fixtures/perception` for recorded-proposal detector/OCR/fusion ablations and fixed-oracle-candidate escalation checks. These isolate fusion and gate behavior; they are not a fifth end-to-end GUI accuracy track. See [P1_IMPLEMENTATION.md](docs/P1_IMPLEMENTATION.md) for actual cached detector/OCR results, regression evidence, and remaining misses.
 
 Predicates and learned planning use benchmark confirmation vocabulary. Unseen effects and controlled causal interventions are not established capabilities. Keep experiments off by default; extending these is outside P0.

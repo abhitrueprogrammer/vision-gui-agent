@@ -1,0 +1,29 @@
+test_detected_row_context_distinguishes_repeated_controls (test_p1.DiscoveryRegression.test_detected_row_context_distinguishes_repeated_controls) ... ok
+test_gemini_preserves_observed_checkbox_state_and_disabled_state (test_p1.DiscoveryRegression.test_gemini_preserves_observed_checkbox_state_and_disabled_state) ... ok
+test_price_does_not_make_unrelated_heading_actionable (test_p1.DiscoveryRegression.test_price_does_not_make_unrelated_heading_actionable) ... ok
+test_wide_colored_button_is_not_an_input (test_p1.DiscoveryRegression.test_wide_colored_button_is_not_an_input) ... ok
+test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement (test_p1.RefinementRegression.test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement) ... FAIL
+test_negative_crop_coordinates_are_rejected (test_p1.RefinementRegression.test_negative_crop_coordinates_are_rejected) ... FAIL
+
+======================================================================
+FAIL: test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement (test_p1.RefinementRegression.test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 75, in test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement
+    grounder.refine.assert_awaited_once()
+  File "/home/abhitruechamp/.local/share/uv/python/cpython-3.12.14-linux-x86_64-gnu/lib/python3.12/unittest/mock.py", line 2334, in assert_awaited_once
+    raise AssertionError(msg)
+AssertionError: Expected mock to have been awaited once. Awaited 0 times.
+
+======================================================================
+FAIL: test_negative_crop_coordinates_are_rejected (test_p1.RefinementRegression.test_negative_crop_coordinates_are_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 85, in test_negative_crop_coordinates_are_rejected
+    self.assertIsNone(result)
+AssertionError: Element(id=1, selector='', tag='button', text='Save', aria_label='', placeholder='', role='button', x=348.0, y=260.0, width=30.0, height=30.0, href='', input_type='', value='', selected=False, checked=None, download='', actionable=True, context='', context_bounds=None, confidence=1.0, enabled=True, readonly=False, label_bounds=None, proposal_sources=(), recognition_confidence=None, localization_confidence=None, uncertainties=(), semantic_confirmed=False, state_observed=()) is not None
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.139s
+
+FAILED (failures=2)

@@ -1,0 +1,215 @@
+test_active_mode_executes_a_composed_schema_plan_through_pixels (test_action_model.ActionModelTests.test_active_mode_executes_a_composed_schema_plan_through_pixels) ... [INFO] 2026-09-12 15:00:51,557 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:00:51,588 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:00:51,588 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:00:51,657 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:00:51,658 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:00:51,658 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:00:51,699 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:00:51,715 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:00:51,715 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+ok
+test_actual_screenshot_input_agent_completes_every_positive_workflow (test_action_model.ActionModelTests.test_actual_screenshot_input_agent_completes_every_positive_workflow) ... [INFO] 2026-09-12 15:01:00,032 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:00,040 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:00,041 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:00,090 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:00,091 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:00,091 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:00,135 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:00,152 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:00,152 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:07,491 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:07,498 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:07,498 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:07,554 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:07,556 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:07,556 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:07,609 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:07,627 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:07,627 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:23,613 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:23,620 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:23,620 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:23,669 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:23,670 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:23,671 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:23,720 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:23,739 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:23,740 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+ok
+test_agent_repairs_bad_model_verification_choices_and_captures_export (test_action_model.ActionModelTests.test_agent_repairs_bad_model_verification_choices_and_captures_export) ... [INFO] 2026-09-12 15:01:37,312 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:37,320 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:37,320 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_det_small.onnx
+[INFO] 2026-09-12 15:01:37,371 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:37,372 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:37,372 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+[INFO] 2026-09-12 15:01:37,418 [RapidOCR] base.py:23: Using engine_name: onnxruntime
+[INFO] 2026-09-12 15:01:37,437 [RapidOCR] download_file.py:60: File exists and is valid: /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+[INFO] 2026-09-12 15:01:37,437 [RapidOCR] main.py:63: Using /home/abhitruechamp/git/vision-gui-agent/.venv/lib/python3.12/site-packages/rapidocr/models/PP-OCRv6_rec_small.onnx
+ok
+test_all_declared_tasks_validate_on_every_layout_and_cover_all_actions (test_action_model.ActionModelTests.test_all_declared_tasks_validate_on_every_layout_and_cover_all_actions) ... ok
+test_atomic_roundtrip (test_action_model.ActionModelTests.test_atomic_roundtrip) ... ok
+test_benchmark_rules_and_deterministic_reset (test_action_model.ActionModelTests.test_benchmark_rules_and_deterministic_reset) ... ok
+test_benchmark_scores_learned_preconditions_and_effects (test_action_model.ActionModelTests.test_benchmark_scores_learned_preconditions_and_effects) ... ok
+test_bounded_compositional_plan (test_action_model.ActionModelTests.test_bounded_compositional_plan) ... ok
+test_contrasting_experiment_is_selected_and_audited_before_outcome (test_action_model.ActionModelTests.test_contrasting_experiment_is_selected_and_audited_before_outcome) ... ok
+test_effect_and_required_precondition_need_evidence (test_action_model.ActionModelTests.test_effect_and_required_precondition_need_evidence) ... ok
+test_failed_candidate_does_not_pollute_another_plan (test_action_model.ActionModelTests.test_failed_candidate_does_not_pollute_another_plan) ... ok
+test_goal_matching_prefers_terminal_effect_and_runtime_grounds_first_step (test_action_model.ActionModelTests.test_goal_matching_prefers_terminal_effect_and_runtime_grounds_first_step) ... ok
+test_high_impact_actions_do_not_enter_replay_templates (test_action_model.ActionModelTests.test_high_impact_actions_do_not_enter_replay_templates) ... ok
+test_ingestion_is_idempotent_and_records_effect_contradictions (test_action_model.ActionModelTests.test_ingestion_is_idempotent_and_records_effect_contradictions) ... ok
+test_lab_export_produces_a_real_pdf_download (test_action_model.ActionModelTests.test_lab_export_produces_a_real_pdf_download) ... ok
+test_lab_server_renders_only_visible_controls (test_action_model.ActionModelTests.test_lab_server_renders_only_visible_controls) ... ok
+test_normalization_and_delta_ignore_position (test_action_model.ActionModelTests.test_normalization_and_delta_ignore_position) ... ok
+test_passive_correlation_never_becomes_required (test_action_model.ActionModelTests.test_passive_correlation_never_becomes_required) ... ok
+test_perceptual_failure_does_not_become_negative_causal_evidence (test_action_model.ActionModelTests.test_perceptual_failure_does_not_become_negative_causal_evidence) ... ok
+test_persistence_rejects_malformed_or_duplicate_schemas (test_action_model.ActionModelTests.test_persistence_rejects_malformed_or_duplicate_schemas) ... ok
+test_safe_experiments_are_sandbox_only (test_action_model.ActionModelTests.test_safe_experiments_are_sandbox_only) ... ok
+test_schema_keeps_action_type_and_only_parameterless_clicks_replay (test_action_model.ActionModelTests.test_schema_keeps_action_type_and_only_parameterless_clicks_replay) ... ok
+test_schema_target_tolerates_one_unambiguous_ocr_error (test_action_model.ActionModelTests.test_schema_target_tolerates_one_unambiguous_ocr_error) ... ok
+test_stateless_mode_does_not_load_or_write_graph_memory (test_action_model.ActionModelTests.test_stateless_mode_does_not_load_or_write_graph_memory) ... ok
+test_success_without_candidate_is_a_contradiction (test_action_model.ActionModelTests.test_success_without_candidate_is_a_contradiction) ... ok
+test_logger_accepts_ocr_scalars (test_artifact_serialization.ArtifactSerializationTests.test_logger_accepts_ocr_scalars) ... ok
+test_ocr_scalars_are_json_serializable (test_artifact_serialization.ArtifactSerializationTests.test_ocr_scalars_are_json_serializable) ... ok
+test_action_plan_accepts_unlinked_labels (test_core.CoreTests.test_action_plan_accepts_unlinked_labels) ... ok
+test_agent_replans_after_each_action_and_records_timings (test_core.CoreTests.test_agent_replans_after_each_action_and_records_timings) ... ok
+test_browser_flow_uses_only_screenshot_grounding (test_core.CoreTests.test_browser_flow_uses_only_screenshot_grounding) ... ok
+test_compressed_model_image_is_jpeg (test_core.CoreTests.test_compressed_model_image_is_jpeg) ... ok
+test_configured_gemini_keys_keeps_commented_slots_available (test_core.CoreTests.test_configured_gemini_keys_keeps_commented_slots_available) ... ok
+test_decision_validation (test_core.CoreTests.test_decision_validation) ... ok
+test_desktop_adapter_exposes_screenshot_mouse_and_keyboard (test_core.CoreTests.test_desktop_adapter_exposes_screenshot_mouse_and_keyboard) ... ok
+test_dom_grounding_is_rejected (test_core.CoreTests.test_dom_grounding_is_rejected) ... ok
+test_done_action_without_element_id_is_allowed (test_core.CoreTests.test_done_action_without_element_id_is_allowed) ... ok
+test_done_requires_visible_proof (test_core.CoreTests.test_done_requires_visible_proof) ... ok
+test_download_goal_cannot_complete_without_verified_file (test_core.CoreTests.test_download_goal_cannot_complete_without_verified_file) ... ok
+test_download_requires_exact_visible_target_grounding (test_core.CoreTests.test_download_requires_exact_visible_target_grounding) ... ok
+test_element_changed_verifies_only_the_target_region (test_core.CoreTests.test_element_changed_verifies_only_the_target_region) ... ok
+test_element_value_verification_survives_ocr_id_reordering (test_core.CoreTests.test_element_value_verification_survives_ocr_id_reordering) ... ok
+test_element_visible_requires_a_newly_visible_element (test_core.CoreTests.test_element_visible_requires_a_newly_visible_element) ... ok
+test_failed_actions_are_recorded_and_retried_only_twice (test_core.CoreTests.test_failed_actions_are_recorded_and_retried_only_twice) ... ok
+test_failed_verification_stops_follow_up_actions (test_core.CoreTests.test_failed_verification_stops_follow_up_actions) ... ok
+test_file_workflow_verification_contract_repairs_model_mistakes (test_core.CoreTests.test_file_workflow_verification_contract_repairs_model_mistakes) ... ok
+test_gemini_pool_retries_quota_error_with_next_key (test_core.CoreTests.test_gemini_pool_retries_quota_error_with_next_key) ... ok
+test_generic_action_reuse_is_safe (test_core.CoreTests.test_generic_action_reuse_is_safe) ... ok
+test_goal_scoped_reliable_planning (test_core.CoreTests.test_goal_scoped_reliable_planning) ... ok
+test_graph_url_identity_includes_query_and_legacy_load (test_core.CoreTests.test_graph_url_identity_includes_query_and_legacy_load) ... ok
+test_high_impact_requires_grounded_proven_constraints (test_core.CoreTests.test_high_impact_requires_grounded_proven_constraints) ... ok
+test_layout_shift_similarity_does_not_prove_functional_identity (test_core.CoreTests.test_layout_shift_similarity_does_not_prove_functional_identity) ... ok
+test_near_identical_screens_reuse_node (test_core.CoreTests.test_near_identical_screens_reuse_node) ... ok
+test_observe_retries_transient_playwright_screenshot_failure (test_core.CoreTests.test_observe_retries_transient_playwright_screenshot_failure) ... ok
+test_observe_uses_screenshot_grounding_without_page_inspection (test_core.CoreTests.test_observe_uses_screenshot_grounding_without_page_inspection) ... ok
+test_planner_handles_self_loops_and_failures (test_core.CoreTests.test_planner_handles_self_loops_and_failures) ... ok
+test_planner_prefers_reliable_route_and_retry_limit (test_core.CoreTests.test_planner_prefers_reliable_route_and_retry_limit) ... ok
+test_policy_elements_omit_perception_only_fields (test_core.CoreTests.test_policy_elements_omit_perception_only_fields) ... ok
+test_policy_labels_never_overwrite_observed_graph_labels (test_core.CoreTests.test_policy_labels_never_overwrite_observed_graph_labels) ... ok
+test_presatisfied_state_verification_is_detected_before_execution (test_core.CoreTests.test_presatisfied_state_verification_is_detected_before_execution) ... ok
+test_regrounding_reports_missing_and_ambiguous_matches_separately (test_core.CoreTests.test_regrounding_reports_missing_and_ambiguous_matches_separately) ... ok
+test_remembered_action_is_regrounded_by_visible_semantics (test_core.CoreTests.test_remembered_action_is_regrounded_by_visible_semantics) ... ok
+test_replay_identity_uses_semantics_instead_of_transient_element_ids (test_core.CoreTests.test_replay_identity_uses_semantics_instead_of_transient_element_ids) ... ok
+test_search_submit_is_not_high_impact (test_core.CoreTests.test_search_submit_is_not_high_impact) ... ok
+test_set_of_mark_badge_does_not_cover_small_control_content (test_core.CoreTests.test_set_of_mark_badge_does_not_cover_small_control_content) ... ok
+test_sqlite_migrates_verification_columns (test_core.CoreTests.test_sqlite_migrates_verification_columns) ... ok
+test_state_evidence_cannot_be_clicked (test_core.CoreTests.test_state_evidence_cannot_be_clicked) ... ok
+test_string_element_id_is_coerced (test_core.CoreTests.test_string_element_id_is_coerced) ... ok
+test_submit_requires_intent_and_visible_success_check (test_core.CoreTests.test_submit_requires_intent_and_visible_success_check) ... ok
+test_unlabeled_form_submit_is_not_high_impact (test_core.CoreTests.test_unlabeled_form_submit_is_not_high_impact) ... ok
+test_unverified_noop_is_treated_as_ambiguous_not_failed (test_core.CoreTests.test_unverified_noop_is_treated_as_ambiguous_not_failed)
+An action the policy chose not to attach a verify to (explicitly allowed for ... ok
+test_verbose_mode_prints_action_and_observation (test_core.CoreTests.test_verbose_mode_prints_action_and_observation) ... ok
+test_verification_shapes_and_validation (test_core.CoreTests.test_verification_shapes_and_validation) ... ok
+test_visible_field_context_is_not_exact_value_evidence (test_core.CoreTests.test_visible_field_context_is_not_exact_value_evidence) ... ok
+test_visual_grounder_clamps_and_deduplicates_boxes (test_core.CoreTests.test_visual_grounder_clamps_and_deduplicates_boxes) ... ok
+test_visual_grounder_refines_crop_coordinates_to_screen (test_core.CoreTests.test_visual_grounder_refines_crop_coordinates_to_screen) ... ok
+test_workflow_requires_its_intermediate_state (test_core.CoreTests.test_workflow_requires_its_intermediate_state) ... ok
+test_browser_actions_cover_supported_form_controls (test_form_contract.FormContractTests.test_browser_actions_cover_supported_form_controls) ... ok
+test_bordered_ocr_label_is_recovered_when_detector_misses_button (test_omniparser_grounder.OmniParserGrounderTests.test_bordered_ocr_label_is_recovered_when_detector_misses_button) ... ok
+test_direct_product_caption_labels_its_detected_card (test_omniparser_grounder.OmniParserGrounderTests.test_direct_product_caption_labels_its_detected_card) ... ok
+test_logs_the_tagged_screenshot_path (test_omniparser_grounder.OmniParserGrounderTests.test_logs_the_tagged_screenshot_path) ... ok
+test_normalizes_numpy_backed_dict_ocr_result (test_omniparser_grounder.OmniParserGrounderTests.test_normalizes_numpy_backed_dict_ocr_result) ... ok
+test_only_contained_ocr_labels_an_interactive_region (test_omniparser_grounder.OmniParserGrounderTests.test_only_contained_ocr_labels_an_interactive_region) ... ok
+test_refinement_is_delegated_only_when_configured (test_omniparser_grounder.OmniParserGrounderTests.test_refinement_is_delegated_only_when_configured) ... ok
+test_splits_do_not_claim_seen_tasks_are_held_out (test_p0.EvaluationRegression.test_splits_do_not_claim_seen_tasks_are_held_out) ... ok
+test_terminal_truth (test_p0.EvaluationRegression.test_terminal_truth) ... ok
+test_dispatch_error_without_recapture_has_no_invented_after_state (test_p0.OutcomeIntegrationRegression.test_dispatch_error_without_recapture_has_no_invented_after_state) ... ok
+test_filename_is_exact_and_missing_detection_cannot_prove_absence (test_p0.OutcomeIntegrationRegression.test_filename_is_exact_and_missing_detection_cannot_prove_absence) ... ok
+test_hover_change_is_not_verified_effect (test_p0.OutcomeIntegrationRegression.test_hover_change_is_not_verified_effect) ... ok
+test_metadata_is_not_visible_confirmation (test_p0.OutcomeIntegrationRegression.test_metadata_is_not_visible_confirmation) ... ok
+test_noop_then_unrelated_completion_has_no_reusable_support (test_p0.OutcomeIntegrationRegression.test_noop_then_unrelated_completion_has_no_reusable_support) ... ok
+test_replay_abstains_on_incompatible_control_and_bad_manifest (test_p0.OutcomeIntegrationRegression.test_replay_abstains_on_incompatible_control_and_bad_manifest) ... ok
+test_value_matrix_and_delayed_observation (test_p0.OutcomeIntegrationRegression.test_value_matrix_and_delayed_observation) ... ok
+test_exact_value_not_substring_or_context (test_p0.OutcomeRegression.test_exact_value_not_substring_or_context) ... ok
+test_missing_state_and_generic_change_are_not_effect_proof (test_p0.OutcomeRegression.test_missing_state_and_generic_change_are_not_effect_proof) ... ok
+test_unverified_completed_edges_are_not_replayable (test_p0.OutcomeRegression.test_unverified_completed_edges_are_not_replayable) ... ok
+test_exact_source_target_roundtrip_and_omitted_record (test_p0.ProvenanceRegression.test_exact_source_target_roundtrip_and_omitted_record) ... ok
+test_legacy_post_observations_are_not_training_sources (test_p0.ProvenanceRegression.test_legacy_post_observations_are_not_training_sources) ... ok
+test_repeated_step_captures_keep_original_pixels (test_p0.ProvenanceRegression.test_repeated_step_captures_keep_original_pixels) ... ok
+test_stateless_run_never_reads_workflows (test_p0.ProvenanceRegression.test_stateless_run_never_reads_workflows) ... ok
+test_context_is_required_alongside_label_after_id_permutation (test_p0.ReplayRegression.test_context_is_required_alongside_label_after_id_permutation) ... ok
+test_equivalent_ids_preserve_prototype_and_explicit_query_policy (test_p0.ReplayRegression.test_equivalent_ids_preserve_prototype_and_explicit_query_policy) ... ok
+test_functional_state_pairs_do_not_merge (test_p0.ReplayRegression.test_functional_state_pairs_do_not_merge) ... ok
+test_replay_on_off_resets_verify_the_same_effect_with_fresh_ids (test_p0.ReplayRegression.test_replay_on_off_resets_verify_the_same_effect_with_fresh_ids) ... ok
+test_stale_ids_and_duplicate_labels_refuse (test_p0.ReplayRegression.test_stale_ids_and_duplicate_labels_refuse) ... ok
+test_native_bridge_requires_explicit_hybrid_mode_before_input (test_p1.CapabilityRegression.test_native_bridge_requires_explicit_hybrid_mode_before_input) ... ok
+test_agent_recaptures_and_reselects_after_a_policy_delay (test_p1.ContextAndRecoveryRegression.test_agent_recaptures_and_reselects_after_a_policy_delay) ... ok
+test_refinement_request_contains_goal_overview_and_competing_rows (test_p1.ContextAndRecoveryRegression.test_refinement_request_contains_goal_overview_and_competing_rows) ... ok
+test_desktop_two_times_pixels_transform_or_refuse (test_p1.CoordinateRegression.test_desktop_two_times_pixels_transform_or_refuse) ... ok
+test_dpr_mapping_and_viewport_resize (test_p1.CoordinateRegression.test_dpr_mapping_and_viewport_resize) ... ok
+test_moving_target_is_refused_before_dispatch (test_p1.CoordinateRegression.test_moving_target_is_refused_before_dispatch) ... ok
+test_url_belongs_to_capture_not_end_of_inference (test_p1.CoordinateRegression.test_url_belongs_to_capture_not_end_of_inference) ... ok
+test_detected_row_context_distinguishes_repeated_controls (test_p1.DiscoveryRegression.test_detected_row_context_distinguishes_repeated_controls) ... ok
+test_gemini_preserves_observed_checkbox_state_and_disabled_state (test_p1.DiscoveryRegression.test_gemini_preserves_observed_checkbox_state_and_disabled_state) ... ok
+test_price_does_not_make_unrelated_heading_actionable (test_p1.DiscoveryRegression.test_price_does_not_make_unrelated_heading_actionable) ... ok
+test_wide_colored_button_is_not_an_input (test_p1.DiscoveryRegression.test_wide_colored_button_is_not_an_input) ... ok
+test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement (test_p1.RefinementRegression.test_high_confidence_ambiguous_target_cannot_bypass_negative_refinement) ... ok
+test_negative_crop_coordinates_are_rejected (test_p1.RefinementRegression.test_negative_crop_coordinates_are_rejected) ... ok
+test_readable_badges_do_not_overlap_controls_or_each_other (test_p1.RefinementRegression.test_readable_badges_do_not_overlap_controls_or_each_other) ... ok
+test_recovery_dispatches_nothing_and_enriches_the_next_policy_observation (test_p1.RefinementRegression.test_recovery_dispatches_nothing_and_enriches_the_next_policy_observation) ... ok
+test_corpus_keeps_oracle_safe_points_without_price_false_positive (test_p1.SemanticBoundaryRegression.test_corpus_keeps_oracle_safe_points_without_price_false_positive) ... ok
+test_duplicate_instance_and_unavailable_refinement_abstain (test_p1.SemanticBoundaryRegression.test_duplicate_instance_and_unavailable_refinement_abstain) ... ok
+test_invalid_model_state_is_not_observed_editability (test_p1.SemanticBoundaryRegression.test_invalid_model_state_is_not_observed_editability) ... ok
+test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) ... ok
+test_checkbox_requires_matching_context_until_proven (test_scoped_constraints.ScopedConstraintTests.test_checkbox_requires_matching_context_until_proven) ... ok
+test_compiled_constraint_can_safely_stop_when_unavailable (test_scoped_constraints.ScopedConstraintTests.test_compiled_constraint_can_safely_stop_when_unavailable) ... ok
+test_compiled_constraints_ignore_model_added_duplicates (test_scoped_constraints.ScopedConstraintTests.test_compiled_constraints_ignore_model_added_duplicates) ... ok
+test_compiled_definition_cannot_be_demoted_or_replaced (test_scoped_constraints.ScopedConstraintTests.test_compiled_definition_cannot_be_demoted_or_replaced) ... ok
+test_constrained_bulk_action_is_rejected (test_scoped_constraints.ScopedConstraintTests.test_constrained_bulk_action_is_rejected) ... ok
+test_constrained_discovery_actions_do_not_need_item_context (test_scoped_constraints.ScopedConstraintTests.test_constrained_discovery_actions_do_not_need_item_context) ... ok
+test_context_makes_repeated_controls_distinct (test_scoped_constraints.ScopedConstraintTests.test_context_makes_repeated_controls_distinct) ... ok
+test_done_rejects_toast_without_final_collection_proof (test_scoped_constraints.ScopedConstraintTests.test_done_rejects_toast_without_final_collection_proof) ... ok
+test_download_uses_pre_action_context (test_scoped_constraints.ScopedConstraintTests.test_download_uses_pre_action_context) ... ok
+test_entity_quantity_compiler_constraint (test_scoped_constraints.ScopedConstraintTests.test_entity_quantity_compiler_constraint) ... ok
+test_entity_quantity_requires_one_row_with_explicit_quantity (test_scoped_constraints.ScopedConstraintTests.test_entity_quantity_requires_one_row_with_explicit_quantity) ... ok
+test_explicit_hard_requirement_survives_empty_compiler_output (test_scoped_constraints.ScopedConstraintTests.test_explicit_hard_requirement_survives_empty_compiler_output) ... ok
+test_export_format_is_not_misclassified_as_item_scope (test_scoped_constraints.ScopedConstraintTests.test_export_format_is_not_misclassified_as_item_scope) ... ok
+test_extremum_requires_complete_visible_comparison (test_scoped_constraints.ScopedConstraintTests.test_extremum_requires_complete_visible_comparison) ... ok
+test_goal_compiler_retries_invalid_schema (test_scoped_constraints.ScopedConstraintTests.test_goal_compiler_retries_invalid_schema) ... ok
+test_harmless_control_need_only_satisfy_its_own_pending_constraint (test_scoped_constraints.ScopedConstraintTests.test_harmless_control_need_only_satisfy_its_own_pending_constraint) ... ok
+test_named_control_directly_proves_item_scope_without_container_context (test_scoped_constraints.ScopedConstraintTests.test_named_control_directly_proves_item_scope_without_container_context) ... ok
+test_observational_goal_keeps_only_compiled_rankings (test_scoped_constraints.ScopedConstraintTests.test_observational_goal_keeps_only_compiled_rankings) ... ok
+test_ordinary_click_is_allowed_as_generic_discovery (test_scoped_constraints.ScopedConstraintTests.test_ordinary_click_is_allowed_as_generic_discovery) ... ok
+test_proven_constraint_does_not_require_download_button_context (test_scoped_constraints.ScopedConstraintTests.test_proven_constraint_does_not_require_download_button_context) ... ok
+test_punctuation_and_case_matching_allows_item_action (test_scoped_constraints.ScopedConstraintTests.test_punctuation_and_case_matching_allows_item_action) ... ok
+test_retrieval_subject_is_not_a_selection_restriction (test_scoped_constraints.ScopedConstraintTests.test_retrieval_subject_is_not_a_selection_restriction) ... ok
+test_strict_compiler_parser (test_scoped_constraints.ScopedConstraintTests.test_strict_compiler_parser) ... ok
+test_unavailable_constraint_allows_safe_stop_without_download (test_scoped_constraints.ScopedConstraintTests.test_unavailable_constraint_allows_safe_stop_without_download) ... ok
+test_verified_matching_selection_proves_constraint_but_wrong_selection_does_not (test_scoped_constraints.ScopedConstraintTests.test_verified_matching_selection_proves_constraint_but_wrong_selection_does_not) ... ok
+test_already_filled_value_is_rejected_instead_of_becoming_an_unverified_noop (test_visual_completion.VisualCompletionTests.test_already_filled_value_is_rejected_instead_of_becoming_an_unverified_noop) ... ok
+test_current_select_value_is_an_observable_noop_not_a_goal_grammar_error (test_visual_completion.VisualCompletionTests.test_current_select_value_is_an_observable_noop_not_a_goal_grammar_error) ... ok
+test_done_freshness_semantics (test_visual_completion.VisualCompletionTests.test_done_freshness_semantics) ... ok
+test_failed_action_blocks_done_and_fresh_verify_cannot_rescue_stale_grounding (test_visual_completion.VisualCompletionTests.test_failed_action_blocks_done_and_fresh_verify_cannot_rescue_stale_grounding) ... ok
+test_fill_without_model_verification_gets_value_postcondition (test_visual_completion.VisualCompletionTests.test_fill_without_model_verification_gets_value_postcondition) ... ok
+test_fresh_done_verification_ignores_invalid_optional_grounding (test_visual_completion.VisualCompletionTests.test_fresh_done_verification_ignores_invalid_optional_grounding) ... ok
+test_goal_compilation_failure_does_not_block_unrelated_form_actions (test_visual_completion.VisualCompletionTests.test_goal_compilation_failure_does_not_block_unrelated_form_actions) ... ok
+test_immediate_done_can_use_initially_satisfied_goal (test_visual_completion.VisualCompletionTests.test_immediate_done_can_use_initially_satisfied_goal) ... ok
+test_numeric_pseudo_checkboxes_are_not_checkbox_change_proofs (test_visual_completion.VisualCompletionTests.test_numeric_pseudo_checkboxes_are_not_checkbox_change_proofs) ... ok
+test_overlay_and_navigation_change_are_supporting_evidence_only (test_visual_completion.VisualCompletionTests.test_overlay_and_navigation_change_are_supporting_evidence_only) ... ok
+test_password_fill_uses_visible_change_instead_of_hidden_plaintext (test_visual_completion.VisualCompletionTests.test_password_fill_uses_visible_change_instead_of_hidden_plaintext) ... ok
+test_receiving_field_value_must_match (test_visual_completion.VisualCompletionTests.test_receiving_field_value_must_match) ... ok
+test_synthetic_autocomplete_recovery_and_fresh_completion (test_visual_completion.VisualCompletionTests.test_synthetic_autocomplete_recovery_and_fresh_completion) ... ok
+test_type_specific_form_postconditions (test_visual_completion.VisualCompletionTests.test_type_specific_form_postconditions) ... ok
+test_verification_requires_the_same_unique_control_not_any_overlapping_field (test_visual_completion.VisualCompletionTests.test_verification_requires_the_same_unique_control_not_any_overlapping_field) ... ok
+test_verified_completion_allows_submit_after_field_ids_change (test_visual_completion.VisualCompletionTests.test_verified_completion_allows_submit_after_field_ids_change) ... ok
+
+----------------------------------------------------------------------
+Ran 164 tests in 70.355s
+
+OK

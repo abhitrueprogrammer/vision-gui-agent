@@ -1,0 +1,451 @@
+{
+  "track": "local_detector_ocr_corpus",
+  "weights": "/home/abhitruechamp/.cache/huggingface/hub/models--microsoft--OmniParser-v2.0/snapshots/ef77ffa0da68a824fd59a2d11215e2862b07b5e9/icon_detect_v3/model.pt",
+  "scope": "Real cached OmniParser/RapidOCR proposals replayed identically through before/after fusion; no semantic model or planning evaluation",
+  "rows": [
+    {
+      "case": "wide_button",
+      "version": "before",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Continue",
+          "kind": "input",
+          "actionable": true,
+          "box": [
+            20.083337783813477,
+            20.045442581176758,
+            179.7670192718506,
+            39.77331352233887
+          ]
+        }
+      ]
+    },
+    {
+      "case": "wide_button",
+      "version": "after",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Continue",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            20.083337783813477,
+            20.045442581176758,
+            179.7670192718506,
+            39.77331352233887
+          ]
+        }
+      ]
+    },
+    {
+      "case": "unrelated_price",
+      "version": "before",
+      "visible_targets": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 1,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Account overview",
+          "kind": "menuitem",
+          "actionable": true,
+          "box": [
+            7.0,
+            9.0,
+            131.0,
+            19.0
+          ]
+        },
+        {
+          "id": 2,
+          "text": "$42",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            327.0,
+            59.0,
+            32.0,
+            19.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "unrelated_price",
+      "version": "after",
+      "visible_targets": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Account overview",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            7.0,
+            9.0,
+            131.0,
+            19.0
+          ]
+        },
+        {
+          "id": 2,
+          "text": "$42",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            327.0,
+            59.0,
+            32.0,
+            19.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "duplicate_rows",
+      "version": "before",
+      "visible_targets": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 1,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Save",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            300.317626953125,
+            109.85189056396484,
+            79.482421875,
+            39.73706817626953
+          ]
+        },
+        {
+          "id": 2,
+          "text": "Save",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            300.24761962890625,
+            20.27729034423828,
+            79.64523315429688,
+            39.4521484375
+          ]
+        },
+        {
+          "id": 3,
+          "text": "Row A Save",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            2.3004114627838135,
+            4.144549369812012,
+            397.04147696495056,
+            74.87234210968018
+          ]
+        },
+        {
+          "id": 4,
+          "text": "Row B",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            18.0,
+            115.0,
+            53.0,
+            18.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "duplicate_rows",
+      "version": "after",
+      "visible_targets": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Save",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            300.317626953125,
+            109.85189056396484,
+            79.482421875,
+            39.73706817626953
+          ]
+        },
+        {
+          "id": 2,
+          "text": "Save",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            300.24761962890625,
+            20.27729034423828,
+            79.64523315429688,
+            39.4521484375
+          ]
+        },
+        {
+          "id": 3,
+          "text": "Row A Save",
+          "kind": "other",
+          "actionable": false,
+          "box": [
+            2.3004114627838135,
+            4.144549369812012,
+            397.04147696495056,
+            74.87234210968018
+          ]
+        },
+        {
+          "id": 4,
+          "text": "Row B",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            18.0,
+            115.0,
+            53.0,
+            18.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "border_recovery",
+      "version": "before",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Download",
+          "kind": "input",
+          "actionable": true,
+          "box": [
+            19.933271408081055,
+            20.234554290771484,
+            119.94299507141113,
+            39.58842086791992
+          ]
+        },
+        {
+          "id": 2,
+          "text": "Plain heading",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            17.0,
+            98.0,
+            102.0,
+            21.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "border_recovery",
+      "version": "after",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Download",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            19.933271408081055,
+            20.234554290771484,
+            119.94299507141113,
+            39.58842086791992
+          ]
+        },
+        {
+          "id": 2,
+          "text": "Plain heading",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            17.0,
+            98.0,
+            102.0,
+            21.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "plain_miss",
+      "version": "before",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Details",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            42.0,
+            29.0,
+            56.0,
+            19.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "plain_miss",
+      "version": "after",
+      "visible_targets": 1,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Details",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            42.0,
+            29.0,
+            56.0,
+            19.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "fields",
+      "version": "before",
+      "visible_targets": 2,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 1,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Unavailable",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            220.4889678955078,
+            30.130653381347656,
+            119.19114685058594,
+            39.610145568847656
+          ]
+        },
+        {
+          "id": 2,
+          "text": "12",
+          "kind": "input",
+          "actionable": true,
+          "box": [
+            20.252927780151367,
+            30.054359436035156,
+            179.0527515411377,
+            39.672447204589844
+          ]
+        },
+        {
+          "id": 3,
+          "text": "Quantity",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            17.0,
+            4.0,
+            64.0,
+            21.0
+          ]
+        },
+        {
+          "id": 4,
+          "text": "Reviewed",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            47.0,
+            99.0,
+            75.0,
+            18.0
+          ]
+        }
+      ]
+    },
+    {
+      "case": "fields",
+      "version": "after",
+      "visible_targets": 2,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 1,
+      "proposals": [
+        {
+          "id": 1,
+          "text": "Unavailable",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            220.4889678955078,
+            30.130653381347656,
+            119.19114685058594,
+            39.610145568847656
+          ]
+        },
+        {
+          "id": 2,
+          "text": "12",
+          "kind": "other",
+          "actionable": true,
+          "box": [
+            20.252927780151367,
+            30.054359436035156,
+            179.0527515411377,
+            39.672447204589844
+          ]
+        },
+        {
+          "id": 3,
+          "text": "Quantity",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            17.0,
+            4.0,
+            64.0,
+            21.0
+          ]
+        },
+        {
+          "id": 4,
+          "text": "Reviewed",
+          "kind": "text",
+          "actionable": false,
+          "box": [
+            47.0,
+            99.0,
+            75.0,
+            18.0
+          ]
+        }
+      ]
+    }
+  ]
+}

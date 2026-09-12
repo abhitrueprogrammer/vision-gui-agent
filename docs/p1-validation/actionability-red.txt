@@ -1,0 +1,24 @@
+test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) ...
+  test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) (response={'found': True}) ... FAIL
+  test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) (response={'found': 'false', 'actionable': True}) ... FAIL
+
+======================================================================
+FAIL: test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) (response={'found': True})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 310, in test_uncertain_proposal_requires_explicit_actionability_confirmation
+    self.assertIsNone(asyncio.run(grounder.refine(path,target)))
+AssertionError: Element(id=1, selector='', tag='button', text='Save', aria_label='', placeholder='', role='button', x=20.0, y=20.0, width=40.0, height=40.0, href='', input_type='', value='', selected=False, checked=None, download='', actionable=True, context='', context_bounds=None, confidence=1.0, enabled=True, readonly=False, label_bounds=None, proposal_sources=('detector', 'gemini_refinement'), recognition_confidence=None, localization_confidence=None, uncertainties=(), semantic_confirmed=True, state_observed=()) is not None
+
+======================================================================
+FAIL: test_uncertain_proposal_requires_explicit_actionability_confirmation (test_p1.SemanticBoundaryRegression.test_uncertain_proposal_requires_explicit_actionability_confirmation) (response={'found': 'false', 'actionable': True})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/abhitruechamp/git/vision-gui-agent/tests/test_p1.py", line 310, in test_uncertain_proposal_requires_explicit_actionability_confirmation
+    self.assertIsNone(asyncio.run(grounder.refine(path,target)))
+AssertionError: Element(id=1, selector='', tag='button', text='Save', aria_label='', placeholder='', role='button', x=20.0, y=20.0, width=40.0, height=40.0, href='', input_type='', value='', selected=False, checked=None, download='', actionable=True, context='', context_bounds=None, confidence=1.0, enabled=True, readonly=False, label_bounds=None, proposal_sources=('detector', 'gemini_refinement'), recognition_confidence=None, localization_confidence=None, uncertainties=(), semantic_confirmed=True, state_observed=()) is not None
+
+----------------------------------------------------------------------
+Ran 1 test in 0.011s
+
+FAILED (failures=2)

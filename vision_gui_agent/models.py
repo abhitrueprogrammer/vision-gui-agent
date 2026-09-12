@@ -4,7 +4,7 @@ from datetime import date
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-ActionType = Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "done"]
+ActionType = Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "inspect", "done"]
 VerificationKind = Literal["page_changed", "element_visible", "element_enabled", "element_absent", "element_value", "element_checked", "element_filename", "element_color", "element_range", "element_changed", "download_created"]
 ConstraintStatus = Literal["unproven", "proven", "unavailable"]
 Impact = Literal["harmless", "high"]
@@ -85,6 +85,12 @@ class Element:
     enabled: bool = True
     readonly: bool = False
     label_bounds: tuple[float, float, float, float] | None = None
+    proposal_sources: tuple[str, ...] = ()
+    recognition_confidence: float | None = None
+    localization_confidence: float | None = None
+    uncertainties: tuple[str, ...] = ()
+    semantic_confirmed: bool = False
+    state_observed: tuple[str, ...] = ()
 
     def summary(self) -> str:
         return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({'actionable' if self.actionable else 'state evidence'})"
@@ -147,15 +153,36 @@ class GoalConstraint:
 
 
 @dataclass(frozen=True)
+class CaptureMetadata:
+    captured_at: float | None
+    image_size: tuple[int, int]
+    input_size: tuple[float, float] | None
+    origin: tuple[float, float] = (0.0, 0.0)
+    input_space: str = "unknown"
+    image_space: str = "screenshot_pixels"
+
+    def __post_init__(self):
+        import math
+        dimensions = (*self.image_size, *(self.input_size or ()))
+        if len(self.image_size) != 2 or (self.input_size is not None and len(self.input_size) != 2):
+            raise ValueError("capture dimensions require width and height")
+        if any(not isinstance(v,(int,float)) or isinstance(v,bool) or not math.isfinite(v) or v<=0 for v in dimensions):
+            raise ValueError("capture dimensions must be finite and positive")
+        if len(self.origin)!=2 or any(not isinstance(v,(int,float)) or not math.isfinite(v) for v in self.origin):
+            raise ValueError("capture origin must be finite")
+
+
+@dataclass(frozen=True)
 class Observation:
     screenshot_path: str
     marked_screenshot_path: str
     elements: list[Element]
     url: str
     title: str
+    capture: CaptureMetadata | None = None
 
     def element_summaries(self) -> list[str]: return [element.summary() for element in self.elements]
-    def to_dict(self) -> dict[str, Any]: return {"url": self.url, "title": self.title, "screenshot_path": self.screenshot_path, "marked_screenshot_path": self.marked_screenshot_path, "elements": [json_value(asdict(element)) for element in self.elements]}
+    def to_dict(self) -> dict[str, Any]: return {"url": self.url, "title": self.title, "screenshot_path": self.screenshot_path, "marked_screenshot_path": self.marked_screenshot_path, "elements": [json_value(asdict(element)) for element in self.elements], "capture": asdict(self.capture) if self.capture else None}
 
 
 @dataclass(frozen=True)
@@ -177,7 +204,9 @@ class ActionDecision:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "ActionDecision":
         action = raw.get("action")
-        if action not in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "done"}: raise ValueError(f"Unknown action: {action!r}")
+        if action not in {"click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll", "inspect", "done"}: raise ValueError(f"Unknown action: {action!r}")
+        if action == "inspect" and (not isinstance(raw.get("text"), str) or not raw["text"].strip()):
+            raise ValueError("inspect requires a visible target description")
         ident = raw.get("element_id")
         if isinstance(ident, str):
             try: ident = int(ident)
@@ -210,7 +239,11 @@ class ActionDecision:
         target = elements.get(self.element_id) if self.element_id is not None else None
         if target and self.action in {"fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color"} and (not target.enabled or target.readonly):
             raise ValueError(f"Element {self.element_id} is not editable")
-        expected_kinds = {"set_checked": {"checkbox", "radio"}, "set_date": {"input", "date"},
+        if target and target.proposal_sources and not target.semantic_confirmed and (self.action in {"fill","select","set_date","set_checked"} or "actionability" in target.uncertainties or target.tag == "other"):
+            raise ValueError("The proposed control type/state needs semantic refinement")
+        if target and target.proposal_sources and self.action in {"fill","select","set_date","set_checked"} and not {"enabled","readonly"}.issubset(target.state_observed):
+            raise ValueError("Control editability was not visually observed")
+        expected_kinds = {"fill": {"input", "textarea"}, "select": {"select"}, "set_checked": {"checkbox", "radio"}, "set_date": {"input", "date"},
                           "set_range": {"range"}, "upload": {"file"}, "set_color": {"color"}}
         if target and self.action in expected_kinds and target.tag not in expected_kinds[self.action] and target.input_type not in expected_kinds[self.action]:
             raise ValueError(f"{self.action} is incompatible with element {self.element_id}")

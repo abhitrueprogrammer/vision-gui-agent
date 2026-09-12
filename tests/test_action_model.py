@@ -160,7 +160,7 @@ class ActionModelTests(unittest.TestCase):
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
                             await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
                             result = await Agent(FinishWhenVisible(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
-                                max_steps=6, memory_mode="active-action-model", min_schema_confidence=.5), CalibrationGrounder()).run(page, "export a document as PDF")
+                                max_steps=6, execution_mode="hybrid", memory_mode="active-action-model", min_schema_confidence=.5), CalibrationGrounder()).run(page, "export a document as PDF")
                             return result, [item["action"] for item in server.RequestHandlerClass.evaluator.trace]
                         finally:
                             await browser.close()
@@ -320,7 +320,7 @@ class ActionModelTests(unittest.TestCase):
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
                             await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
                             result = await Agent(MistakenPolicy(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
-                                max_steps=6, memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
+                                max_steps=6, execution_mode="hybrid", memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
                             valid_pdf = bool(result.download_paths and Path(result.download_paths[0]).read_bytes().startswith(b"%PDF-"))
                             return result, valid_pdf
                         finally:

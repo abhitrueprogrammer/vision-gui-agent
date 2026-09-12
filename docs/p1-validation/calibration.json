@@ -1,0 +1,96 @@
+{
+  "track": "fixed_policy_calibration",
+  "protocol": "fullsuite-v1",
+  "passed": true,
+  "runs": 6,
+  "results": [
+    {
+      "task": "export_launch_brief",
+      "layout": "classic",
+      "passed": true,
+      "run_id": "038aa13c1ac14405851173ce964b7ce2",
+      "actions": [
+        "open_document",
+        "open_export_modal",
+        "select_pdf_format",
+        "confirm_export"
+      ],
+      "downloads": [
+        "/tmp/vision-p1/calibration-sequential/classic/export_launch_brief/038aa13c1ac14405851173ce964b7ce2/downloads/Launch brief.pdf"
+      ],
+      "error": null
+    },
+    {
+      "task": "create_q3_report",
+      "layout": "classic",
+      "passed": true,
+      "run_id": "c073a224ea11404cb88707fa502440d0",
+      "actions": [
+        "open_dataset",
+        "select_region",
+        "generate_report"
+      ],
+      "downloads": [],
+      "error": null
+    },
+    {
+      "task": "enable_approval_workflow",
+      "layout": "classic",
+      "passed": true,
+      "run_id": "f4d1d3035f164ed4bf24ba89fd80dab5",
+      "actions": [
+        "open_settings",
+        "authenticate",
+        "enable_approval",
+        "select_reviewers",
+        "save_settings"
+      ],
+      "downloads": [],
+      "error": null
+    },
+    {
+      "task": "export_launch_brief",
+      "layout": "compact",
+      "passed": true,
+      "run_id": "740358de6e8c4f079427be2e672c7ae6",
+      "actions": [
+        "open_document",
+        "open_export_modal",
+        "select_pdf_format",
+        "confirm_export"
+      ],
+      "downloads": [
+        "/tmp/vision-p1/calibration-sequential/compact/export_launch_brief/740358de6e8c4f079427be2e672c7ae6/downloads/Launch brief.pdf"
+      ],
+      "error": null
+    },
+    {
+      "task": "create_q3_report",
+      "layout": "compact",
+      "passed": true,
+      "run_id": "6d574686be424a79a711f0ec76c454f3",
+      "actions": [
+        "open_dataset",
+        "select_region",
+        "generate_report"
+      ],
+      "downloads": [],
+      "error": null
+    },
+    {
+      "task": "enable_approval_workflow",
+      "layout": "compact",
+      "passed": true,
+      "run_id": "943eee272bf8411c9f0a396af42d5518",
+      "actions": [
+        "open_settings",
+        "authenticate",
+        "enable_approval",
+        "select_reviewers",
+        "save_settings"
+      ],
+      "downloads": [],
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+{
+  "track": "recorded_proposal_ablation",
+  "scope": "authored Chromium pages, DPR 1; manually specified oracle boxes and proposal/OCR fixtures; not a model accuracy benchmark",
+  "totals": {
+    "detector_only": {
+      "visible_targets": 7,
+      "geometric_iou_hits": 5,
+      "actionable_safe_point_hits": 5,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 8
+    },
+    "ocr_only": {
+      "visible_targets": 7,
+      "geometric_iou_hits": 3,
+      "actionable_safe_point_hits": 3,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 14
+    },
+    "fusion": {
+      "visible_targets": 7,
+      "geometric_iou_hits": 6,
+      "actionable_safe_point_hits": 6,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 15
+    }
+  },
+  "results": [
+    {
+      "case": "wide_button",
+      "mode": "detector_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 1
+    },
+    {
+      "case": "wide_button",
+      "mode": "ocr_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 1
+    },
+    {
+      "case": "wide_button",
+      "mode": "fusion",
+      "visible_targets": 1,
+      "geometric_iou_hits": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 1
+    },
+    {
+      "case": "unrelated_price",
+      "mode": "detector_only",
+      "visible_targets": 0,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 0
+    },
+    {
+      "case": "unrelated_price",
+      "mode": "ocr_only",
+      "visible_targets": 0,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 2
+    },
+    {
+      "case": "unrelated_price",
+      "mode": "fusion",
+      "visible_targets": 0,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 2
+    },
+    {
+      "case": "duplicate_rows",
+      "mode": "detector_only",
+      "visible_targets": 2,
+      "geometric_iou_hits": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 4
+    },
+    {
+      "case": "duplicate_rows",
+      "mode": "ocr_only",
+      "visible_targets": 2,
+      "geometric_iou_hits": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 4
+    },
+    {
+      "case": "duplicate_rows",
+      "mode": "fusion",
+      "visible_targets": 2,
+      "geometric_iou_hits": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 4
+    },
+    {
+      "case": "border_recovery",
+      "mode": "detector_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 0
+    },
+    {
+      "case": "border_recovery",
+      "mode": "ocr_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 2
+    },
+    {
+      "case": "border_recovery",
+      "mode": "fusion",
+      "visible_targets": 1,
+      "geometric_iou_hits": 1,
+      "actionable_safe_point_hits": 1,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 2
+    },
+    {
+      "case": "plain_miss",
+      "mode": "detector_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 0
+    },
+    {
+      "case": "plain_miss",
+      "mode": "ocr_only",
+      "visible_targets": 1,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 1
+    },
+    {
+      "case": "plain_miss",
+      "mode": "fusion",
+      "visible_targets": 1,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 0,
+      "wrong_typed_proposals": 0,
+      "proposals": 1
+    },
+    {
+      "case": "fields",
+      "mode": "detector_only",
+      "visible_targets": 2,
+      "geometric_iou_hits": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 3
+    },
+    {
+      "case": "fields",
+      "mode": "ocr_only",
+      "visible_targets": 2,
+      "geometric_iou_hits": 0,
+      "actionable_safe_point_hits": 0,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 4
+    },
+    {
+      "case": "fields",
+      "mode": "fusion",
+      "visible_targets": 2,
+      "geometric_iou_hits": 2,
+      "actionable_safe_point_hits": 2,
+      "false_actionable_proposals": 1,
+      "wrong_typed_proposals": 0,
+      "proposals": 5
+    }
+  ],
+  "oracle_fixed_candidate_gates": [
+    {
+      "case": "wide_button",
+      "instance": "continue",
+      "oracle_needs_refinement": false,
+      "old_gate": false,
+      "new_gate": false,
+      "reasons": []
+    },
+    {
+      "case": "duplicate_rows",
+      "instance": "row_a_save",
+      "oracle_needs_refinement": true,
+      "old_gate": false,
+      "new_gate": true,
+      "reasons": [
+        "repeated_label"
+      ]
+    },
+    {
+      "case": "duplicate_rows",
+      "instance": "row_b_save",
+      "oracle_needs_refinement": true,
+      "old_gate": false,
+      "new_gate": true,
+      "reasons": [
+        "repeated_label"
+      ]
+    },
+    {
+      "case": "border_recovery",
+      "instance": "download",
+      "oracle_needs_refinement": false,
+      "old_gate": false,
+      "new_gate": false,
+      "reasons": []
+    },
+    {
+      "case": "plain_miss",
+      "instance": "details",
+      "oracle_needs_refinement": false,
+      "old_gate": false,
+      "new_gate": false,
+      "reasons": []
+    },
+    {
+      "case": "fields",
+      "instance": "quantity",
+      "oracle_needs_refinement": true,
+      "old_gate": false,
+      "new_gate": true,
+      "reasons": [
+        "editability"
+      ]
+    },
+    {
+      "case": "fields",
+      "instance": "reviewed",
+      "oracle_needs_refinement": true,
+      "old_gate": false,
+      "new_gate": true,
+      "reasons": [
+        "small_target",
+        "editability",
+        "checked_state"
+      ]
+    }
+  ]
+}
