@@ -69,6 +69,8 @@ class ActionModel:
         # trial with it absent plus repeated successful support.
         preconditions = list(schema.preconditions)
         for name, predicate in before_map.items():
+            if any(e.predicate == name and e.resulting_value == predicate.value for e in effects):
+                continue
             index = next((i for i, item in enumerate(preconditions) if item.predicate == name and item.required_value == predicate.value), None)
             if outcome == "effective":
                 if index is None: preconditions.append(ActionPrecondition(name, predicate.value, "unknown", 1, 0, (evidence_id,)))
@@ -134,7 +136,8 @@ class ActionModel:
                 conditions = tuple(ActionPrecondition(x["predicate"], x["required_value"],
                     "unknown" if x.get("status") == "required" and not x.get("intervention_support", 0) else x.get("status", "unknown"),
                     x.get("support", 0), x.get("contradiction", 0), tuple(x.get("evidence_ids", [])), x.get("intervention_support", 0))
-                    for x in item.get("preconditions", []))
+                    for x in item.get("preconditions", [])
+                    if not any(e.predicate == x["predicate"] and e.resulting_value == x["required_value"] for e in effects))
                 schemas.append(ActionSchema(item["id"], item["semantic_name"], item.get("scope", scope), item["target_signature"], item["safety_class"], conditions, effects, tuple(item.get("evidence_ids", [])), tuple(item.get("contradictions", [])), item.get("version", 1), item.get("action_type", "click")))
             except (AttributeError, KeyError, TypeError) as exc:
                 raise ValueError("malformed action schema") from exc

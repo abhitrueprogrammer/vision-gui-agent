@@ -15,13 +15,37 @@ from typing import Any, Callable, Protocol
 from PIL import Image, ImageDraw, ImageFont
 from playwright.async_api import Error as PlaywrightError, Page
 
-from .models import ActionDecision, Element, Observation
+from .models import ActionDecision, Element, Observation, json_value
 from .gemini import GeminiClientPool
 from .capture import capture_screen
 
 
 class GroundingAbstention(ValueError):
     """The selected instance could not be confirmed; no input may be dispatched."""
+
+
+def _normalized_box(values, size: tuple[int, int]) -> tuple[float, float, float, float]:
+    """Decode explicitly normalized [top,left,bottom,right], never infer units."""
+    if not isinstance(values, list) or len(values) != 4:
+        raise ValueError("box_2d requires four normalized corners")
+    top, left, bottom, right = (float(v) for v in values)
+    if not all(math.isfinite(v) and 0 <= v <= 1000 for v in (top,left,bottom,right)) or top >= bottom or left >= right:
+        raise ValueError("invalid normalized corners")
+    return left*size[0]/1000, top*size[1]/1000, (right-left)*size[0]/1000, (bottom-top)*size[1]/1000
+
+
+def _semantic_schema(refinement: bool = False) -> dict:
+    box = {"type":"ARRAY", "items":{"type":"NUMBER"}, "minItems":4, "maxItems":4, "nullable":True}
+    props = {"box_2d":box, "kind":{"type":"STRING", "enum":["button","link","input","select","textarea","checkbox","menuitem","text","other"]},
+             "label":{"type":"STRING"}, "actionable":{"type":"BOOLEAN"},
+             "context":{"type":"STRING"}, "context_box_2d":box,
+             "input_type":{"type":"STRING"}, "value":{"type":"STRING", "nullable":True}}
+    props.update({key:{"type":"BOOLEAN", "nullable":True} for key in ("checked","enabled","readonly","selected")})
+    if refinement:
+        props.update(found={"type":"BOOLEAN"}, instance_confirmed={"type":"BOOLEAN"})
+    item = {"type":"OBJECT", "properties":props, "required":list(props)}
+    return item if refinement else {"type":"OBJECT", "properties":{
+        "screen_label":{"type":"STRING"}, "elements":{"type":"ARRAY", "items":item}}, "required":["screen_label","elements"]}
 
 
 def _observed_state(item: dict) -> tuple[str, ...]:
@@ -81,6 +105,10 @@ class OmniParserVisualGrounder:
         self.detector: Any = detector
         self.ocr: Callable[..., Any] = ocr
         self._injected, self.refiner = injected, refiner
+
+    @property
+    def last_refinement_rejection(self) -> str | None:
+        return getattr(self.refiner, "last_refinement_rejection", None)
 
     async def refine(self, screenshot: Path, target: Element, **context) -> Element | None:
         return await self.refiner.refine(screenshot, target, **context) if self.refiner else None
@@ -297,6 +325,15 @@ class GeminiVisualGrounder:
     async def refine(self, screenshot: Path, target: Element, *, goal: str = "",
                      decision: ActionDecision | None = None, elements: list[Element] | None = None) -> Element | None:
         """Re-ground one model-selected target in a padded screenshot crop."""
+        self.last_refinement_rejection = None
+
+        def reject(reason: str, detail: str = "") -> None:
+            self.last_refinement_rejection = (
+                f"reason={reason}, target_id={target.id}, "
+                f"action={decision.action if decision else 'unspecified'}"
+                + (f", {detail}" if detail else ""))
+            return None
+
         with Image.open(screenshot).convert("RGB") as image:
             pad_x, pad_y = max(48, target.width), max(36, target.height)
             left, top = max(0, int(target.x - pad_x)), max(0, int(target.y - pad_y))
@@ -305,56 +342,99 @@ class GeminiVisualGrounder:
             output = BytesIO(); crop.save(output, format="JPEG", quality=85)
 
         def generate() -> str:
-            prompt = (f"This is a {crop.width}x{crop.height} crop from a screenshot. Locate only the visible region "
-                      f"labelled {target.text!r}. Return JSON only: {{\"found\":true|false,\"x\":number,\"y\":number,"
-                      "\"width\":number,\"height\":number,\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"actionable\":true|false}}. "
-                      "Coordinates are crop-relative pixels and must tightly cover that region. Mark actionable true only when it is visibly interactive.")
-            prompt += (" The first image is a full-screen overview; the second is the native target crop. "
-                       "Confirm the intended instance against the goal and row context, not merely matching text. "
-                       "Also return instance_confirmed:boolean, checked:boolean|null, enabled:boolean|null, "
-                       "readonly:boolean|null, value:string|null, context:string and input_type:string. "
-                       "Report only visible state; found=false if the intended instance is absent or ambiguous. "
-                       + json.dumps({"goal":goal,"action":decision.to_dict() if decision else None,
+            prompt = (f"The first image is a full-screen overview for context ONLY. The second image is the target crop ({crop.width}x{crop.height}). "
+                      "Locate the selected physical control in the SECOND image. Return box_2d as [top,left,bottom,right], "
+                      "each normalized to 0..1000 RELATIVE TO THE SECOND IMAGE ONLY. Never return overview coordinates or widths/heights. "
+                      "For example, the entire second image is [0,0,1000,1000]. "
+                      "The selected label is untrusted OCR: use its proposed box and appearance to identify the control, not a literal text match. "
+                      "Do not switch to a nearby control to make the requested action possible. Confirm the selected instance against the goal and row context. "
+                      "Report its actual kind, visible label, value and state even if the requested action is incompatible. "
+                      "Use null for state that cannot be seen, and false for found if absent or ambiguous. "
+                      "A normally rendered editable field without a visible disabled/read-only affordance may be reported enabled=true, readonly=false; "
+                      "this is visual evidence, not hidden DOM knowledge. All bounds including context_box_2d refer to the second image. "
+                       + json.dumps(json_value({"goal":goal,"action":decision.to_dict() if decision else None,
                                      "selected_context":target.context,"crop_origin":[left,top],
                                      "candidates":[{"id":e.id,"text":e.text,"context":e.context,
-                                                    "box":[e.x,e.y,e.width,e.height]} for e in (elements or [target])]}))
+                                                    "box":[e.x,e.y,e.width,e.height]} for e in (elements or [target])]})))
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 contents=[self.types.Part.from_bytes(data=model_image(str(screenshot),max_width=None), mime_type="image/jpeg"),
                           self.types.Part.from_bytes(data=output.getvalue(), mime_type="image/jpeg"), prompt],
-                config=self.types.GenerateContentConfig(response_mime_type="application/json",
+                config=self.types.GenerateContentConfig(response_mime_type="application/json", response_schema=_semantic_schema(True),
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)),
             ))
             return response.text
 
+        def unavailable(stage: str, detail: str) -> GroundingAbstention:
+            # This text reaches both verbose output and the persisted transition.
+            # Never include raw exception messages or model response bodies: SDK
+            # errors can contain request data, credentials or private screen text.
+            return GroundingAbstention(
+                f"Semantic refinement is unavailable (stage={stage}, "
+                f"model={getattr(self, 'model', 'unknown')}, target_id={target.id}, "
+                f"action={decision.action if decision else 'unspecified'}): {detail}")
+
         try:
-            result = json.loads(await asyncio.to_thread(generate))
-            # The model sometimes wraps the single requested object in a JSON
-            # array even though the prompt asks for an object; unwrap it
-            # rather than crash on .get() against a list.
-            if isinstance(result, list):
-                result = result[0] if len(result) == 1 and isinstance(result[0], dict) else {}
-            if not isinstance(result, dict) or result.get("found") is not True: return None
-            if target.proposal_sources and not target.semantic_confirmed and result.get("actionable") is not True:
-                return None
-        except Exception:
-            raise GroundingAbstention("Semantic refinement is unavailable") from None
+            raw = await asyncio.to_thread(generate)
+        except Exception as exc:
+            detail = type(exc).__name__
+            status = getattr(exc, "code", None)
+            if not isinstance(status, int):
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+            if isinstance(status, int) and 100 <= status <= 599:
+                hints = {400: "request rejected", 401: "authentication failed", 403: "permission denied",
+                         404: "model or endpoint unavailable", 429: "rate limit or quota exhausted"}
+                hint = hints.get(status, "service failure" if status >= 500 else "HTTP request failure")
+                detail += f"; http_status={status}; {hint}"
+            elif "timeout" in type(exc).__name__.casefold():
+                detail += "; request timed out"
+            else:
+                # A location makes local preparation/SDK errors actionable without
+                # exposing the exception text or stack-frame local variables.
+                import traceback
+                frames = traceback.extract_tb(exc.__traceback__)
+                if frames:
+                    frame = frames[-1]
+                    detail += f"; location={Path(frame.filename).name}:{frame.lineno} ({frame.name})"
+            raise unavailable("generate", detail) from None
+        if not isinstance(raw, str) or not raw.strip():
+            raise unavailable("response", "empty text response") from None
         try:
-            x, y, width, height = (float(result[name]) for name in ("x", "y", "width", "height"))
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-            return None
+            result = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise unavailable("parse", f"JSONDecodeError; line={exc.lineno}; column={exc.colno}; response_chars={len(raw)}") from None
+        # Accept the existing single-object array representation as well.
+        if isinstance(result, list):
+            if len(result) != 1 or not isinstance(result[0], dict):
+                return reject("invalid_response_shape")
+            result = result[0]
+        if not isinstance(result, dict): return reject("invalid_response_shape")
+        if result.get("found") is False: return reject("not_found_or_ambiguous")
+        if result.get("found") is not True: return reject("invalid_found_flag")
+        if target.proposal_sources and not target.semantic_confirmed and result.get("actionable") is not True:
+            return reject("actionability_unconfirmed")
+        try:
+            x, y, width, height = (_normalized_box(result["box_2d"], crop.size) if "box_2d" in result else
+                                   tuple(float(result[name]) for name in ("x", "y", "width", "height")))
+        except (KeyError, TypeError, ValueError):
+            return reject("invalid_bounds")
         if not all(math.isfinite(value) for value in (x, y, width, height)) or width < 2 or height < 2:
-            return None
+            return reject("invalid_box_size")
         if x < 0 or y < 0 or x + width > crop.width or y + height > crop.height:
-            return None
+            return reject("bounds_outside_crop", f"box={[x,y,width,height]}, crop_size={[crop.width,crop.height]}")
         if elements and sum(e.text.casefold() == target.text.casefold() for e in elements) > 1 and result.get("instance_confirmed") is not True:
-            return None
+            return reject("instance_unconfirmed")
         x1, y1 = left + x, top + y
         x2, y2 = min(float(right), x1 + width), min(float(bottom), y1 + height)
+        if target.proposal_sources and not (target.x <= x1+width/2 <= target.x+target.width
+                                            and target.y <= y1+height/2 <= target.y+target.height):
+            return reject("selected_instance_changed")
         kind = str(result.get("kind", target.tag)).strip().lower()
         kind = kind if kind in {"button", "link", "input", "select", "textarea", "checkbox", "menuitem", "text", "other"} else target.tag
         actionable = result.get("actionable") if isinstance(result.get("actionable"), bool) else target.actionable
         if result.get("enabled") is False: actionable = False
+        if not actionable:
+            reject("disabled_control" if result.get("enabled") is False else "non_actionable_control")
         observed = _observed_state(result)
         return replace(target, x=x1, y=y1, width=x2-x1, height=y2-y1, tag=kind, role=kind, actionable=actionable,
                        checked=result.get("checked") if isinstance(result.get("checked"),bool) else None,
@@ -375,17 +455,22 @@ class GeminiVisualGrounder:
             image_size = image.size
 
         def generate() -> str:
-            prompt = f"""Inspect this {image_size[0]}x{image_size[1]} screenshot only. Do not use or assume HTML, DOM, accessibility metadata, URLs, or hidden state.
-Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}}. Include every visible actionable control and the small number of headings, messages, selected values, or status text needed to distinguish this screen. Each item must be {{\"kind\":\"button|link|input|select|textarea|checkbox|menuitem|text|other\",\"label\":\"visible text, visible field value, or short visual description\",\"value\":\"visible field value or empty\",\"actionable\":true|false,\"context\":\"visible row/container text or empty\",\"context_bounds\":[x,y,width,height] or null,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}. For a visible list, table, cart, selected-items, folder, or summary row, include its full visible row text as context and its row bounds; include a visible quantity using words such as 'quantity 2'. Coordinates must be pixels in the stated native screenshot size, boxes must tightly cover the visible region, and uncertain regions must be omitted. Text/status evidence is actionable=false."""
+            prompt = (f"Inspect this {image_size[0]}x{image_size[1]} screenshot only. Never use DOM or hidden state. "
+                      "Return visible controls and distinguishing status text. box_2d and context_box_2d must be "
+                      "[top,left,bottom,right] normalized to 0..1000 on THIS image. Do not return pixel coordinates or widths/heights. "
+                      "Boxes tightly bound each control separately: an input excludes adjacent dropdowns/buttons. "
+                      "Include actual kind, visible label/value, row context and visible checked/enabled/readonly/selected state. "
+                      "Use null when state cannot be seen. A normally rendered editable field without a visible disabled/read-only affordance "
+                      "may be reported enabled=true, readonly=false; never infer hidden state. Disabled controls and text are actionable=false. ")
             if query:
-                prompt += " Recover only visible targets matching this intended control: " + query + ". Return no candidates if absent or ambiguous."
-            prompt += " Report checked, selected, enabled, readonly as boolean or null only when visibly established; report input_type only when visible type evidence exists. Never guess hidden state."
+                prompt += ("This is a targeted recovery request: return ONLY controls matching the intended target below, not an inventory of the page. "
+                           "Return no candidates if absent or ambiguous. Target: " + query)
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 # Detection coordinates must use the screenshot's native pixel grid.
                 contents=[self.types.Part.from_bytes(data=model_image(str(screenshot), max_width=None), mime_type="image/jpeg"), prompt + " Visibly greyed-out, faded, or disabled controls are not actionable; report them as actionable=false if included."],
                 config=self.types.GenerateContentConfig(
-                    response_mime_type="application/json",
+                    response_mime_type="application/json", response_schema=_semantic_schema(),
                     automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True),
                 ),
             ))
@@ -407,7 +492,8 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
             if not isinstance(item, dict):
                 continue
             try:
-                x, y, width, height = (float(item[name]) for name in ("x", "y", "width", "height"))
+                x, y, width, height = (_normalized_box(item["box_2d"], image_size) if "box_2d" in item else
+                                       tuple(float(item[name]) for name in ("x", "y", "width", "height")))
                 label, kind = str(item.get("label", "")).strip()[:200], str(item["kind"]).strip().lower()
             except (KeyError, TypeError, ValueError):
                 continue
@@ -428,8 +514,11 @@ Return JSON only: {{\"screen_label\":\"short semantic name\",\"elements\":[...]}
                     and values[0] >= 0 and values[1] >= 0 and values[2] > 0 and values[3] > 0
                     and values[0]+values[2] <= image_size[0] and values[1]+values[3] <= image_size[1]) else None
             except (TypeError, ValueError): context_bounds = None
+            if "context_box_2d" in item:
+                try: context_bounds = _normalized_box(item["context_box_2d"], image_size)
+                except (TypeError, ValueError): context_bounds = None
             candidate = Element(len(elements) + 1, "", kind, label, "", "", kind, x1, y1, x2 - x1, y2 - y1,
-                                value=str(item.get("value", "")).strip()[:200],
+                                value=item["value"].strip()[:200] if isinstance(item.get("value"), str) else "",
                                 actionable=actionable and item.get("enabled") is not False,
                                 checked=item.get("checked") if isinstance(item.get("checked"), bool) else None,
                                 enabled=item.get("enabled") if isinstance(item.get("enabled"), bool) else True,

@@ -6,7 +6,7 @@ import re
 from typing import Protocol
 
 from .gemini import GeminiClientPool, configured_gemini_keys
-from .models import ActionDecision, ActionRecord, GoalConstraint, Observation
+from .models import ActionDecision, ActionRecord, GoalConstraint, Observation, json_value
 from .perception import model_image, selection_tiles
 
 
@@ -110,6 +110,7 @@ class GeminiPolicy:
                   "Use target_text or extremum only with scope affected_items. Put matching text in expected and the supporting goal phrase in source_span. "
                   "Return constraints:[] if none. Reject any requirement you cannot express exactly in that schema. Goal: " + goal)
         def generate() -> str:
+            self.last_response = None
             return self._generate(lambda client: client.models.generate_content(model=self.model, contents=prompt,
                 config=self.types.GenerateContentConfig(response_mime_type="application/json", automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)))).text
         self.last_response = await asyncio.to_thread(generate)
@@ -133,7 +134,7 @@ class GeminiPolicy:
             "graph_context": graph_context,
             "recent_actions": [record.to_dict() for record in history[-8:]],
             "instructions": (
-                "Choose exactly one next action. Return a JSON array containing one object only. Fields: action "
+                "First assess whether the goal is already complete on the visible destination screen; if so choose done with current evidence. Otherwise choose exactly one next action. The screen_label is an OCR heuristic, not an authoritative page title. Return a JSON array containing one object only. Fields: action "
                 "(click|fill|select|set_checked|set_date|set_range|upload|set_color|press|scroll|inspect|done), element_id when needed, text for "
                 "fill/select/set_date/set_range/upload/set_color, checked (boolean) for set_checked, key for press, direction for scroll, current_label (short semantic "
                 "name of the visible state), next_label (predicted resulting state), rationale, impact "
@@ -155,10 +156,9 @@ class GeminiPolicy:
                 "Do not call a constraint unavailable merely because an intermediate search, suggestion, category, or navigation list lacks it. A visible list proves unavailability only when it is explicitly exhaustive or contains the final selectable objects, and every visible object has been checked. "
                 "The graph_context completion field lists the visible controls required by an all/every editable goal. Prefer a distinct item from completion.remaining and do not submit while it is non-empty. Before a final search, submit, or done action, compare every explicit goal requirement with the visible form state and set any missing or contradictory mode, option, value, or cardinality first. A high-impact action (download, submit, destructive/financial action, or done) requires all material constraints "
                 "to have validated evidence or a reasoned unavailable status. Ranking needs observed ordering or candidate comparison; first result is not proof. Use done only when "
-                "the user goal is complete on the destination screen, not while it is merely visible in search or autocomplete suggestions; for a goal requesting a download or a file export, click the control that creates the file with verify:{kind:'download_created'} and ground that target with its exact visible element_text or value. done is valid only after that click has verified download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
+                "the user goal is complete on the destination screen, not while it is merely visible in search or autocomplete suggestions; for a goal requesting a download or a file export, click the control that creates the file with verify:{kind:'download_created'} and ground that target with its exact visible element_text or value. For download/export goals only, done requires that click to have verified download_created in recent_actions. done may use a state-only verify (element_visible, element_absent, element_value), but not page_changed or download_created. "
                 "A done action must include either a state-only verify or grounding that cites currently visible evidence which appeared because of this workflow. Persistent headings, navigation, form labels, and submit buttons never prove completion. "
-                "Put download_created only on the final click that actually creates the file, never on a control that merely opens export options/modal or selects a format, and never on done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"element_visible\",\"pattern\":\"Account\"}}. Each later action's current_label must match the prior "
-                "action's next_label. The agent will stop the plan if the visible state changes unexpectedly."
+                "Put download_created only on the final click that actually creates the file, never on a control that merely opens export options/modal or selects a format, and never on done. Example: {\"action\":\"click\",\"element_id\":2,\"verify\":{\"kind\":\"element_visible\",\"pattern\":\"Account\"}}. Labels describe the current screen and predicted result of this one action; subsequent actions are chosen from fresh observations."
             ),
         }
         tiles = selection_tiles(observation)
@@ -168,9 +168,10 @@ class GeminiPolicy:
                                     "Only one action runs before observing again. Generic pixel changes are supporting evidence, not completion proof. "
                                     "Native helpers require hybrid execution; unsupported control types/states must be inspected or refused.")
         def generate() -> str:
+            self.last_response = None
             contents = [self.types.Part.from_bytes(data=model_image(observation.marked_screenshot_path,max_width=None), mime_type="image/jpeg")]
             contents += [self.types.Part.from_bytes(data=data,mime_type="image/png") for _,data in tiles]
-            contents.append(json.dumps(prompt))
+            contents.append(json.dumps(json_value(prompt)))
             response = self._generate(lambda client: client.models.generate_content(
                 model=self.model,
                 contents=contents,

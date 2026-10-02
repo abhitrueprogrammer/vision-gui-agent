@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import socket
+import time
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -33,6 +36,17 @@ def _quota_exhausted(error: Exception) -> bool:
     return "RESOURCE_EXHAUSTED" in message or "429" in message
 
 
+def _temporary_dns_failure(error: BaseException) -> bool:
+    # SDK/httpx wrappers retain the resolver error in their exception chain.
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, socket.gaierror) and error.errno == socket.EAI_AGAIN:
+            return True
+        error = error.__cause__ or error.__context__
+    return False
+
+
 class GeminiClientPool:
     """Use the next configured key when Gemini reports quota exhaustion."""
 
@@ -54,12 +68,22 @@ class GeminiClientPool:
         return self._genai.Client(api_key=self._keys[self._index], http_options=self.types.HttpOptions(timeout=60_000))
 
     def generate(self, request: Callable[[Any], T]) -> T:
+        dns_retries = 0
         for attempt in range(len(self._keys)):
-            try:
-                return request(self.client)
-            except Exception as error:
-                if not _quota_exhausted(error) or attempt + 1 == len(self._keys):
-                    raise
-                self._index = (self._index + 1) % len(self._keys)
-                self.client = self._new_client()
+            while True:
+                try:
+                    return request(self.client)
+                except Exception as error:
+                    if _temporary_dns_failure(error) and dns_retries < 2:
+                        delay = .5 * (2 ** dns_retries)
+                        dns_retries += 1
+                        logging.getLogger(__name__).warning(
+                            "Temporary Gemini DNS failure; retry %s/2 in %.1fs", dns_retries, delay)
+                        time.sleep(delay)
+                        continue
+                    if not _quota_exhausted(error) or attempt + 1 == len(self._keys):
+                        raise
+                    self._index = (self._index + 1) % len(self._keys)
+                    self.client = self._new_client()
+                    break
         raise AssertionError("unreachable")

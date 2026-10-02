@@ -17,7 +17,7 @@ def _download_destination(directory: Path, suggested: str) -> Path:
 
 
 def requires_hybrid(decision: ActionDecision) -> bool:
-    return decision.action in {"upload", "set_color"} or bool(decision.verify and decision.verify.kind == "download_created")
+    return decision.action in {"upload", "set_color"}
 
 
 async def execute(page: Page, observation: Observation, decision: ActionDecision, download_dir: Path | None = None,
@@ -59,21 +59,24 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
         if element.checked == decision.checked:
             return None
     if decision.action == "click" and decision.verify and decision.verify.kind == "download_created":
-        if not hasattr(page, "expect_download"):
-            raise ValueError("download_created verification is available only in browser mode")
-        async with page.expect_download(timeout=5000) as download_info:
-            info["status"] = "dispatched"
-            await page.mouse.click(x, y)
-        download = await download_info.value
-        failure = await download.failure()
-        if failure: raise ValueError(f"Download failed: {failure}")
-        destination = _download_destination(download_dir or Path("artifacts/downloads"), download.suggested_filename)
-        await download.save_as(str(destination))
-        # A download-triggering click may also update the page (for example,
-        # closing an export modal and showing a ready status).  Let that
-        # ordinary UI update settle before the next screenshot is grounded.
+        if hasattr(page, "expect_download") and execution_mode == "hybrid":
+            async with page.expect_download(timeout=5000) as download_info:
+                info["status"] = "dispatched"
+                await page.mouse.click(x, y)
+            download = await download_info.value
+            failure = await download.failure()
+            if failure: raise ValueError(f"Download failed: {failure}")
+            destination = _download_destination(download_dir or Path("artifacts/downloads"), download.suggested_filename)
+            await download.save_as(str(destination))
+            # A download-triggering click may also update the page (for example,
+            # closing an export modal and showing a ready status).  Let that
+            # ordinary UI update settle before the next screenshot is grounded.
+            await page.wait_for_timeout(650)
+            return str(destination) if destination.is_file() and destination.stat().st_size else None
+        info["status"] = "dispatched"
+        await page.mouse.click(x, y)
         await page.wait_for_timeout(650)
-        return str(destination) if destination.is_file() and destination.stat().st_size else None
+        return None
     info["status"] = "dispatched"
     await page.mouse.click(x, y)
     if decision.action in {"fill", "set_date"}:

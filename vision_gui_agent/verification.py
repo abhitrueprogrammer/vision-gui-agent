@@ -158,6 +158,8 @@ async def verify(page: Page, source: Observation, latest: Observation, condition
         passed = page_changed
     else:  # download_created
         passed = bool(download_path and Path(download_path).is_file() and Path(download_path).stat().st_size)
+        if not passed and page_changed:
+            return VerificationResult("ambiguous", "download_created: visual change observed, file unverified")
     if condition.kind in {"page_changed", "element_changed"} and passed:
         return VerificationResult("ambiguous", f"{condition.kind}: visual change is supporting evidence only")
     return VerificationResult("passed" if passed else "failed", f"{condition.kind} {'passed' if passed else 'did not pass'}", download_path)

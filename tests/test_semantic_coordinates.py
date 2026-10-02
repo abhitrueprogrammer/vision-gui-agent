@@ -1,0 +1,64 @@
+import asyncio
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+import json
+from PIL import Image
+from vision_gui_agent.models import Element
+from vision_gui_agent.perception import GeminiVisualGrounder
+
+
+class SemanticCoordinateTests(unittest.TestCase):
+    def grounder(self, response):
+        grounder=object.__new__(GeminiVisualGrounder)
+        grounder._generate=lambda request:SimpleNamespace(text=json.dumps(response))
+        return grounder
+
+    def test_discovery_decodes_normalized_corners_once(self):
+        grounder=self.grounder({'elements':[{'kind':'input','label':'Search','box_2d':[470,330,515,565],
+            'context_box_2d':[470,330,515,655],'enabled':True,'readonly':False,'actionable':True}]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+            elements=asyncio.run(grounder.detect(path))
+        self.assertEqual(len(elements),1)
+        target=elements[0]
+        for actual,expected in zip((target.x,target.y,target.width,target.height),(475.2,470,338.4,45)):
+            self.assertAlmostEqual(actual,expected)
+        self.assertAlmostEqual(target.context_bounds[2],468)
+
+    def test_refinement_uses_crop_dimensions_and_one_origin_offset(self):
+        grounder=self.grounder({'found':True,'actionable':True,'kind':'button','box_2d':[250,250,750,750]})
+        target=Element(1,'','button','Go','','','button',400,300,40,40)
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+            refined=asyncio.run(grounder.refine(path,target))
+        self.assertIsNotNone(refined)
+        # Crop [352,260,488,380]: 136x120.
+        self.assertEqual((refined.x,refined.y,refined.width,refined.height),(386,290,68,60))
+
+    def test_invalid_normalized_box_never_falls_back_to_legacy_coordinates(self):
+        for box in ([0,-2,500,1000],[500,100,100,500],[0,0,1001,1000]):
+            grounder=self.grounder({'elements':[{'kind':'input','label':'Search','box_2d':box,
+                                               'x':10,'y':10,'width':100,'height':40}]})
+            with self.subTest(box=box),tempfile.TemporaryDirectory() as tmp:
+                path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+                self.assertEqual(asyncio.run(grounder.detect(path)),[])
+
+    def test_refinement_cannot_switch_to_adjacent_control(self):
+        grounder=self.grounder({'found':True,'actionable':True,'kind':'button','box_2d':[250,700,750,950]})
+        target=Element(1,'','other','EN','','','other',100,100,40,40,proposal_sources=('detector',))
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(400,300),'white').save(path)
+            refined=asyncio.run(grounder.refine(path,target))
+        self.assertIsNone(refined)
+        self.assertIn('selected_instance_changed',grounder.last_refinement_rejection)
+
+    def test_null_value_is_unknown_not_literal_none(self):
+        grounder=self.grounder({'elements':[{'kind':'input','label':'Search','box_2d':[100,100,200,500],
+                                           'value':None,'actionable':True}]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+            element=asyncio.run(grounder.detect(path))[0]
+        self.assertEqual(element.value,'')
+        self.assertNotIn('value',element.state_observed)

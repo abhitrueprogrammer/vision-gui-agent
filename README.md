@@ -20,10 +20,10 @@ GEMINI_API_KEY=first-key
 GEMINI_API_KEY_2=second-key
 ```
 
-OmniParser + RapidOCR grounding is the default. The `third_party/OmniParser` directory is empty in this checkout, so provide a compatible OmniParser checkout there or set `OMNIPARSER_HOME` to its location:
+OmniParser + RapidOCR grounding is the default. The `third_party/OmniParser` directory is empty in this checkout, so clone the parser to its correct location by:
 
 ```bash
-export OMNIPARSER_HOME=/path/to/OmniParser
+git clone https://github.com/microsoft/OmniParser.git third_party/OmniParser
 ```
 
 The integration specifically expects `util/yolov9.py` exposing `YOLOv9Detector` and initializes it with `revision="refs/pr/37"`. A checkout with a different API will need an adapter; an arbitrary upstream checkout is not guaranteed to work. Detector initialization may need network access to retrieve model weights.

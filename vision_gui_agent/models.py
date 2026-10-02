@@ -235,7 +235,7 @@ class ActionDecision:
     def validate_for(self, observation: Observation) -> None:
         elements = {element.id: element for element in observation.elements}
         if self.element_id is not None and self.element_id not in elements: raise ValueError(f"Element {self.element_id} is not present in this observation")
-        if self.element_id is not None and not elements[self.element_id].actionable: raise ValueError(f"Element {self.element_id} is visual evidence, not an actionable control")
+        if self.action != "done" and self.element_id is not None and not elements[self.element_id].actionable: raise ValueError(f"Element {self.element_id} is visual evidence, not an actionable control")
         target = elements.get(self.element_id) if self.element_id is not None else None
         if target and self.action in {"fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color"} and (not target.enabled or target.readonly):
             raise ValueError(f"Element {self.element_id} is not editable")

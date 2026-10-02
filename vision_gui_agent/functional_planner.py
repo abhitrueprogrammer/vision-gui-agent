@@ -26,7 +26,8 @@ class FunctionalPlanner:
             chain: list[ActionSchema] = []
             valid = True
             for condition in schema.preconditions:
-                if condition.status != "required" or condition.confidence < self.min_confidence: continue
+                if condition.status not in {"required", "unknown"} or condition.confidence < self.min_confidence: continue
+                if (condition.predicate, condition.required_value) == key: continue
                 actual = branch.get(condition.predicate)
                 if actual and actual.value == condition.required_value: continue
                 required = self._establish(condition.predicate, condition.required_value, branch, depth + 1, visiting | {key})

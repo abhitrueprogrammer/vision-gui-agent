@@ -8,23 +8,23 @@ import re
 import traceback
 from dataclasses import dataclass, replace
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, time
 from uuid import uuid4
 
 from playwright.async_api import Page
 
 from .decision import Policy
 from .action_model import ActionModel
-from .executor import execute, requires_hybrid
+from .executor import execute, requires_hybrid, _download_destination
 from .capture import StaleObservation
 from .experimentation import ExperimentSelector
 from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
 from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition, VerificationResult
-from .predicates import PredicateExtractor
+from .predicates import PredicateExtractor, delta
 from .perception import GroundingAbstention, VisualGrounder, draw_set_of_mark, observe, refinement_reasons
 from .state_graph import StateGraph, instance_matches
-from .verification import already_satisfied, control_key, verify
+from .verification import already_satisfied, control_key, verify, _same_visual_element
 
 
 @dataclass(frozen=True)
@@ -301,6 +301,26 @@ class Agent:
         return any(Path(path).is_file() and Path(path).stat().st_size for path in download_paths)
 
     @staticmethod
+    def _recent_downloads(since_time: float) -> list[str]:
+        try:
+            downloads = Path.home() / "Downloads"
+            if not downloads.is_dir():
+                return []
+            found = []
+            for item in downloads.iterdir():
+                if item.is_file() and not item.name.startswith("."):
+                    try:
+                        stat = item.stat()
+                        if stat.st_mtime >= since_time and stat.st_size > 0:
+                            found.append((stat.st_mtime, str(item)))
+                    except OSError:
+                        pass
+            found.sort()
+            return [path for _, path in found]
+        except Exception:
+            return []
+
+    @staticmethod
     def _is_high_impact(decision: ActionDecision, observation: Observation) -> bool:
         if decision.impact == "high" or decision.action == "done" or decision.verify and decision.verify.kind == "download_created": return True
         element = next((item for item in observation.elements if item.id == decision.element_id), None)
@@ -311,7 +331,7 @@ class Agent:
 
     @staticmethod
     def _is_submit_control(element) -> bool:
-        if not element: return False
+        if not element or Agent._is_final_file_control(element): return False
         return element.input_type == "submit" or "submit" in " ".join((element.text, element.aria_label, element.value)).casefold()
 
     @staticmethod
@@ -574,6 +594,36 @@ class Agent:
                 self.graph.add_transition(source_node, target_node, decision, True, goal, run_id, verification_status=status)
             self.graph.mark_run_completed(run_id)
 
+    async def _refresh_control_state(self, source: Observation, latest: Observation,
+                                     condition: VerificationCondition | None) -> Observation:
+        """Read missing state from fresh pixels; never give the reader the expected value."""
+        if (condition is None or condition.kind not in {"element_value", "element_checked"}
+                or source.url != latest.url or not hasattr(self.grounder, "refine")):
+            return latest
+        target = next((e for e in source.elements if e.id == condition.element_id), None)
+        if target is None or not target.proposal_sources or not target.semantic_confirmed:
+            return latest
+        current = await verify(None, source, latest, condition, self.config.hash_threshold)
+        if current.status != "unavailable":
+            return latest
+        # Previous values and intended outcomes must not become new evidence.
+        identity = replace(target, value="", checked=None, selected=False, state_observed=())
+        try:
+            refined = await self.grounder.refine(Path(latest.screenshot_path), identity,
+                goal="Read the current visible state of this same physical control. Report only what is visible now.",
+                decision=None, elements=latest.elements)
+        except GroundingAbstention:
+            return latest
+        if refined is None or not refined.actionable or refined.tag != target.tag:
+            return latest
+        existing = _same_visual_element(source, latest, target.id)
+        ident = existing.id if existing else max((e.id for e in latest.elements), default=0)+1
+        elements = [e for e in latest.elements if not existing or e.id != existing.id]
+        elements.append(replace(refined, id=ident))
+        marked = Path(latest.marked_screenshot_path).with_name(f"state-{uuid4().hex}.png")
+        draw_set_of_mark(Path(latest.screenshot_path), marked, elements)
+        return replace(latest, elements=elements, marked_screenshot_path=str(marked))
+
     async def run(self, page: Page, goal: str) -> RunResult:
         self.config.artifact_dir.mkdir(parents=True, exist_ok=True)
         logger, run_id = RunLogger(self.config.database_path), uuid4().hex
@@ -593,6 +643,24 @@ class Agent:
         path: list[str] = []
         discovery_attempts = 0
         planned: list[ActionDecision] = []
+        run_started_time = time()
+        downloads_dir = self.config.artifact_dir / run_id / "downloads"
+        if hasattr(page, "on"):
+            def _on_download(download):
+                async def _save():
+                    try:
+                        destination = _download_destination(downloads_dir, download.suggested_filename)
+                        await download.save_as(str(destination))
+                        dest_str = str(destination)
+                        if dest_str not in download_paths:
+                            download_paths.append(dest_str)
+                    except Exception:
+                        pass
+                asyncio.create_task(_save())
+            try:
+                page.on("download", _on_download)
+            except Exception:
+                pass
         templates: list[ReusableAction] = []
         workflow: list[ReusableAction] = []
         action_attempts: dict[str, int] = {}
@@ -706,13 +774,23 @@ class Agent:
                         logger.log(run_id,step,current_node,current_node,decision,True,observation,graph_context,
                                    before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable")
                         continue
-                    if decision.element_id is not None and hasattr(self.grounder, "refine"):
+                    if decision.action == "done":
+                        if not decision.grounding and decision.element_id is not None:
+                            target = next((item for item in observation.elements if item.id == decision.element_id), None)
+                            if target and target.text:
+                                decision = replace(decision, grounding=(EvidenceRecord("element_text", target.text, target.id),))
+                        decision = replace(decision, element_id=None)
+                    if decision.action != "done" and decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
+                        if target and not target.actionable:
+                            raise ValueError("Selected target is visual evidence, not an action target. Use inspect to recover a missing control, or done with evidence if the goal is complete.")
                         if target and refinement_reasons(target, observation.elements, decision):
                             refined = await self.grounder.refine(Path(observation.screenshot_path), target,
                                                                 goal=goal, decision=decision, elements=observation.elements)
                             if refined is None or not refined.actionable:
-                                raise GroundingAbstention("Selected target could not be confirmed")
+                                detail = getattr(self.grounder, "last_refinement_rejection", None)
+                                raise GroundingAbstention("Selected target could not be confirmed"
+                                                          + (f" ({detail})" if detail else ""))
                             observation = replace(observation, elements=[refined if item.id == refined.id else item for item in observation.elements])
                     target = next((item for item in observation.elements if item.id == decision.element_id), None)
                     if target and target.tag == "checkbox" and not self._numeric_checkbox(target) and (decision.verify is None or decision.verify.kind in {"element_visible", "element_enabled"}):
@@ -750,7 +828,7 @@ class Agent:
                     replay_key = self.graph.replay_key(keyed_decision)
                     key = self._attempt_key(keyed_decision)
                     attempt_replay_keys[key] = replay_key
-                    attempt_limit = 1 if self._is_high_impact(decision, observation) else self.config.max_action_attempts
+                    attempt_limit = 1 if (self._is_high_impact(decision, observation) and decision.action != "done") else self.config.max_action_attempts
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
                     self._merge_constraints(ledger, decision, observation, download_paths)
@@ -763,6 +841,10 @@ class Agent:
                         pending = required_fields - completed_fields
                         if pending:
                             raise ValueError(f"Submit deferred; incomplete visible fields: {', '.join(label for _, _, label in sorted(pending))}")
+                    if not self._has_download(download_paths):
+                        for p in self._recent_downloads(run_started_time):
+                            if p not in download_paths:
+                                download_paths.append(p)
                     self._guard(decision, observation, ledger, goal, download_paths)
                     if decision.action == "done" and action_executed:
                         if decision.verify and not self._fresh_verification(decision.verify, initial_observation, observation):
@@ -784,6 +866,7 @@ class Agent:
                     if self.config.verbose: print(f"[step {step}] {error}")
                     if isinstance(exc, GroundingAbstention):
                         observation = await observe(page, self.config.artifact_dir / run_id, step, self.grounder)
+                    await asyncio.sleep(0.5)
                     continue
                 except Exception as exc:
                     last_response = getattr(self.policy, "last_response", None)
@@ -829,15 +912,27 @@ class Agent:
                     dispatch_info = {}
                     action_attempts[key] = action_attempts.get(key, 0) + 1
                     started = perf_counter()
+                    started_time = time()
                     download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads",
                                                   execution_mode=self.config.execution_mode, dispatch_info=dispatch_info)
+                    if not download_path and download_paths:
+                        download_path = download_paths[-1]
                     action_executed = True
                     timings["execute_ms"] = (perf_counter() - started) * 1000
                     observed_at = perf_counter()
                     for verification_attempt in range(self.config.verification_attempts):
+                        if not download_path and download_paths:
+                            download_path = download_paths[-1]
+                        if not download_path:
+                            recent = self._recent_downloads(started_time)
+                            if recent:
+                                download_path = recent[-1]
+                                if download_path not in download_paths:
+                                    download_paths.append(download_path)
                         next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
                         if next_observation.url != observation.url:
                             next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
+                        next_observation = await self._refresh_control_state(observation, next_observation, decision.verify)
                         target_node, created = self.graph.add_observation(next_observation)
                         changed = (target_node != current_node or next_observation.url != observation.url
                                    or self._visible_signature(next_observation) != self._visible_signature(observation))
@@ -866,7 +961,13 @@ class Agent:
                         semantic = self._semantic_action(decision, observation)
                         before = self.predicates.extract(observation, f"{run_id}:{step}:before")
                         after = self.predicates.extract(next_observation, f"{run_id}:{step}:after")
-                        outcome = "effective" if verification.status == "passed" else "ambiguous"
+                        positives, _ = delta(before, after)
+                        if verification.status == "passed" or (success and bool(positives)):
+                            outcome = "effective"
+                        elif selected_experiment and not success:
+                            outcome = "ineffective"
+                        else:
+                            outcome = "ambiguous"
                         evidence_id = f"{run_id}:{step}"
                         schema = self.action_model.ingest(semantic, before, after, outcome, evidence_id,
                                                           intervention=selected_experiment is not None) if semantic else None
@@ -883,6 +984,9 @@ class Agent:
                     if not success:
                         planned.clear(); workflow.clear(); observation = next_observation; observe_ms = next_observe_ms
                         continue
+                    if changed or verification.status == "passed":
+                        action_attempts.clear()
+                        attempt_replay_keys.clear()
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
                     if verification.status != "passed" or next_observation.url != observation.url:
@@ -894,7 +998,8 @@ class Agent:
                         if (self._page_signature(next_observation) != expected.post_page or
                                 any(self._target_signature(item) == expected.target for item in next_observation.elements) != expected.target_present_after):
                             workflow.clear()
-                    if verification.download_path: download_paths.append(verification.download_path)
+                    if verification.download_path and verification.download_path not in download_paths:
+                        download_paths.append(verification.download_path)
                     self._prove_constraints(ledger, decision, observation, download_paths)
                     self._merge_constraints(ledger, decision, next_observation, download_paths)
                     observation = next_observation
