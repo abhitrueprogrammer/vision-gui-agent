@@ -780,6 +780,7 @@ class Agent:
                             if target and target.text:
                                 decision = replace(decision, grounding=(EvidenceRecord("element_text", target.text, target.id),))
                         decision = replace(decision, element_id=None)
+                    unrefined_observation = observation
                     if decision.action != "done" and decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
                         if target and not target.actionable:
@@ -934,8 +935,8 @@ class Agent:
                             next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
                         next_observation = await self._refresh_control_state(observation, next_observation, decision.verify)
                         target_node, created = self.graph.add_observation(next_observation)
-                        changed = (target_node != current_node or next_observation.url != observation.url
-                                   or self._visible_signature(next_observation) != self._visible_signature(observation))
+                        changed = (target_node != current_node or next_observation.url != unrefined_observation.url
+                                   or self._visible_signature(next_observation) != self._visible_signature(unrefined_observation))
                         verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
                                                     download_path=download_path, page_changed=changed)
                         if verification.status in {"passed", "not_requested"} or verification_attempt + 1 == self.config.verification_attempts:

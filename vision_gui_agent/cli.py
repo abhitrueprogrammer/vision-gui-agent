@@ -8,7 +8,7 @@ from urllib.parse import urlencode, urljoin
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
 from .agent import Agent, AgentConfig
-from .decision import GeminiPolicy
+from .decision import CascadingPolicy, GeminiPolicy, LayaPolicy
 from .logging_store import RunLogger
 from .perception import GeminiVisualGrounder, OmniParserVisualGrounder
 
@@ -56,8 +56,9 @@ async def _run(args: argparse.Namespace) -> int:
             experiment_budget=args.experiment_budget,
             experiment_sandbox=bool(args.benchmark_reset and args.benchmark_grounder),
         )
-        policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
+        gemini_policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
                               key_slot=args.gemini_key_slot)
+        policy = CascadingPolicy(LayaPolicy(), gemini_policy)
         grounder = (OmniParserVisualGrounder(refiner=GeminiVisualGrounder(args.model, args.gemini_key_slot))
                     if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot))
         if args.benchmark_grounder:
