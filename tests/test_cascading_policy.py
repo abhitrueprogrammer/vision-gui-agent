@@ -97,7 +97,7 @@ class CascadingPolicyTests(unittest.TestCase):
             res = asyncio.run(policy.decide("goal", obs, {}, history))
             self.assertEqual(res, dec_gemini)
             self.assertEqual(policy.last_source, "gemini")
-            self.assertIn("repeated previous action", mock_out.getvalue())
+            self.assertIn("repeated a recent action", mock_out.getvalue())
 
 
     def test_same_element_id_on_new_page_is_not_a_repeat(self):
@@ -112,6 +112,27 @@ class CascadingPolicyTests(unittest.TestCase):
         self.assertEqual(res, dec_laya)
         system2.decide.assert_not_called()
 
+    def test_cascades_on_ping_pong_between_two_controls(self):
+        system1, system2 = AsyncMock(), AsyncMock()
+        policy = CascadingPolicy(system1, system2)
+        tab = lambda name, ident: ActionDecision("click", ident, grounding=(EvidenceRecord("element_text", name, ident),))
+        system1.decide.return_value = [tab("Tab A", 1)]
+        system2.decide.return_value = [tab("Tab C", 3)]
+        history = [ActionRecord(tab("Tab A", 1), True), ActionRecord(tab("Tab B", 2), True)]
+        with patch("sys.stdout", new_callable=io.StringIO):
+            res = asyncio.run(policy.decide("goal", Observation("", "", [], "", "Screen"), {}, history))
+        self.assertEqual(res, system2.decide.return_value)
+
+    def test_aria_only_repeat_is_detected(self):
+        system1, system2 = AsyncMock(), AsyncMock()
+        policy = CascadingPolicy(system1, system2)
+        menu = lambda ident: ActionDecision("click", ident, grounding=(EvidenceRecord("aria_label", "Menu", ident),))
+        system1.decide.return_value = [menu(7)]
+        system2.decide.return_value = [ActionDecision("click", 1)]
+        with patch("sys.stdout", new_callable=io.StringIO):
+            res = asyncio.run(policy.decide("goal", Observation("", "", [], "", "Screen"), {}, [ActionRecord(menu(4), True)]))
+        self.assertEqual(res, system2.decide.return_value)
+
     def test_last_response_follows_deciding_system(self):
         system2 = MagicMock(last_response="old gemini output")
         policy = CascadingPolicy(MagicMock(), system2)
@@ -123,10 +144,11 @@ class CascadingPolicyTests(unittest.TestCase):
 
 class LayaPolicyUnitTests(unittest.TestCase):
     def test_format_action_record(self):
-        # Laya rationale extraction
-        dec1 = ActionDecision("click", 3, rationale="[System 1: Laya] Selected button 'Download' (id=3) with confidence 0.85")
+        # Laya labels come from grounding, so apostrophes survive
+        dec1 = ActionDecision("click", 3, rationale="[System 1: Laya] Selected button 'Don't save' (id=3) with confidence 0.85",
+                              grounding=(EvidenceRecord("element_text", "Don't save", 3),))
         rec1 = ActionRecord(dec1, True)
-        self.assertEqual(_format_action_record(rec1), "click (Download)")
+        self.assertEqual(_format_action_record(rec1), "click (Don't save)")
 
         # Grounding text extraction
         dec2 = ActionDecision("click", 5, grounding=(EvidenceRecord("element_text", "Submit Button", 5),))
@@ -360,6 +382,59 @@ class LayaPolicyUnitTests(unittest.TestCase):
         policy._router = router
         obs = Observation("screen.png", "screen_marked.png", [submit], "http://app.local", "Form")
         self.assertEqual(asyncio.run(policy.decide("submit", obs, {}, []))[0].action, "click")
+
+    def _click_router(self, choice):
+        router = MagicMock()
+        router.predict.return_value = {"answers": {"target_element": {
+            "type": "choice", "choice": choice, "answer_confidence": 0.9, "probabilities": {choice: 0.9, "none": 0.1}}}}
+        return router
+
+    def test_laya_done_ignores_actionable_controls_as_evidence(self):
+        button = Element(id=9, selector="#done", tag="button", text="Done", aria_label="", placeholder="", role="button", x=0, y=0, width=100, height=40)
+        obs = Observation("screen.png", "screen_marked.png", [button], "http://app.local", "Add member")
+        policy = LayaPolicy()
+        policy._router = self._done_router()
+        history = [ActionRecord(ActionDecision("click", 3), True)]
+        self.assertIsNone(asyncio.run(policy.decide("create project X and add member Y", obs, {}, history)))
+
+    def test_laya_state_includes_visible_status_text(self):
+        status = Element(id=2, selector="#s", tag="div", text="Project created", aria_label="", placeholder="", role="status", x=0, y=0, width=100, height=20, actionable=False)
+        btn = Element(id=4, selector="#b", tag="button", text="Add member", aria_label="", placeholder="", role="button", x=0, y=30, width=50, height=20)
+        policy = LayaPolicy()
+        policy._router = MagicMock()
+        policy._router.predict.return_value = {"answers": {}}
+        asyncio.run(policy.decide("add member", Observation("s.png", "m.png", [status, btn], "http://app.local", "P"), {}, []))
+        self.assertIn("Visible Text: Project created", policy._router.predict.call_args[0][0])
+
+    def test_laya_marks_consequential_clicks_high_impact(self):
+        for text, impact in (("Place order", "high"), ("Send", "high"), ("Open details", "harmless")):
+            btn = Element(id=4, selector="#b", tag="button", text=text, aria_label="", placeholder="", role="button", x=0, y=0, width=50, height=20)
+            policy = LayaPolicy(min_confidence=0.5)
+            policy._router = self._click_router("4")
+            decisions = asyncio.run(policy.decide("do it", Observation("s.png", "m.png", [btn], "http://app.local", "P"), {}, []))
+            self.assertEqual(decisions[0].impact, impact, text)
+
+    def test_laya_grounds_icon_buttons_by_aria_label(self):
+        menu = Element(id=4, selector="#m", tag="button", text="", aria_label="Menu", placeholder="", role="button", x=0, y=0, width=20, height=20)
+        policy = LayaPolicy(min_confidence=0.5)
+        policy._router = self._click_router("4")
+        decisions = asyncio.run(policy.decide("open the menu", Observation("s.png", "m.png", [menu], "http://app.local", "P"), {}, []))
+        self.assertEqual(decisions[0].grounding, (EvidenceRecord("aria_label", "Menu", 4),))
+        self.assertEqual(_format_action_record(ActionRecord(decisions[0], True)), "click (Menu)")
+
+    def test_laya_abstains_on_unclassified_field_with_placeholder(self):
+        field = Element(id=4, selector="", tag="other", text="", aria_label="", placeholder="Search", role="other", x=0, y=0, width=200, height=20)
+        policy = LayaPolicy(min_confidence=0.5)
+        policy._router = self._click_router("4")
+        self.assertIsNone(asyncio.run(policy.decide("search docs", Observation("s.png", "m.png", [field], "http://app.local", "P"), {}, [])))
+
+    def test_router_predict_failure_is_logged(self):
+        btn = Element(id=4, selector="#b", tag="button", text="Save", aria_label="", placeholder="", role="button", x=0, y=0, width=50, height=20)
+        policy = LayaPolicy()
+        policy._router = MagicMock()
+        policy._router.predict.side_effect = RuntimeError("onnx shape mismatch")
+        with self.assertLogs("vision_gui_agent.decision", "WARNING"):
+            self.assertIsNone(asyncio.run(policy.decide("save", Observation("s.png", "m.png", [btn], "http://app.local", "P"), {}, [])))
 
     def test_laya_can_reclick_label_from_earlier_step(self):
         nxt = Element(id=4, selector="#next", tag="button", text="Next", aria_label="", placeholder="", role="button", x=0, y=0, width=50, height=20)

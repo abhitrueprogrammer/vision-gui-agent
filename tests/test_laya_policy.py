@@ -150,32 +150,20 @@ class LayaPolicyTests(unittest.TestCase):
         # Must abstain to System 2 so LLM can generate the text value to fill
         self.assertIsNone(decisions)
 
-    def test_laya_policy_triggers_download_verify(self) -> None:
+    def test_laya_policy_download_verify_follows_chosen_element(self) -> None:
         policy = LayaPolicy(min_confidence=0.70)
         mock_router = MagicMock()
-        mock_router.predict.return_value = {
-            "answers": {
-                "target_element": {
-                    "type": "choice",
-                    "choice": "3",
-                    "answer_confidence": 0.90,
-                    "low_confidence": False,
-                    "abstention": "passed",
-                },
-                "triggers_download": {
-                    "type": "noul",
-                    "noul": 0.85,
-                },
-            }
-        }
         policy._router = mock_router
-
         obs = _sample_observation()
-        decisions = asyncio.run(policy.decide("export document as PDF", obs, {}, []))
+        download = Element(id=5, selector="#dl", tag="button", text="Download PDF", aria_label="", placeholder="",
+                           role="button", x=10, y=170, width=200, height=30)
+        obs.elements.append(download)
 
-        self.assertIsNotNone(decisions)
-        self.assertEqual(len(decisions), 1)
-        self.assertEqual(decisions[0].verify, VerificationCondition(kind="download_created"))
+        for choice, expected in (("5", "download_created"), ("3", "page_changed")):
+            mock_router.predict.return_value = {"answers": {"target_element": {
+                "type": "choice", "choice": choice, "answer_confidence": 0.90, "low_confidence": False, "abstention": "passed"}}}
+            decisions = asyncio.run(policy.decide("export document as PDF", obs, {}, []))
+            self.assertEqual(decisions[0].verify, VerificationCondition(kind=expected), choice)
 
 
 class CascadingPolicyTests(unittest.TestCase):

@@ -7,7 +7,7 @@ import re
 from typing import Protocol
 
 from .gemini import GeminiClientPool, configured_gemini_keys
-from .models import ActionDecision, ActionRecord, EvidenceRecord, GoalConstraint, Observation, VerificationCondition, json_value
+from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition, json_value
 from .perception import model_image, selection_tiles
 
 logger = logging.getLogger(__name__)
@@ -249,22 +249,25 @@ def parse_decisions(text: str) -> list[ActionDecision]:
     return decisions
 
 
+_LABEL_SOURCES = {"element_text", "value", "aria_label"}
+
+
+def _decision_labels(dec) -> set[str]:
+    """Labels that identify a decision's target; element ids change every observation."""
+    return {g.expected.strip().casefold() for g in (getattr(dec, "grounding", None) or ())
+            if getattr(g, "source", None) in _LABEL_SOURCES and getattr(g, "expected", None)}
+
+
 def _format_action_record(record: ActionRecord) -> str:
     dec = getattr(record, "decision", None) or getattr(record, "action", None)
     if dec is None:
         return ""
     act = getattr(dec, "action", "action")
     target = None
-    rationale = getattr(dec, "rationale", "") or ""
-    if "[System 1: Laya]" in rationale:
-        m = re.search(r"Selected (?:[a-zA-Z0-9_-]+ )?'([^']+)'", rationale)
-        if m:
-            target = m.group(1)
-    elif getattr(dec, "grounding", None):
-        for g in dec.grounding:
-            if getattr(g, "source", "") in {"element_text", "value"} and getattr(g, "expected", None):
-                target = g.expected
-                break
+    for g in getattr(dec, "grounding", None) or ():
+        if getattr(g, "source", "") in _LABEL_SOURCES and getattr(g, "expected", None):
+            target = g.expected
+            break
     if not target and getattr(dec, "text", None):
         target = f"'{dec.text}'"
     elif not target and getattr(dec, "element_id", None) is not None:
@@ -328,13 +331,26 @@ def _rank_candidates(candidates: list[Element], goal: str, limit: int = 25) -> l
 
 _CLICKABLE_INPUT_TYPES = {"button", "submit", "reset", "image"}
 _NON_CLICK_ROLES = {"checkbox", "radio", "switch", "combobox", "listbox", "option", "textbox",
-                    "searchbox", "slider", "spinbutton"}
+                    "searchbox", "slider", "spinbutton", "input", "select", "textarea"}
+# Broader than Agent._is_high_impact: Laya cannot judge consequences, so any
+# label that may commit, send or destroy something gets the high-impact guards.
+_HIGH_IMPACT_LABEL = re.compile(
+    r"\b(?:submit|delete|remove|purchase|pay|checkout|order|buy|confirm|send|transfer|cancel|book|"
+    r"publish|unsubscribe|deactivate|approve|sign|reset|post|place|archive|discard|revoke)\b")
+_DOWNLOAD_LABEL = re.compile(r"\b(?:export|download|save as|pdf|csv|tsv|xlsx?|docx?|json|xml|zip)\b")
+_COMPLETION_PATTERNS = (r"\bsuccess", r"\bcompleted\b", r"\bsubmitted\b", r"\bdownloaded\b",
+                        r"\bthank you\b", r"\bconfirmed\b", r"\bsaved\b", r"\bcreated\b")
 
 
 def _is_click_target(el: Element) -> bool:
     if el.tag in {"input", "checkbox", "radio", "select", "textarea"}:
         return el.tag == "input" and el.input_type in _CLICKABLE_INPUT_TYPES
-    return el.role not in _NON_CLICK_ROLES
+    # A placeholder means a typed field even when detection could not classify it.
+    return el.role not in _NON_CLICK_ROLES and not el.placeholder
+
+
+def _label(el: Element) -> str:
+    return (el.text or el.aria_label or "").strip()
 
 
 class LayaPolicy:
@@ -386,16 +402,13 @@ class LayaPolicy:
             if getattr(r, "success", False):
                 dec = getattr(r, "decision", None) or getattr(r, "action", None)
                 if dec and getattr(dec, "action", None) == "click":
-                    if getattr(dec, "grounding", None):
-                        for g in dec.grounding:
-                            if getattr(g, "source", None) in {"element_text", "value"} and getattr(g, "expected", None):
-                                already_clicked_labels.add(g.expected.strip().casefold())
+                    already_clicked_labels |= _decision_labels(dec)
                     if getattr(dec, "text", None):
                         already_clicked_labels.add(dec.text.strip().casefold())
 
         eligible_candidates = []
         for el in candidates:
-            label = (el.text or el.aria_label or "").strip().casefold()
+            label = _label(el).casefold()
             if (el.role in {"button", "link", "menuitem"} or el.tag in {"button", "a", "other"}) and label in already_clicked_labels:
                 continue
             eligible_candidates.append(el)
@@ -417,10 +430,14 @@ class LayaPolicy:
 
         completed = [r for r in history if r.success][-3:]
         recent_summary = " -> ".join(_format_action_record(r) for r in completed if _format_action_record(r))
+        visible_text = " | ".join(dict.fromkeys(
+            re.sub(r"\s+", " ", el.text.strip())[:80] for el in observation.elements
+            if not el.actionable and el.text and el.text.strip()))[:600]
         state = (
             f"Goal: {goal}\n"
             f"Screen: {observation.title or 'Unknown'}\n"
             f"URL: {observation.url or 'N/A'}\n"
+            f"Visible Text: {visible_text or 'None'}\n"
             f"Completed Steps: {recent_summary or 'None'}\n"
         )
         questions = {
@@ -432,10 +449,6 @@ class LayaPolicy:
                 "type": "choice",
                 "instructions": f"Which UI element should be clicked or interacted with next to accomplish: {goal}?",
                 "criteria": criteria,
-            },
-            "triggers_download": {
-                "type": "noul",
-                "instructions": f"Does clicking this element trigger a file export or download for: {goal}?",
             },
         }
 
@@ -450,6 +463,7 @@ class LayaPolicy:
         try:
             res = router.predict(state, questions, min_confidence=adaptive_threshold)
         except Exception:
+            logger.warning("laya.Router.predict failed; deferring to System 2", exc_info=True)
             return None
 
         is_export_goal = bool(re.search(r"\b(?:export|download)\b", goal.casefold()))
@@ -465,27 +479,19 @@ class LayaPolicy:
                 allow_done = False
 
             if allow_done:
-                completion_patterns = [
-                    r"\bsuccess\b", r"\bcompleted\b", r"\bsubmitted\b",
-                    r"\bdownload(?:ed|ing)?\b", r"\bthank you\b", r"\bconfirmed\b", r"\bdone\b",
-                ]
-                evidence_el = None
-                for el in observation.elements:
-                    el_text = (el.text or "").strip()
-                    if len(el_text) >= 3:
-                        if any(re.search(pat, el_text, re.IGNORECASE) for pat in completion_patterns):
-                            evidence_el = el
-                            break
+                # Only static status text counts: a "Done" or "Download" control
+                # is something still to click, not proof that the goal finished.
+                static = [el for el in observation.elements
+                          if not el.actionable and len((el.text or "").strip()) >= 3]
+                evidence_el = next((el for el in static if any(
+                    re.search(pat, el.text, re.IGNORECASE) for pat in _COMPLETION_PATTERNS)), None)
 
                 if evidence_el is None:
                     # Check for significant goal keywords visible on screen
                     significant_words = [w for w in re.findall(r"\w+", goal.lower()) if len(w) > 3 and w not in {"navigate", "click", "open", "page", "button", "screen"}]
                     if significant_words:
-                        for el in observation.elements:
-                            el_text = (el.text or "").strip()
-                            if el_text and all(w in el_text.lower() for w in significant_words):
-                                evidence_el = el
-                                break
+                        evidence_el = next((el for el in static
+                                            if all(w in el.text.lower() for w in significant_words)), None)
 
                 if evidence_el is not None:
                     confidence = done_ans.get("noul", done_ans.get("answer_confidence", 0.0))
@@ -536,20 +542,20 @@ class LayaPolicy:
         if not _is_click_target(target_el):
             return None
 
-        download_ans = res.get("answers", {}).get("triggers_download")
-
-        verify: VerificationCondition | None = None
-        if is_export_goal and download_ans and download_ans.get("noul", 0.0) >= 0.70:
-            verify = VerificationCondition(kind="download_created")
-        else:
-            verify = VerificationCondition(kind="page_changed")
+        label = _label(target_el)
+        words = " ".join((target_el.text, target_el.aria_label, target_el.value)).casefold()
+        # Judge the download from the chosen control itself, not from the goal.
+        triggers_download = is_export_goal and bool(target_el.download or _DOWNLOAD_LABEL.search(words))
+        verify = VerificationCondition(kind="download_created" if triggers_download else "page_changed")
+        impact = "high" if target_el.download or _HIGH_IMPACT_LABEL.search(words) else "harmless"
 
         confidence = target_ans.get("answer_confidence", target_ans.get("confidence", 0.0))
-        label = (target_el.text or target_el.aria_label or target_el.tag).strip()
-        rationale = f"[System 1: Laya] Selected {target_el.role or target_el.tag} '{label}' (id={target_id}) with confidence {confidence:.2f}"
+        rationale = f"[System 1: Laya] Selected {target_el.role or target_el.tag} '{label or target_el.tag}' (id={target_id}) with confidence {confidence:.2f}"
         grounding = ()
         if target_el.text:
             grounding = (EvidenceRecord("element_text", target_el.text, target_id),)
+        elif target_el.aria_label:
+            grounding = (EvidenceRecord("aria_label", target_el.aria_label, target_id),)
 
         return [ActionDecision(
             action="click",
@@ -557,7 +563,7 @@ class LayaPolicy:
             current_label=observation.title,
             rationale=rationale,
             verify=verify,
-            impact="harmless",
+            impact=impact,
             grounding=grounding,
         )]
 
@@ -593,22 +599,11 @@ class CascadingPolicy:
         except Exception as exc:
             laya_error = exc
 
-        # Check if System 1 proposed an action repeating the immediately preceding action
-        if decisions and history and getattr(history[-1], "decision", None):
-            last_dec = history[-1].decision
-            same_action = (decisions[0].action == getattr(last_dec, "action", None))
-            d_ground = {g.expected.strip().casefold() for g in (decisions[0].grounding or ()) if getattr(g, "expected", None)}
-            l_ground = {g.expected.strip().casefold() for g in (getattr(last_dec, "grounding", None) or ()) if getattr(g, "expected", None)}
-            # Element ids are reassigned on every observation, so they only
-            # identify a target when neither decision carries a label.
-            if d_ground or l_ground:
-                same_target = d_ground == l_ground
-            else:
-                same_target = (decisions[0].element_id is not None
-                               and decisions[0].element_id == getattr(last_dec, "element_id", None))
-
-            if same_action and same_target:
-                msg = f"[policy] Decision passed over from Laya to Gemini: System 1 (Laya) repeated previous action ({decisions[0].action}), cascading to System 2 (Gemini)"
+        # Check if System 1 proposed an action repeating one of the last few
+        # actions; a window catches A -> B -> A loops between two controls.
+        if decisions and any(self._repeats(decisions[0], getattr(r, "decision", None), i == 0)
+                             for i, r in enumerate(reversed(history[-3:]))):
+                msg = f"[policy] Decision passed over from Laya to Gemini: System 1 (Laya) repeated a recent action ({decisions[0].action}), cascading to System 2 (Gemini)"
                 logger.info(msg)
                 print(msg)
                 self.last_source = "gemini"
@@ -632,6 +627,17 @@ class CascadingPolicy:
 
         self.last_source = "gemini"
         return await self.system2.decide(goal, observation, graph_context, history)
+
+    @staticmethod
+    def _repeats(proposed: ActionDecision, previous, adjacent: bool) -> bool:
+        if previous is None or proposed.action != getattr(previous, "action", None):
+            return False
+        d_ground, l_ground = _decision_labels(proposed), _decision_labels(previous)
+        if d_ground or l_ground:
+            return d_ground == l_ground
+        # Element ids are reassigned on every observation, so an unlabeled id
+        # match is only meaningful against the immediately preceding action.
+        return adjacent and proposed.element_id is not None and proposed.element_id == getattr(previous, "element_id", None)
 
     async def compile_goal(self, goal: str) -> tuple[GoalConstraint, ...]:
         if hasattr(self.system2, "compile_goal"):
