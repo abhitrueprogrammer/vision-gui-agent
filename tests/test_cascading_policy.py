@@ -100,6 +100,27 @@ class CascadingPolicyTests(unittest.TestCase):
             self.assertIn("repeated previous action", mock_out.getvalue())
 
 
+    def test_same_element_id_on_new_page_is_not_a_repeat(self):
+        system1 = AsyncMock()
+        system2 = AsyncMock()
+        policy = CascadingPolicy(system1, system2)
+        dec_laya = [ActionDecision("click", 5, grounding=(EvidenceRecord("element_text", "Save", 5),))]
+        system1.decide.return_value = dec_laya
+        history = [ActionRecord(ActionDecision("click", 5, grounding=(EvidenceRecord("element_text", "Next", 5),)), True)]
+        with patch("sys.stdout", new_callable=io.StringIO):
+            res = asyncio.run(policy.decide("goal", Observation("", "", [], "", "Screen"), {}, history))
+        self.assertEqual(res, dec_laya)
+        system2.decide.assert_not_called()
+
+    def test_last_response_follows_deciding_system(self):
+        system2 = MagicMock(last_response="old gemini output")
+        policy = CascadingPolicy(MagicMock(), system2)
+        policy.last_source = "laya"
+        self.assertIsNone(policy.last_response)
+        policy.last_source = "gemini"
+        self.assertEqual(policy.last_response, "old gemini output")
+
+
 class LayaPolicyUnitTests(unittest.TestCase):
     def test_format_action_record(self):
         # Laya rationale extraction
@@ -218,7 +239,8 @@ class LayaPolicyUnitTests(unittest.TestCase):
         }
         policy._router = mock_router
 
-        decisions = asyncio.run(policy.decide("Submit order", obs, {}, []))
+        history = [ActionRecord(ActionDecision("click", 3), True)]
+        decisions = asyncio.run(policy.decide("Submit order", obs, {}, history))
         self.assertIsNotNone(decisions)
         self.assertEqual(len(decisions), 1)
         self.assertEqual(decisions[0].action, "done")
@@ -283,6 +305,93 @@ class LayaPolicyUnitTests(unittest.TestCase):
         criteria = args[1]["target_element"]["criteria"]
         self.assertNotIn("1", criteria)
         self.assertIn("2", criteria)
+
+    def _done_router(self, noul=0.95):
+        router = MagicMock()
+        router.predict.return_value = {"answers": {
+            "is_goal_complete": {"type": "noul", "noul": noul, "answer_confidence": noul},
+            "target_element": {"type": "choice", "choice": "none"},
+        }}
+        return router
+
+    def test_laya_done_requires_a_successful_action(self):
+        evidence_el = Element(id=9, selector="#done", tag="button", text="Done", aria_label="", placeholder="", role="button", x=0, y=0, width=100, height=40)
+        obs = Observation("screen.png", "screen_marked.png", [evidence_el], "http://app.local", "Projects")
+        policy = LayaPolicy()
+        policy._router = self._done_router()
+
+        self.assertIsNone(asyncio.run(policy.decide("create a new project", obs, {}, [])))
+        failed = [ActionRecord(ActionDecision("click", 3), False, "Submit deferred")]
+        self.assertIsNone(asyncio.run(policy.decide("create a new project", obs, {}, failed)))
+
+    def test_laya_export_done_needs_downloaded_file(self):
+        evidence_el = Element(id=9, selector="#msg", tag="div", text="Export completed", aria_label="", placeholder="", role="status", x=0, y=0, width=100, height=40, actionable=False)
+        obs = Observation("screen.png", "screen_marked.png", [evidence_el], "http://app.local", "Confirmation")
+        policy = LayaPolicy()
+        policy._router = self._done_router()
+
+        requested = ActionDecision("click", 1, verify=VerificationCondition("download_created"))
+        failed_export = [ActionRecord(ActionDecision("click", 2), True),
+                         ActionRecord(requested, False, "no download", VerificationResult("failed", "no download"))]
+        self.assertIsNone(asyncio.run(policy.decide("export the report", obs, {}, failed_export)))
+
+        downloaded = [ActionRecord(requested, True, None, VerificationResult("passed", "ok", download_path="/tmp/r.csv"))]
+        decisions = asyncio.run(policy.decide("export the report", obs, {}, downloaded))
+        self.assertEqual(decisions[0].action, "done")
+
+    def test_laya_abstains_on_non_click_controls(self):
+        controls = [
+            Element(id=1, selector="#agree", tag="input", text="I agree", aria_label="", placeholder="", role="checkbox", x=0, y=0, width=20, height=20, input_type="checkbox"),
+            Element(id=1, selector="#country", tag="select", text="Country", aria_label="", placeholder="", role="combobox", x=0, y=0, width=20, height=20),
+            Element(id=1, selector="#notes", tag="textarea", text="", aria_label="Notes", placeholder="", role="textbox", x=0, y=0, width=20, height=20),
+            Element(id=1, selector="#qty", tag="input", text="", aria_label="Quantity", placeholder="", role="spinbutton", x=0, y=0, width=20, height=20, input_type="number"),
+        ]
+        router = MagicMock()
+        router.predict.return_value = {"answers": {"target_element": {
+            "type": "choice", "choice": "1", "answer_confidence": 0.9, "probabilities": {"1": 0.9, "none": 0.1}}}}
+        for control in controls:
+            policy = LayaPolicy(min_confidence=0.5)
+            policy._router = router
+            obs = Observation("screen.png", "screen_marked.png", [control], "http://app.local", "Form")
+            self.assertIsNone(asyncio.run(policy.decide("agree to the terms", obs, {}, [])), control.selector)
+
+        submit = Element(id=1, selector="#go", tag="input", text="Submit", aria_label="", placeholder="", role="button", x=0, y=0, width=20, height=20, input_type="submit")
+        policy = LayaPolicy(min_confidence=0.5)
+        policy._router = router
+        obs = Observation("screen.png", "screen_marked.png", [submit], "http://app.local", "Form")
+        self.assertEqual(asyncio.run(policy.decide("submit", obs, {}, []))[0].action, "click")
+
+    def test_laya_can_reclick_label_from_earlier_step(self):
+        nxt = Element(id=4, selector="#next", tag="button", text="Next", aria_label="", placeholder="", role="button", x=0, y=0, width=50, height=20)
+        obs = Observation("screen.png", "screen_marked.png", [nxt], "http://app.local", "Wizard step 3")
+        policy = LayaPolicy(min_confidence=0.5)
+        router = MagicMock()
+        router.predict.return_value = {"answers": {"target_element": {
+            "type": "choice", "choice": "4", "answer_confidence": 0.9, "probabilities": {"4": 0.9, "none": 0.1}}}}
+        policy._router = router
+        history = [ActionRecord(ActionDecision("click", 4, grounding=(EvidenceRecord("element_text", "Next", 4),)), True),
+                   ActionRecord(ActionDecision("click", 2, grounding=(EvidenceRecord("element_text", "Accept", 2),)), True)]
+        decisions = asyncio.run(policy.decide("finish the setup wizard", obs, {}, history))
+        self.assertEqual(decisions[0].element_id, 4)
+
+    def test_completed_steps_exclude_failed_actions(self):
+        btn = Element(id=4, selector="#b", tag="button", text="Save", aria_label="", placeholder="", role="button", x=0, y=0, width=50, height=20)
+        obs = Observation("screen.png", "screen_marked.png", [btn], "http://app.local", "Form")
+        policy = LayaPolicy()
+        policy._router = MagicMock()
+        policy._router.predict.return_value = {"answers": {}}
+        history = [ActionRecord(ActionDecision("click", 4, grounding=(EvidenceRecord("element_text", "Submit", 4),)), False, "Submit deferred")]
+        asyncio.run(policy.decide("save", obs, {}, history))
+        state = policy._router.predict.call_args[0][0]
+        self.assertIn("Completed Steps: None", state)
+
+    def test_router_load_failure_is_not_retried(self):
+        policy = LayaPolicy()
+        with patch.dict("sys.modules", {"laya": None}):
+            self.assertIsNone(policy._get_router())
+            self.assertTrue(policy._router_failed)
+        with patch.dict("sys.modules", {"laya": MagicMock()}):
+            self.assertIsNone(policy._get_router())
 
     def test_unrefined_observation_visible_signature_stability(self):
         from vision_gui_agent.agent import Agent

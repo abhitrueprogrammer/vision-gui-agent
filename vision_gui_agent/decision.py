@@ -326,20 +326,33 @@ def _rank_candidates(candidates: list[Element], goal: str, limit: int = 25) -> l
     return [item[2] for item in scored[:limit]]
 
 
+_CLICKABLE_INPUT_TYPES = {"button", "submit", "reset", "image"}
+_NON_CLICK_ROLES = {"checkbox", "radio", "switch", "combobox", "listbox", "option", "textbox",
+                    "searchbox", "slider", "spinbutton"}
+
+
+def _is_click_target(el: Element) -> bool:
+    if el.tag in {"input", "checkbox", "radio", "select", "textarea"}:
+        return el.tag == "input" and el.input_type in _CLICKABLE_INPUT_TYPES
+    return el.role not in _NON_CLICK_ROLES
+
+
 class LayaPolicy:
     """Fast non-autoregressive System 1 policy using in-process laya.Router."""
 
     def __init__(self, min_confidence: float = 0.70) -> None:
         self.min_confidence = min_confidence
         self._router = None
+        self._router_failed = False
 
     def _get_router(self):
-        if self._router is None:
+        if self._router is None and not self._router_failed:
             try:
                 from laya import Router
                 self._router = Router()
             except Exception:
-                self._router = None
+                logger.warning("laya.Router unavailable; System 1 disabled for this run", exc_info=True)
+                self._router_failed = True
         return self._router
 
     async def decide(
@@ -366,8 +379,10 @@ class LayaPolicy:
             if el.actionable and el.enabled and not el.readonly
         ]
 
+        # Steer away from re-clicking the control that was just clicked.  Older
+        # clicks stay eligible: wizards and "Add item" controls repeat by design.
         already_clicked_labels = set()
-        for r in history:
+        for r in history[-1:]:
             if getattr(r, "success", False):
                 dec = getattr(r, "decision", None) or getattr(r, "action", None)
                 if dec and getattr(dec, "action", None) == "click":
@@ -400,7 +415,8 @@ class LayaPolicy:
             criteria[str(el.id)] = f"{el.role or el.tag} '{label}'{context_hint}"
         criteria["none"] = "none of these elements / cannot determine"
 
-        recent_summary = " -> ".join(_format_action_record(r) for r in history[-3:] if _format_action_record(r))
+        completed = [r for r in history if r.success][-3:]
+        recent_summary = " -> ".join(_format_action_record(r) for r in completed if _format_action_record(r))
         state = (
             f"Goal: {goal}\n"
             f"Screen: {observation.title or 'Unknown'}\n"
@@ -441,16 +457,12 @@ class LayaPolicy:
         # System 1 Completion Evaluation
         done_ans = res.get("answers", {}).get("is_goal_complete")
         if done_ans and not done_ans.get("low_confidence") and done_ans.get("noul", 0.0) >= 0.75:
-            allow_done = True
-            if is_export_goal:
-                has_download = any(
-                    (getattr(getattr(r, "decision", None), "verify", None) is not None and
-                     getattr(getattr(r, "decision", None).verify, "kind", None) == "download_created")
-                    or (getattr(getattr(r, "verification", None), "download_path", None) is not None)
-                    for r in history
-                )
-                if not has_download:
-                    allow_done = False
+            # Without a successful executed action, on-screen "evidence" may simply
+            # be part of the starting page, and the agent's freshness guards only
+            # run once an action has executed.  Leave that judgement to System 2.
+            allow_done = any(r.success and r.decision.action not in {"inspect", "done"} for r in history)
+            if is_export_goal and not any(r.success and r.verification.download_path for r in history):
+                allow_done = False
 
             if allow_done:
                 completion_patterns = [
@@ -519,8 +531,9 @@ class LayaPolicy:
 
         target_el = elements_by_id[target_id]
 
-        # Non-autoregressive model cannot generate free-form text values; abstain for fill
-        if target_el.tag == "input" and target_el.input_type in {"text", "email", "password", "search", "tel", "url"}:
+        # Laya only emits clicks.  Fields, toggles, selects and pickers need
+        # fill/set_checked/select/etc. (and matching verification), so abstain.
+        if not _is_click_target(target_el):
             return None
 
         download_ans = res.get("answers", {}).get("triggers_download")
@@ -584,17 +597,17 @@ class CascadingPolicy:
         if decisions and history and getattr(history[-1], "decision", None):
             last_dec = history[-1].decision
             same_action = (decisions[0].action == getattr(last_dec, "action", None))
-            same_id = (
-                decisions[0].element_id is not None
-                and decisions[0].element_id == getattr(last_dec, "element_id", None)
-            )
-            same_target = False
             d_ground = {g.expected.strip().casefold() for g in (decisions[0].grounding or ()) if getattr(g, "expected", None)}
             l_ground = {g.expected.strip().casefold() for g in (getattr(last_dec, "grounding", None) or ()) if getattr(g, "expected", None)}
-            if d_ground and l_ground and d_ground == l_ground:
-                same_target = True
+            # Element ids are reassigned on every observation, so they only
+            # identify a target when neither decision carries a label.
+            if d_ground or l_ground:
+                same_target = d_ground == l_ground
+            else:
+                same_target = (decisions[0].element_id is not None
+                               and decisions[0].element_id == getattr(last_dec, "element_id", None))
 
-            if same_action and (same_id or same_target):
+            if same_action and same_target:
                 msg = f"[policy] Decision passed over from Laya to Gemini: System 1 (Laya) repeated previous action ({decisions[0].action}), cascading to System 2 (Gemini)"
                 logger.info(msg)
                 print(msg)
@@ -631,5 +644,7 @@ class CascadingPolicy:
 
     @property
     def last_response(self) -> str | None:
+        if self.last_source != "gemini":
+            return None
         return getattr(self.system2, "last_response", None)
 
