@@ -18,6 +18,7 @@ dependencies = [
     "torch",
     "torchvision",
     "huggingface-hub",
+    "laya>=0.3.23",
 ]
 
 [project.scripts]

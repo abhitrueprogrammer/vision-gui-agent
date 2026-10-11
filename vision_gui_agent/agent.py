@@ -642,6 +642,10 @@ class Agent:
         download_paths: list[str] = []
         path: list[str] = []
         discovery_attempts = 0
+        # Last observation before inspect-recovered elements were added; change
+        # detection must compare against what a fresh observe() can return.
+        discovery_base: Observation | None = None
+        discovery_node = ""
         planned: list[ActionDecision] = []
         run_started_time = time()
         downloads_dir = self.config.artifact_dir / run_id / "downloads"
@@ -765,6 +769,8 @@ class Agent:
                         if not recovered:
                             raise GroundingAbstention("The requested visible target was not found")
                         before_discovery = observation
+                        if discovery_base is None:
+                            discovery_base, discovery_node = before_discovery, current_node
                         next_id = max((e.id for e in observation.elements), default=0)+1
                         enriched = observation.elements + [replace(e,id=next_id+i) for i,e in enumerate(recovered)]
                         marked = Path(observation.marked_screenshot_path).with_name(f"recovered-{uuid4().hex}.png")
@@ -780,6 +786,8 @@ class Agent:
                             if target and target.text:
                                 decision = replace(decision, grounding=(EvidenceRecord("element_text", target.text, target.id),))
                         decision = replace(decision, element_id=None)
+                    unrefined_observation = discovery_base or observation
+                    unrefined_node = discovery_node if discovery_base else current_node
                     if decision.action != "done" and decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
                         if target and not target.actionable:
@@ -866,6 +874,7 @@ class Agent:
                     if self.config.verbose: print(f"[step {step}] {error}")
                     if isinstance(exc, GroundingAbstention):
                         observation = await observe(page, self.config.artifact_dir / run_id, step, self.grounder)
+                        discovery_base = None
                     await asyncio.sleep(0.5)
                     continue
                 except Exception as exc:
@@ -910,6 +919,7 @@ class Agent:
                 try:
                     source_observation = observation
                     dispatch_info = {}
+                    discovery_base = None
                     action_attempts[key] = action_attempts.get(key, 0) + 1
                     started = perf_counter()
                     started_time = time()
@@ -934,8 +944,8 @@ class Agent:
                             next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
                         next_observation = await self._refresh_control_state(observation, next_observation, decision.verify)
                         target_node, created = self.graph.add_observation(next_observation)
-                        changed = (target_node != current_node or next_observation.url != observation.url
-                                   or self._visible_signature(next_observation) != self._visible_signature(observation))
+                        changed = (target_node != unrefined_node or next_observation.url != unrefined_observation.url
+                                   or self._visible_signature(next_observation) != self._visible_signature(unrefined_observation))
                         verification = await verify(page, observation, next_observation, decision.verify, self.config.hash_threshold,
                                                     download_path=download_path, page_changed=changed)
                         if verification.status in {"passed", "not_requested"} or verification_attempt + 1 == self.config.verification_attempts:

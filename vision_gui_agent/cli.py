@@ -8,7 +8,7 @@ from urllib.parse import urlencode, urljoin
 from playwright.async_api import Browser, BrowserContext, Error as PlaywrightError, async_playwright
 
 from .agent import Agent, AgentConfig
-from .decision import GeminiPolicy
+from .decision import CascadingPolicy, GeminiPolicy, LayaPolicy
 from .logging_store import RunLogger
 from .perception import GeminiVisualGrounder, OmniParserVisualGrounder
 
@@ -56,8 +56,10 @@ async def _run(args: argparse.Namespace) -> int:
             experiment_budget=args.experiment_budget,
             experiment_sandbox=bool(args.benchmark_reset and args.benchmark_grounder),
         )
-        policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
+        gemini_policy = GeminiPolicy(args.model, benchmark_mode=args.benchmark_grounder,
                               key_slot=args.gemini_key_slot)
+        # Calibration runs measure the Gemini policy alone; keep Laya out of them.
+        policy = gemini_policy if args.no_laya or args.benchmark_grounder else CascadingPolicy(LayaPolicy(), gemini_policy)
         grounder = (OmniParserVisualGrounder(refiner=GeminiVisualGrounder(args.model, args.gemini_key_slot))
                     if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot))
         if args.benchmark_grounder:
@@ -112,6 +114,7 @@ def main() -> None:
     from .visual_function_lab import INITIAL_STATES
     parser.add_argument("--benchmark-reset", choices=INITIAL_STATES, help="named deterministic Visual Function Lab reset state")
     parser.add_argument("--benchmark-grounder", action="store_true", help="use the screenshot-only calibration grounder for Visual Function Lab")
+    parser.add_argument("--no-laya", action="store_true", help="disable the Laya System 1 policy and use Gemini for every decision")
     parser.add_argument("--gemini-key-slot", type=int, choices=[1, 2], help="select a configured Gemini key slot without exposing it")
     parser.add_argument("--execution-mode", choices=["pixels", "hybrid"], default="pixels", help="opt into browser-native upload/color/download helpers with hybrid")
     parser.add_argument("--metrics", action="store_true", help="print metrics for recorded runs")

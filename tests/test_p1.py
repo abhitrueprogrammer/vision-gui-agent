@@ -99,6 +99,24 @@ class RefinementRegression(unittest.TestCase):
             self.assertEqual(len(seen[1].elements),1)
             self.assertEqual(dispatch.await_count,1)
 
+    def test_recovered_elements_do_not_count_as_a_page_change(self):
+        from vision_gui_agent.models import VerificationCondition, VerificationResult
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);path=root/'screen.png';Image.new('RGB',(300,120),'white').save(path)
+            initial=Observation(str(path),str(path),[],'','Screen')
+            recovered=replace(proposal(),semantic_confirmed=True,proposal_sources=('gemini',))
+            seen=[]
+            async def choose(goal,obs,*_):
+                seen.append(obs)
+                return (ActionDecision('inspect',text='Save control') if len(seen)==1 else
+                        ActionDecision('click',obs.elements[0].id,verify=VerificationCondition('page_changed')))
+            grounder=SimpleNamespace(discover=AsyncMock(return_value=[recovered]))
+            check=AsyncMock(return_value=VerificationResult('failed','unchanged'))
+            with patch('vision_gui_agent.agent.observe',AsyncMock(return_value=initial)),patch('vision_gui_agent.agent.execute',AsyncMock(return_value=None)),\
+                    patch('vision_gui_agent.agent.verify',check):
+                asyncio.run(Agent(SimpleNamespace(decide=choose),AgentConfig(root,root/'runs.db',root/'graph.json',max_steps=2,memory_mode='none',verification_attempts=1),grounder).run(object(),'save record'))
+            self.assertFalse(check.await_args.kwargs['page_changed'])
+
     def test_readable_badges_do_not_overlap_controls_or_each_other(self):
         from vision_gui_agent.perception import badge_layout, selection_tiles
         elements=[replace(proposal(i+1,'Save'),x=(i%6)*25,y=(i//6)*25,width=20,height=20) for i in range(24)]
