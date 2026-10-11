@@ -158,7 +158,7 @@ class VisualFunctionLabEvaluator:
 
     def run_task(self, task: TaskSpec, layout: str = "classic") -> bool:
         self.reset(task.initial_state, layout)
-        outcomes = [self.act(action) for action in task.actions]
+        for action in task.actions: self.act(action)
         return self.score(task.id)
 
     def score(self, task_id: str) -> bool:

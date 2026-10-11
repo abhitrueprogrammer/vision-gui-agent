@@ -83,7 +83,11 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
         if decision.action == "set_date":
             try: value = date.fromisoformat(decision.text or "")
             except ValueError: raise ValueError("set_date requires an ISO date") from None
-            await page.keyboard.press("Control+A"); await page.keyboard.type(value.strftime("%m/%d/%Y"))
+            # Chromium orders date segments by browser locale, so type in that order.
+            order = await page.evaluate('''() => new Intl.DateTimeFormat(undefined, {year: "numeric", month: "2-digit", day: "2-digit"})
+                .formatToParts(new Date(2000, 0, 2)).map(part => part.type).filter(type => ["year", "month", "day"].includes(type))''')
+            parts = {"year": f"{value.year:04d}", "month": f"{value.month:02d}", "day": f"{value.day:02d}"}
+            await page.keyboard.press("Control+A"); await page.keyboard.type("/".join(parts[segment] for segment in order))
         else:
             await page.keyboard.press("Control+A"); await page.keyboard.type(decision.text or "")
     elif decision.action == "select":
