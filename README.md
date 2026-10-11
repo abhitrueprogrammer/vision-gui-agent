@@ -6,6 +6,14 @@ Learned planning and predicates currently use controlled benchmark vocabulary; g
 
 ## Setup
 
+Clone the repository with its OmniParser submodule:
+
+```bash
+git clone --recurse-submodules git@github.com:abhitrueprogrammer/vision-gui-agent.git
+```
+
+In an existing clone, fetch the submodule with `git submodule update --init`.
+
 Use Python 3.12 and `uv`. Run these commands from the repository root:
 
 ```bash

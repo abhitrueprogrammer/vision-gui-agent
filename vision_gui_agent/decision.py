@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Protocol
 
-from .gemini import GeminiClientPool, configured_gemini_keys
+from .gemini import GeminiClientPool, configured_gemini_keys  # noqa: F401 - re-exported
 from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition, json_value
 from .perception import model_image, selection_tiles
 
@@ -191,7 +191,7 @@ class GeminiPolicy:
         self.last_response = await asyncio.to_thread(generate)
         try:
             return parse_decisions(self.last_response)
-        except ValueError as exc:
+        except ValueError:
             prompt["instructions"] += " Your prior response was invalid. Return corrected JSON only; constraint status must be exactly unproven, proven, or unavailable."
             self.last_response = await asyncio.to_thread(generate)
             try:

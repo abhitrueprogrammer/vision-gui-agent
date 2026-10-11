@@ -43,5 +43,10 @@ explicit = true
 torch = { index = "pytorch-cpu" }
 torchvision = { index = "pytorch-cpu" }
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [tool.setuptools.package-data]
 vision_gui_agent = ["task_split.json"]
