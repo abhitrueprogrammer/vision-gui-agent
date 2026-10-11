@@ -20,6 +20,19 @@ def requires_hybrid(decision: ActionDecision) -> bool:
     return decision.action in {"upload", "set_color"}
 
 
+async def _date_segment_order(page: Page) -> list[str]:
+    order = await page.evaluate("""() => {
+        const formatter = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+        const parts = formatter.formatToParts(new Date(2000, 0, 2))
+            .map(({ type }) => type)
+            .filter((type) => type === "year" || type === "month" || type === "day");
+        const unique = [];
+        for (const type of parts) if (!unique.includes(type)) unique.push(type);
+        return unique;
+    }""")
+    return order if sorted(order) == ["day", "month", "year"] else ["month", "day", "year"]
+
+
 async def execute(page: Page, observation: Observation, decision: ActionDecision, download_dir: Path | None = None,
                   *, execution_mode: str = "pixels", dispatch_info: dict | None = None) -> str | None:
     if execution_mode not in {"pixels", "hybrid"}:
@@ -84,8 +97,7 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
             try: value = date.fromisoformat(decision.text or "")
             except ValueError: raise ValueError("set_date requires an ISO date") from None
             # Chromium orders date segments by browser locale, so type in that order.
-            order = await page.evaluate('''() => new Intl.DateTimeFormat(undefined, {year: "numeric", month: "2-digit", day: "2-digit"})
-                .formatToParts(new Date(2000, 0, 2)).map(part => part.type).filter(type => ["year", "month", "day"].includes(type))''')
+            order = await _date_segment_order(page)
             parts = {"year": f"{value.year:04d}", "month": f"{value.month:02d}", "day": f"{value.day:02d}"}
             await page.keyboard.press("Control+A"); await page.keyboard.type("/".join(parts[segment] for segment in order))
         else:
