@@ -60,13 +60,15 @@ async def _run(args: argparse.Namespace) -> int:
                               key_slot=args.gemini_key_slot)
         # Calibration runs measure the Gemini policy alone; keep Laya out of them.
         policy = gemini_policy if args.no_laya or args.benchmark_grounder else CascadingPolicy(LayaPolicy(), gemini_policy)
-        grounder = (OmniParserVisualGrounder(refiner=GeminiVisualGrounder(args.model, args.gemini_key_slot))
-                    if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot))
         if args.benchmark_grounder:
             if args.desktop: raise ValueError("--benchmark-grounder is available only for the local browser benchmark")
             if args.grounder != "omniparser": raise ValueError("--benchmark-grounder cannot be combined with --grounder gemini")
             from .benchmark_agent import CalibrationGrounder
+            # Built instead of OmniParser, which would otherwise load detector weights it never uses.
             grounder = CalibrationGrounder()
+        else:
+            grounder = (OmniParserVisualGrounder(refiner=GeminiVisualGrounder(args.model, args.gemini_key_slot))
+                        if args.grounder == "omniparser" else GeminiVisualGrounder(args.model, args.gemini_key_slot))
         if args.desktop:
             if args.benchmark_reset: raise ValueError("--benchmark-reset is available only for the local browser benchmark")
             from .desktop import DesktopPage

@@ -65,6 +65,7 @@ class MetricsResponse(BaseModel):
     by_model: list[dict[str, Any]]
     statuses: dict[str, int]
     verification: dict[str, int]
+    decision_origins: dict[str, int]
     decision_sources: dict[str, int]
     latency: list[dict[str, Any]]
 

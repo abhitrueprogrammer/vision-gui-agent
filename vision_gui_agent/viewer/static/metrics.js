@@ -23,7 +23,7 @@
     });
   }
 
-  for (const key of ["statuses", "verification", "decision_sources"]) {
+  for (const key of ["statuses", "verification", "decision_origins", "decision_sources"]) {
     const canvas = document.getElementById("chart-" + key);
     const values = metrics[key] || {};
     if (!canvas || !Object.keys(values).length) continue;

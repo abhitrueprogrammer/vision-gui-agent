@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from urllib.parse import parse_qs, urlparse
 
-from .visual_function_lab import ACTION_TOKENS, ACTIONS, LAYOUTS, SIDEBAR, TOKEN_ACTIONS, VisualFunctionLabEvaluator
+from .visual_function_lab import ACTION_TOKENS, ACTIONS, LAYOUTS, PROTOCOL_VERSION, SIDEBAR, TASKS, TOKEN_ACTIONS, VisualFunctionLabEvaluator
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -38,7 +38,17 @@ class _Handler(BaseHTTPRequestHandler):
         if parsed.path == "/reset":
             self.evaluator.reset(query.get("state", ["blank"])[0], query.get("layout", ["classic"])[0]); self._send(json.dumps({"ok": True}), "application/json"); return
         if parsed.path == "/score":
-            self._send(json.dumps(self.evaluator.visible_state()), "application/json"); return
+            task = query.get("task", [None])[0]
+            if task is None:
+                self._send(json.dumps(self.evaluator.visible_state()), "application/json"); return
+            if task not in TASKS:
+                self.send_response(404); self.end_headers(); return
+            # Evaluator-side outcome for a live agent run; never expose this to the agent.
+            self._send(json.dumps({"task": task, "protocol": PROTOCOL_VERSION, "passed": self.evaluator.score(task),
+                                   "actions": [item["action"] for item in self.evaluator.trace],
+                                   "invalid_attempts": self.evaluator.invalid_attempts,
+                                   "layout": self.evaluator.layout, "state": self.evaluator.visible_state()}),
+                       "application/json"); return
         if parsed.path == "/admin":
             self._send(self.admin_page()); return
         if parsed.path == "/downloads/launch-brief.pdf":
@@ -123,6 +133,8 @@ class _Handler(BaseHTTPRequestHandler):
             '</table>'
             + ('<div class="hint">West region selected</div>' if selected else '')
             + f'<div class="toolbar">{self._control("generate_report")}</div>'
+            # Confirm on the screen where the action ran, not only under Reports.
+            + ('<div class="toast">Q3 Forecast report created</div>' if state.get("report_generated") else '')
         )
 
     def _reports_tab(self) -> str:

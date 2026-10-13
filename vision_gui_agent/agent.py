@@ -8,7 +8,7 @@ import re
 import traceback
 from dataclasses import dataclass, replace
 from pathlib import Path
-from time import perf_counter, time
+from time import perf_counter
 from uuid import uuid4
 
 from playwright.async_api import Page
@@ -72,6 +72,13 @@ class Agent:
         self.predicates = PredicateExtractor()
         self.functional_planner = FunctionalPlanner(self.action_model, config.max_plan_depth, config.min_schema_confidence)
         self.experiments = ExperimentSelector(config.experiment_budget, config.experiment_sandbox)
+
+    def _policy_origin(self) -> str:
+        """Name the component that produced a policy decision, for latency and source metrics."""
+        source = getattr(self.policy, "last_source", None)
+        if source: return source
+        name = type(self.policy).__name__
+        return {"GeminiPolicy": "gemini", "LayaPolicy": "laya"}.get(name, name)
 
     @staticmethod
     def _semantic_action(decision: ActionDecision, observation: Observation) -> SemanticAction | None:
@@ -299,26 +306,6 @@ class Agent:
     @staticmethod
     def _has_download(download_paths: list[str]) -> bool:
         return any(Path(path).is_file() and Path(path).stat().st_size for path in download_paths)
-
-    @staticmethod
-    def _recent_downloads(since_time: float) -> list[str]:
-        try:
-            downloads = Path.home() / "Downloads"
-            if not downloads.is_dir():
-                return []
-            found = []
-            for item in downloads.iterdir():
-                if item.is_file() and not item.name.startswith("."):
-                    try:
-                        stat = item.stat()
-                        if stat.st_mtime >= since_time and stat.st_size > 0:
-                            found.append((stat.st_mtime, str(item)))
-                    except OSError:
-                        pass
-            found.sort()
-            return [path for _, path in found]
-        except Exception:
-            return []
 
     @staticmethod
     def _is_high_impact(decision: ActionDecision, observation: Observation) -> bool:
@@ -647,7 +634,6 @@ class Agent:
         discovery_base: Observation | None = None
         discovery_node = ""
         planned: list[ActionDecision] = []
-        run_started_time = time()
         downloads_dir = self.config.artifact_dir / run_id / "downloads"
         if hasattr(page, "on"):
             def _on_download(download):
@@ -712,6 +698,7 @@ class Agent:
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
                 try:
                     decision: ActionDecision | None = None
+                    decision_origin: str | None = None
                     selected_schema: ActionSchema | None = None
                     selected_effect: ActionEffect | None = None
                     selected_experiment: ExperimentPlan | None = None
@@ -723,7 +710,7 @@ class Agent:
                         if candidate is None:
                             workflow.clear()
                         else:
-                            decision = candidate
+                            decision, decision_origin = candidate, "workflow_reuse"
                     if decision is None and planned:
                         candidate = planned.pop(0)
                         try:
@@ -731,11 +718,12 @@ class Agent:
                         except ValueError:
                             planned.clear()
                         else:
-                            decision = candidate
+                            decision, decision_origin = candidate, "planned"
                     if decision is None and self.config.memory_mode == "active-action-model" and not force_planner:
                         schema_choice = self._schema_decision(goal, observation)
                         if schema_choice:
                             decision, selected_schema, selected_effect = schema_choice
+                            decision_origin = "learned_schema"
                             current = {item.name: item.value for item in self.predicates.extract(observation, f"{run_id}:{step}:experiment")}
                             selected_experiment = self.experiments.select(selected_schema, {}, step + 1, current)
                     if decision is None and self.config.memory_mode != "none" and not force_planner:
@@ -743,22 +731,25 @@ class Agent:
                         if reusable:
                             workflow = reusable
                             decision = self._reuse_action(workflow[0], observation, current_label)
+                            decision_origin = "workflow_reuse"
                     if decision is None and self.config.memory_mode != "none" and not force_planner:
                         seen = {attempt_replay_keys.get(key, key) for key, attempts in action_attempts.items()
                                 if attempts >= self.config.max_action_attempts}
                         decision = self.graph.replay(current_node, goal, seen)
                         if decision and self._is_high_impact(decision, observation): decision = None
+                        decision_origin = "graph_replay" if decision else None
                     if decision is not None:
                         try:
                             decision = self._reground(decision, observation)
                         except ValueError:
-                            decision = None; workflow.clear(); planned.clear()
+                            decision = None; decision_origin = None; workflow.clear(); planned.clear()
                     if decision is None:
                         started = perf_counter()
                         try:
                             response = await self.policy.decide(goal, observation, graph_context, history)
                         finally:
                             timings["model_ms"] = (perf_counter() - started) * 1000
+                            decision_origin = self._policy_origin()
                         planned = self._safe_plan(list(response) if isinstance(response, list) else [response])[:1]
                         decision = planned.pop(0)
                     if decision.action == "inspect":
@@ -778,7 +769,7 @@ class Agent:
                         observation = replace(observation,elements=enriched,marked_screenshot_path=str(marked))
                         history.append(ActionRecord(decision,True))
                         logger.log(run_id,step,current_node,current_node,decision,True,observation,graph_context,
-                                   before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable")
+                                   before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable", decision_origin=decision_origin)
                         continue
                     if decision.action == "done":
                         if not decision.grounding and decision.element_id is not None:
@@ -849,10 +840,6 @@ class Agent:
                         pending = required_fields - completed_fields
                         if pending:
                             raise ValueError(f"Submit deferred; incomplete visible fields: {', '.join(label for _, _, label in sorted(pending))}")
-                    if not self._has_download(download_paths):
-                        for p in self._recent_downloads(run_started_time):
-                            if p not in download_paths:
-                                download_paths.append(p)
                     self._guard(decision, observation, ledger, goal, download_paths)
                     if decision.action == "done" and action_executed:
                         if decision.verify and not self._fresh_verification(decision.verify, initial_observation, observation):
@@ -869,7 +856,7 @@ class Agent:
                     attempt_replay_keys[rejected_key] = self.graph.replay_key(rejected)
                     action_attempts[rejected_key] = action_attempts.get(rejected_key, 0) + 1
                     history.append(ActionRecord(rejected, False, error))
-                    logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings)
+                    logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings, decision_origin=decision_origin)
                     planned.clear(); workflow.clear()
                     if self.config.verbose: print(f"[step {step}] {error}")
                     if isinstance(exc, GroundingAbstention):
@@ -883,7 +870,7 @@ class Agent:
                     error = f"Decision failed: {exc}{detail}"
                     if self.config.verbose: print(f"[step {step}] {error}\n{traceback.format_exc()}")
                     invalid = ActionDecision(action="done", rationale=error)
-                    logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings)
+                    logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings, decision_origin=decision_origin)
                     result = RunResult(run_id, False, step, current_node, error, history, constraints=list(ledger.values()))
                     logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, result.error)
                     return result
@@ -902,7 +889,7 @@ class Agent:
                     error = None if success else verification.reason
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification,
-                               before_observation=observation, after_observation=observation, dispatch_status="not_applicable")
+                               before_observation=observation, after_observation=observation, dispatch_status="not_applicable", decision_origin=decision_origin)
                     if self._recordable_graph_action(decision, observation):
                         self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
@@ -922,23 +909,19 @@ class Agent:
                     discovery_base = None
                     action_attempts[key] = action_attempts.get(key, 0) + 1
                     started = perf_counter()
-                    started_time = time()
+                    # Only a download that arrives after this dispatch can prove
+                    # this action; an earlier run download is not new evidence.
+                    downloads_before = len(download_paths)
                     download_path = await execute(page, observation, decision, self.config.artifact_dir / run_id / "downloads",
                                                   execution_mode=self.config.execution_mode, dispatch_info=dispatch_info)
-                    if not download_path and download_paths:
+                    if not download_path and len(download_paths) > downloads_before:
                         download_path = download_paths[-1]
                     action_executed = True
                     timings["execute_ms"] = (perf_counter() - started) * 1000
                     observed_at = perf_counter()
                     for verification_attempt in range(self.config.verification_attempts):
-                        if not download_path and download_paths:
+                        if not download_path and len(download_paths) > downloads_before:
                             download_path = download_paths[-1]
-                        if not download_path:
-                            recent = self._recent_downloads(started_time)
-                            if recent:
-                                download_path = recent[-1]
-                                if download_path not in download_paths:
-                                    download_paths.append(download_path)
                         next_observation = await observe(page, self.config.artifact_dir / run_id, step + 1, self.grounder)
                         if next_observation.url != observation.url:
                             next_observation = await self._settle_route(page, next_observation, self.config.artifact_dir / run_id, step + 1)
@@ -966,7 +949,7 @@ class Agent:
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, target_node, decision, success, next_observation,
                                graph_context, error, timings, verification, before_observation=observation,
-                               after_observation=next_observation, dispatch_status="dispatched", dispatch_info=dispatch_info)
+                               after_observation=next_observation, dispatch_status="dispatched", dispatch_info=dispatch_info, decision_origin=decision_origin)
                     if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
                         semantic = self._semantic_action(decision, observation)
                         before = self.predicates.extract(observation, f"{run_id}:{step}:before")
@@ -1020,7 +1003,7 @@ class Agent:
                     history.append(ActionRecord(decision, False, str(exc), verification))
                     logger.log(run_id,step,current_node,None,decision,False,source_observation,graph_context,
                                str(exc),timings,verification,before_observation=source_observation,
-                               dispatch_status="not_dispatched",dispatch_info=dispatch_info)
+                               dispatch_status="not_dispatched",dispatch_info=dispatch_info, decision_origin=decision_origin)
                     observation = await observe(page,self.config.artifact_dir/run_id,step+1,self.grounder)
                     planned.clear(); workflow.clear()
                     continue
@@ -1039,7 +1022,7 @@ class Agent:
                         target_node = current_node
                     history.append(ActionRecord(decision, False, error))
                     logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings,
-                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error", dispatch_info=dispatch_info)
+                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error", dispatch_info=dispatch_info, decision_origin=decision_origin)
                     if selected_experiment:
                         logger.finish_experiment(run_id, selected_experiment.id, "execution_error", None, f"{run_id}:{step}")
                     if self._recordable_graph_action(decision, source_observation):

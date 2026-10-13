@@ -32,7 +32,7 @@
 {% else %}<p class="muted">No timing data recorded.</p>{% endif %}
 
 <div class="chart-grid">
-  {% for key, title in (('statuses', 'Run status'), ('verification', 'Verification outcomes'), ('decision_sources', 'Decision source')) %}
+  {% for key, title in (('statuses', 'Run status'), ('verification', 'Verification outcomes'), ('decision_origins', 'Decided by'), ('decision_sources', 'Action-model source')) %}
   <article>
     <header>{{ title }}</header>
     {% if metrics[key] %}

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any
 
-PROTOCOL_VERSION = "fullsuite-v1"
+PROTOCOL_VERSION = "fullsuite-v2"
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,9 @@ ACTIONS: dict[str, ActionSpec] = {
         "Generate report", "Q3 Forecast report created"),
     "open_settings": ActionSpec(
         "settings", {}, {"settings_open": True, "authenticated": False, "approval_enabled": False, "reviewers_selected": False, "settings_saved": False},
-        "Project controls", "Project controls"),
+        # The button label must not contain the confirmation phrase, or the
+        # predicate would read as already true before the button is clicked.
+        "Manage settings", "Project controls"),
     "authenticate": ActionSpec(
         "settings", {"settings_open": True}, {"authenticated": True},
         "Sign in", "Signed in as Taylor Brooks"),

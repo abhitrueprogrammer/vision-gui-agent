@@ -227,6 +227,7 @@ def _step(root: Root, index: int, row: dict) -> dict:
                          "status": row.get("verification_status") or "not_requested",
                          "reason": row.get("verification_reason")},
         "dispatch": {"status": row.get("dispatch_status"), "info": loads(row.get("dispatch_info_json"), {})},
+        "decision_origin": row.get("decision_origin"),
         "decision_source": row.get("decision_source"), "outcome_class": row.get("outcome_class"),
         "semantic_action": row.get("semantic_action"), "intended_effect": row.get("intended_effect"),
         "timings": timings, "total_ms": sum(timings.values()),
@@ -329,9 +330,10 @@ def run_metrics(root: Root) -> dict:
                 for name in timing_names:
                     bucket[name].append(row[name] or 0.0)
         verification, decision_sources = counts("verification_status"), counts("decision_source")
+        decision_origins = counts("decision_origin")
     return {
         "summary": summary, "by_model": by_model, "statuses": statuses,
-        "verification": verification, "decision_sources": decision_sources,
+        "verification": verification, "decision_origins": decision_origins, "decision_sources": decision_sources,
         "latency": [{"model": model, "transitions": len(next(iter(values.values()))),
                      **{f"{name}_mean": _mean(series) for name, series in values.items()},
                      **{f"{name}_median": _median(series) for name, series in values.items()}}

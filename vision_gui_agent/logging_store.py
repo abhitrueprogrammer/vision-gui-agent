@@ -20,12 +20,21 @@ def metrics(connection: sqlite3.Connection) -> dict[str, float | int]:
             "average_steps": average_steps}
 
 
+# Decisions that did not come from the run's named model.  Their model_ms is
+# Laya inference or zero, so averaging them in would misstate model latency.
+NON_MODEL_ORIGINS = ("laya", "graph_replay", "workflow_reuse", "planned", "learned_schema")
+
+
 def model_metrics(connection: sqlite3.Connection) -> list[dict[str, float | int | str]]:
-    rows = connection.execute("""
-        SELECT COALESCE(r.model, 'unknown'), COUNT(DISTINCT r.run_id), AVG(t.model_ms)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(transitions)")}
+    # Databases written before decision_origin existed cannot separate sources.
+    model_ms = (f"CASE WHEN t.decision_origin IS NULL OR t.decision_origin NOT IN ({', '.join('?' * len(NON_MODEL_ORIGINS))}) THEN t.model_ms END"
+                if "decision_origin" in columns else "t.model_ms")
+    rows = connection.execute(f"""
+        SELECT COALESCE(r.model, 'unknown'), COUNT(DISTINCT r.run_id), AVG({model_ms}) AS average
         FROM runs r LEFT JOIN transitions t ON t.run_id = r.run_id
-        WHERE r.completed IS NOT NULL GROUP BY r.model ORDER BY AVG(t.model_ms)
-    """).fetchall()
+        WHERE r.completed IS NOT NULL GROUP BY r.model ORDER BY average
+    """, NON_MODEL_ORIGINS if "decision_origin" in columns else ()).fetchall()
     return [{"model": model, "runs": runs, "average_model_ms": average or 0.0}
             for model, runs, average in rows]
 
@@ -66,7 +75,7 @@ class RunLogger:
                                  "verification_reason": "TEXT", "download_path": "TEXT", "bridge_used": "TEXT", "detector_confidence": "REAL",
                                  "requested_postcondition": "TEXT", "independent_verification": "TEXT", "before_predicates_json": "TEXT",
                                  "after_predicates_json": "TEXT", "semantic_action": "TEXT", "intended_effect": "TEXT", "outcome_class": "TEXT",
-                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "dispatch_info_json": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
+                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "dispatch_info_json": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "decision_origin": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
             if name not in existing: self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
         for name, definition in {"provenance_json": "TEXT", "model": "TEXT", "completed": "INTEGER", "steps": "INTEGER", "final_node": "TEXT", "error": "TEXT", "status": "TEXT NOT NULL DEFAULT 'running'"}.items():
@@ -94,7 +103,7 @@ class RunLogger:
             success: bool, observation: Observation, graph_context: dict, error: str | None = None,
             timings: dict[str, float] | None = None, verification: VerificationResult | None = None, *,
             before_observation: Observation | None = None, after_observation: Observation | None = None,
-            dispatch_status: str = "unknown", dispatch_info: dict | None = None) -> None:
+            dispatch_status: str = "unknown", dispatch_info: dict | None = None, decision_origin: str | None = None) -> None:
         timings = timings or {}
         verification = verification or VerificationResult("not_requested", "No postcondition requested")
         action = decision.to_dict()
@@ -114,8 +123,8 @@ class RunLogger:
         )
         before = self._snapshot(before_observation) if before_observation else None
         after = self._snapshot(after_observation) if after_observation else None
-        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=?, dispatch_info_json=? WHERE id=?",
-                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, json.dumps(dispatch_info or {}), cursor.lastrowid))
+        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=?, dispatch_info_json=?, decision_origin=? WHERE id=?",
+                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, json.dumps(dispatch_info or {}), decision_origin, cursor.lastrowid))
         started = time.perf_counter()
         self.connection.commit()
         self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))

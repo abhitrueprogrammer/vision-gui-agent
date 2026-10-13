@@ -102,7 +102,8 @@
             {% if action.rationale %}<dt>Rationale</dt><dd>{{ action.rationale }}</dd>{% endif %}
             {% if action.verify %}<dt>Verify</dt><dd><code>{{ action.verify|tojson }}</code></dd>{% endif %}
             {% if action.grounding %}<dt>Grounding</dt><dd><ul class="plain">{% for item in action.grounding %}<li><code>{{ item.source }}</code> {{ item.expected or '' }}</li>{% endfor %}</ul></dd>{% endif %}
-            {% if current.decision_source %}<dt>Decided by</dt><dd>{{ current.decision_source }}</dd>{% endif %}
+            {% if current.decision_origin %}<dt>Decided by</dt><dd>{{ current.decision_origin }}</dd>{% endif %}
+            {% if current.decision_source %}<dt>Action-model source</dt><dd>{{ current.decision_source }}</dd>{% endif %}
           </dl>
         </article>
         <article>
