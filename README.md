@@ -50,7 +50,7 @@ Common options (defaults from the CLI):
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `--model` | `gemini-3.6-flash` | Gemini model identifier; select one available to your account. |
+| `--model` | `gemini-3.5-flash-lite` | Gemini model identifier. The default is pinned for reproducible results; avoid `-latest` aliases for reported runs. |
 | `--grounder` | `omniparser` | Control detection: `omniparser` or `gemini`. |
 | `--execution-mode` | `pixels` | Use `hybrid` explicitly for browser upload, color and verified downloads. |
 | `--max-steps` | `12` | Maximum agent steps. |
@@ -67,7 +67,7 @@ Use comparable memory configurations with `--memory-mode none`, `graph`, `passiv
 
 ## Visual Function Lab
 
-Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Versioned task groups and the two layout names are in `benchmark/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
+Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Versioned task groups and the two layout names are in `vision_gui_agent/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
 
 The evaluator check and browser-agent calibration are separate commands:
 
@@ -132,6 +132,6 @@ The suite includes a real Chromium end-to-end flow whose agent-side perception u
 
 - `vision_gui_agent/`: agent loop, perception, policy, execution, verification, memory, and benchmark tools.
 - `tests/`: unit and browser integration regression tests.
-- `benchmark/task_split.json`: frozen benchmark task groups.
+- `vision_gui_agent/task_split.json`: frozen benchmark task groups.
 - [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md): evaluation workflow and scoring protocol.
 - [Implementation specification](docs/AUTHORITATIVE_IMPLEMENTATION_SPEC.md): architecture and requirements.

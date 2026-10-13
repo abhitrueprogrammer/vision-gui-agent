@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Protocol
 
-from .gemini import GeminiClientPool, configured_gemini_keys  # noqa: F401 - re-exported
+from .gemini import DEFAULT_MODEL, GeminiClientPool, configured_gemini_keys  # noqa: F401 - re-exported
 from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition, json_value
 from .perception import model_image, selection_tiles
 
@@ -96,7 +96,7 @@ def _selection_constraints(goal: str, constraints: tuple[GoalConstraint, ...]) -
 class GeminiPolicy:
     """Vision-only policy that requests a short, safe sequence of actions."""
 
-    def __init__(self, model: str = "gemini-3.6-flash", benchmark_mode: bool = False,
+    def __init__(self, model: str = DEFAULT_MODEL, benchmark_mode: bool = False,
                  key_slot: int | None = None) -> None:
         self._clients = GeminiClientPool(key_slot)
         self.client, self.types = self._clients.client, self._clients.types

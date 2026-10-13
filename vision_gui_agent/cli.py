@@ -9,6 +9,7 @@ from playwright.async_api import Browser, BrowserContext, Error as PlaywrightErr
 
 from .agent import Agent, AgentConfig
 from .decision import CascadingPolicy, GeminiPolicy, LayaPolicy
+from .gemini import DEFAULT_MODEL
 from .logging_store import RunLogger
 from .perception import GeminiVisualGrounder, OmniParserVisualGrounder
 
@@ -102,7 +103,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run a graph-aware vision GUI agent")
     parser.add_argument("url", nargs="?")
     parser.add_argument("goal", nargs="?")
-    parser.add_argument("--model", default="gemini-3.6-flash")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--grounder", choices=["omniparser", "gemini"], default="omniparser", help="screenshot detector; OmniParser is local")
     parser.add_argument("--artifacts", default="artifacts")
     parser.add_argument("--max-steps", type=int, default=12)

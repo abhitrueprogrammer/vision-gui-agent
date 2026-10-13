@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 from playwright.async_api import Error as PlaywrightError, Page
 
 from .models import ActionDecision, Element, Observation, json_value
-from .gemini import GeminiClientPool
+from .gemini import DEFAULT_MODEL, GeminiClientPool
 from .capture import capture_screen
 
 
@@ -317,7 +317,7 @@ class OmniParserVisualGrounder:
 class GeminiVisualGrounder:
     """Detect actionable screen regions from pixels only."""
 
-    def __init__(self, model: str = "gemini-3.6-flash", key_slot: int | None = None) -> None:
+    def __init__(self, model: str = DEFAULT_MODEL, key_slot: int | None = None) -> None:
         self._clients = GeminiClientPool(key_slot)
         self.client, self.types, self.model = self._clients.client, self._clients.types, model
         self.last_label = "Visual screen"

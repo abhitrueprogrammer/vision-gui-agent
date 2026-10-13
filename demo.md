@@ -8,8 +8,7 @@ uv run vision-gui-agent http://127.0.0.1:4200 \
     --memory-mode none \
     --max-steps 12 \
     --artifacts artifacts/manual-local \
-    --verbose \
-    --model gemini-flash-lite-latest
+    --verbose
     ```
 
 3. 
@@ -20,8 +19,7 @@ uv run vision-gui-agent http://127.0.0.1:4200/fullsuite \
     --memory-mode active-action-model \
     --max-steps 20 \
     --artifacts artifacts/141 \
-    --verbose \
-    --model gemini-flash-lite-latest
+    --verbose
 ```
 4. 
 ```bash
@@ -31,8 +29,7 @@ uv run vision-gui-agent https://wikipedia.com \
     --memory-mode none \
     --max-steps 20 \
     --artifacts artifacts/wikipedia \
-    --verbose \
-    --model gemini-flash-lite-latest
+    --verbose
 ```
 5. 
 ```bash
@@ -43,8 +40,7 @@ uv run vision-gui-agent http://127.0.0.1:4200/fullsuite \
     --memory-mode active-action-model \
     --max-steps 20 \
     --artifacts artifacts/142 \
-    --verbose \
-    --model gemini-flash-lite-latest
+    --verbose
 ```
 6. 
 ```bash
@@ -55,6 +51,5 @@ uv run vision-gui-agent http://127.0.0.1:4200/fullsuite \
     --memory-mode active-action-model \
     --max-steps 20 \
     --artifacts artifacts/143 \
-    --verbose \
-    --model gemini-flash-lite-latest
+    --verbose
 ```

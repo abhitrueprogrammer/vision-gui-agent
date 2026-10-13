@@ -12,6 +12,9 @@ from dotenv import load_dotenv
 
 T = TypeVar("T")
 
+# A dated model, not a "-latest" alias, so reported results stay reproducible.
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+
 
 def configured_gemini_keys(env_path: Path = Path(".env")) -> list[str]:
     """Return configured Gemini keys, including the optional second slot."""
