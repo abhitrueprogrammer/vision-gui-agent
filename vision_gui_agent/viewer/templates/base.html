@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Run viewer{% endblock %} · Vision GUI Agent</title>
+  <link rel="stylesheet" href="/static/vendor/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js"></script>
+  <script defer src="/static/vendor/alpine.min.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="container-fluid topbar">
+    <nav>
+      <ul><li><a href="/{{ '?root=' ~ root.slug if root else '' }}" class="brand"><strong>Vision GUI Agent</strong> <span class="muted">run viewer</span></a></li></ul>
+      {% if root %}
+      <ul>
+        <li><a href="/?root={{ root.slug }}" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Runs</a></li>
+        <li><a href="/graph/{{ root.slug }}" {% if request.url.path.startswith('/graph') %}aria-current="page"{% endif %}>State graph</a></li>
+        <li><a href="/metrics/{{ root.slug }}" {% if request.url.path.startswith('/metrics') %}aria-current="page"{% endif %}>Metrics</a></li>
+        <li><span class="root-chip" title="{{ root.path }}">root: {{ root.slug }}</span></li>
+      </ul>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="container-fluid">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -11,6 +11,25 @@ from pathlib import Path
 from .models import CaptureMetadata, ActionDecision, Element, ExperimentPlan, Observation, VerificationResult, json_value
 
 
+def metrics(connection: sqlite3.Connection) -> dict[str, float | int]:
+    """Shared with the read-only viewer, which must never construct RunLogger."""
+    run_count, completed, average_steps = connection.execute(
+        "SELECT COUNT(*), COALESCE(SUM(completed), 0), COALESCE(AVG(steps), 0) FROM runs WHERE completed IS NOT NULL"
+    ).fetchone()
+    return {"measurement": "internal_completion_only", "runs": run_count, "completed": completed, "internal_completion_rate": completed / run_count if run_count else 0.0,
+            "average_steps": average_steps}
+
+
+def model_metrics(connection: sqlite3.Connection) -> list[dict[str, float | int | str]]:
+    rows = connection.execute("""
+        SELECT COALESCE(r.model, 'unknown'), COUNT(DISTINCT r.run_id), AVG(t.model_ms)
+        FROM runs r LEFT JOIN transitions t ON t.run_id = r.run_id
+        WHERE r.completed IS NOT NULL GROUP BY r.model ORDER BY AVG(t.model_ms)
+    """).fetchall()
+    return [{"model": model, "runs": runs, "average_model_ms": average or 0.0}
+            for model, runs, average in rows]
+
+
 class RunLogger:
     """SQLite run data, deliberately denormalized enough for future policy training."""
 
@@ -141,20 +160,10 @@ class RunLogger:
         self.connection.commit()
 
     def metrics(self) -> dict[str, float | int]:
-        run_count, completed, average_steps = self.connection.execute(
-            "SELECT COUNT(*), COALESCE(SUM(completed), 0), COALESCE(AVG(steps), 0) FROM runs WHERE completed IS NOT NULL"
-        ).fetchone()
-        return {"measurement": "internal_completion_only", "runs": run_count, "completed": completed, "internal_completion_rate": completed / run_count if run_count else 0.0,
-                "average_steps": average_steps}
+        return metrics(self.connection)
 
     def model_metrics(self) -> list[dict[str, float | int | str]]:
-        rows = self.connection.execute("""
-            SELECT COALESCE(r.model, 'unknown'), COUNT(DISTINCT r.run_id), AVG(t.model_ms)
-            FROM runs r LEFT JOIN transitions t ON t.run_id = r.run_id
-            WHERE r.completed IS NOT NULL GROUP BY r.model ORDER BY AVG(t.model_ms)
-        """).fetchall()
-        return [{"model": model, "runs": runs, "average_model_ms": average or 0.0}
-                for model, runs, average in rows]
+        return model_metrics(self.connection)
 
     def _snapshot(self, observation: Observation) -> dict:
         """Content-address pixels and metadata; later captures cannot rewrite a trace."""

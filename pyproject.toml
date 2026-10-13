@@ -19,6 +19,9 @@ dependencies = [
     "torchvision",
     "huggingface-hub",
     "laya>=0.3.23",
+    "fastapi>=0.143.0",
+    "uvicorn>=0.54.0",
+    "jinja2>=3.1.6",
 ]
 
 [project.scripts]
@@ -26,13 +29,14 @@ vision-gui-agent = "vision_gui_agent.cli:main"
 vision-gui-benchmark = "vision_gui_agent.benchmark_runner:main"
 vision-gui-calibrate = "vision_gui_agent.benchmark_calibration:main"
 visual-function-lab = "vision_gui_agent.visual_function_lab_server:main"
+vision-gui-viewer = "vision_gui_agent.viewer.cli:main"
 
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["vision_gui_agent"]
+packages = ["vision_gui_agent", "vision_gui_agent.viewer"]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -45,8 +49,10 @@ torchvision = { index = "pytorch-cpu" }
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.13.1",
     "pytest>=9.1.1",
 ]
 
 [tool.setuptools.package-data]
 vision_gui_agent = ["task_split.json"]
+"vision_gui_agent.viewer" = ["templates/*.html", "static/*.js", "static/*.css", "static/vendor/*"]

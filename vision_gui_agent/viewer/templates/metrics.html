@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Metrics{% endblock %}
+{% block head %}<script src="/static/vendor/chart.umd.min.js"></script>{% endblock %}
+{% block content %}
+<h2>Metrics <span class="muted small">root {{ root.slug }}</span></h2>
+{% set summary = metrics.summary %}
+{% if summary %}
+<div class="tiles">
+  <article><small>Finished runs</small><strong>{{ summary.runs }}</strong></article>
+  <article><small>Internal completion rate</small><strong>{{ '%.0f'|format(summary.internal_completion_rate * 100) }}%</strong><small class="muted">{{ summary.completed }} completed</small></article>
+  <article><small>Average steps</small><strong>{{ '%.1f'|format(summary.average_steps) }}</strong></article>
+</div>
+<p class="muted small">“Internal completion” is the agent's own verdict (<code>{{ summary.measurement }}</code>), not an independent evaluation. Finished runs exclude runs still marked running.</p>
+{% endif %}
+
+<h3>Latency by model</h3>
+{% if metrics.latency %}
+<div class="table-scroll">
+<table class="striped">
+  <thead><tr><th>Model</th><th class="num">Transitions</th><th class="num">Observe mean / median</th><th class="num">Model mean / median</th><th class="num">Execute mean / median</th></tr></thead>
+  <tbody>
+  {% for row in metrics.latency %}
+    <tr><td>{{ row.model }}</td><td class="num">{{ row.transitions }}</td>
+      {% for name in ('observe_ms', 'model_ms', 'execute_ms') %}
+        <td class="num">{{ row[name ~ '_mean']|duration }} / {{ row[name ~ '_median']|duration }}</td>
+      {% endfor %}</tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<div class="chart-box"><canvas id="latency-chart" aria-label="Mean latency per model by phase"></canvas></div>
+{% else %}<p class="muted">No timing data recorded.</p>{% endif %}
+
+<div class="chart-grid">
+  {% for key, title in (('statuses', 'Run status'), ('verification', 'Verification outcomes'), ('decision_sources', 'Decision source')) %}
+  <article>
+    <header>{{ title }}</header>
+    {% if metrics[key] %}
+      <div class="chart-box small-chart"><canvas id="chart-{{ key }}" aria-label="{{ title }}"></canvas></div>
+      <table class="compact">{% for label, count in metrics[key].items() %}<tr><td>{{ label }}</td><td class="num">{{ count }}</td></tr>{% endfor %}</table>
+    {% else %}<p class="muted">No data.</p>{% endif %}
+  </article>
+  {% endfor %}
+</div>
+<script type="application/json" id="metrics-data">{{ metrics|tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/metrics.js"></script>{% endblock %}

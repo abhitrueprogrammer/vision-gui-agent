@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}{{ run.goal|truncate(40) }}{% endblock %}
+{% block content %}
+{% set run_url = "/runs/" ~ root.slug ~ "/" ~ run.run_id %}
+<div id="run-body"
+     x-data="stepView()"
+     @keydown.window.arrow-left="go('prev')" @keydown.window.arrow-right="go('next')"
+     hx-target="#run-body" hx-select="#run-body" hx-swap="outerHTML show:none"
+     {% if run.status == 'running' %}hx-get="{{ run_url }}?step={{ current.index if current else 0 }}" hx-trigger="every 5s"{% endif %}>
+
+  <hgroup class="run-header">
+    <h2>{{ run.goal }}</h2>
+    <p>
+      <span class="badge status-{{ run.status }}">{{ run.status }}</span>
+      <span>{{ run.model or 'unknown model' }}</span> ·
+      <span>started {{ run.started_at }} UTC</span> ·
+      <span>{{ run.steps|length }} transition{{ '' if run.steps|length == 1 else 's' }}</span>
+      {% if run.provenance.commit %} · <code title="{{ run.provenance.commit }}">{{ run.provenance.commit[:8] }}</code>{% endif %}
+      {% if run.provenance.evaluation_track %} · track {{ run.provenance.evaluation_track }}{% endif %}
+      · <a href="/graph/{{ root.slug }}?run={{ run.run_id }}">show in state graph</a>
+      {% if run.status == 'running' %} · <span class="muted">live, refreshing every 5 s</span>{% endif %}
+    </p>
+    {% if run.error %}<p class="error-text">{{ run.error }}</p>{% endif %}
+    {% if run.provenance.independent_evaluator_outcome %}
+      <p class="muted">Independent evaluator: <code>{{ run.provenance.independent_evaluator_outcome|tojson }}</code></p>
+    {% endif %}
+  </hgroup>
+
+  {% if not current %}
+  <article><p>This run has no recorded transitions yet.</p></article>
+  {% else %}
+  <div class="run-grid">
+    <aside id="steps" class="steps" role="navigation" aria-label="Steps" hx-boost="true">
+      <ol>
+      {% for item in run.steps %}
+        <li>
+          <a href="{{ run_url }}?step={{ item.index }}" hx-push-url="true"
+             {% if item.index == current.index %}aria-current="step"{% endif %}
+             {% if item.index == current.index - 1 %}data-nav="prev"{% elif item.index == current.index + 1 %}data-nav="next"{% endif %}>
+            <span class="outcome {{ 'ok' if item.success else 'fail' }}" aria-label="{{ 'succeeded' if item.success else 'failed' }}">{{ '✓' if item.success else '✗' }}</span>
+            <span class="step-no">{{ item.step }}</span>
+            <span class="step-summary">{{ item.summary }}</span>
+            {% if item.verification.status not in ('not_requested', None) %}<span class="vbadge v-{{ item.verification.status }}">{{ item.verification.status }}</span>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+      </ol>
+      <p class="muted small">← / → to move between steps</p>
+    </aside>
+
+    <section id="step" class="step-pane">
+      {% set obs = current.screen %}
+      {% set action = current.action %}
+      {% set target = (obs.elements|selectattr('id', 'equalto', action.element_id)|first) if obs else None %}
+      <header class="step-head">
+        <h3>Step {{ current.step }} · {{ current.summary }}</h3>
+        <span class="badge {{ 'status-completed' if current.success else 'status-failed' }}">{{ 'succeeded' if current.success else 'failed' }}</span>
+        {% if obs %}<span class="muted small">Decision screen: {{ obs.title }} — {{ obs.url }}</span>{% endif %}
+      </header>
+
+      {% if obs and obs.screenshot %}
+      <div class="shot-controls" role="group">
+        <button type="button" class="outline" :aria-pressed="marked" @click="marked = !marked" x-text="marked ? 'Showing marked screenshot' : 'Showing raw screenshot'">Marked / raw</button>
+        <button type="button" class="outline" :aria-pressed="boxes" @click="boxes = !boxes" x-text="boxes ? 'Hide element boxes' : 'Show element boxes'">Element boxes</button>
+      </div>
+      <figure class="shot">
+        <img src="{{ obs.marked or obs.screenshot }}" data-raw="{{ obs.screenshot }}" data-marked="{{ obs.marked or '' }}"
+             :src="marked && $el.dataset.marked ? $el.dataset.marked : $el.dataset.raw" alt="Screenshot for step {{ current.step }}">
+        {% if obs.size %}
+        <svg viewBox="0 0 {{ obs.size[0] }} {{ obs.size[1] }}" preserveAspectRatio="none" :class="{ 'boxes-on': boxes }" aria-hidden="true">
+          {% for element in obs.elements %}
+          <rect x="{{ element.x }}" y="{{ element.y }}" width="{{ element.width }}" height="{{ element.height }}"
+                class="el {{ 'chosen' if element.id == action.element_id else '' }} {{ '' if element.actionable else 'inert' }}"
+                @mouseenter="hover = {{ loop.index0 }}" @mouseleave="hover = null"></rect>
+          {% endfor %}
+        </svg>
+        {% endif %}
+      </figure>
+      <script type="application/json" class="step-elements">{{ obs.elements|tojson }}</script>
+      <div class="element-info" x-show="hover !== null" x-cloak>
+        <template x-if="hover !== null">
+          <p><strong x-text="'#' + elements[hover].id + ' ' + elements[hover].label"></strong>
+            <span x-text="elements[hover].role"></span> ·
+            confidence <span x-text="(elements[hover].confidence ?? 0).toFixed(2)"></span>
+            <span x-show="!elements[hover].actionable">· not actionable</span>
+            <span x-show="(elements[hover].uncertainties || []).length" x-text="'· uncertain: ' + (elements[hover].uncertainties || []).join(', ')"></span></p>
+        </template>
+      </div>
+      {% elif obs %}
+      <p class="muted">No screenshot recorded for this step.</p>
+      {% endif %}
+
+      <div class="cards">
+        <article>
+          <header>Action</header>
+          <dl>
+            <dt>Action</dt><dd><code>{{ action.action or '—' }}</code> {% if action.impact %}<span class="muted">({{ action.impact }})</span>{% endif %}</dd>
+            <dt>Target</dt><dd>{% if action.element_id is not none %}#{{ action.element_id }}{% if target %} “{{ target.label }}” <span class="muted">{{ target.role }}</span>{% endif %}{% else %}—{% endif %}</dd>
+            {% if action.text is not none %}<dt>Text</dt><dd><code>{{ action.text }}</code></dd>{% endif %}
+            {% if action.key %}<dt>Key</dt><dd><code>{{ action.key }}</code></dd>{% endif %}
+            {% if action.direction %}<dt>Direction</dt><dd>{{ action.direction }}</dd>{% endif %}
+            {% if action.rationale %}<dt>Rationale</dt><dd>{{ action.rationale }}</dd>{% endif %}
+            {% if action.verify %}<dt>Verify</dt><dd><code>{{ action.verify|tojson }}</code></dd>{% endif %}
+            {% if action.grounding %}<dt>Grounding</dt><dd><ul class="plain">{% for item in action.grounding %}<li><code>{{ item.source }}</code> {{ item.expected or '' }}</li>{% endfor %}</ul></dd>{% endif %}
+            {% if current.decision_source %}<dt>Decided by</dt><dd>{{ current.decision_source }}</dd>{% endif %}
+          </dl>
+        </article>
+        <article>
+          <header>Outcome</header>
+          <dl>
+            <dt>Result</dt><dd>{{ 'succeeded' if current.success else 'failed' }}</dd>
+            {% if current.error %}<dt>Error</dt><dd class="error-text">{{ current.error }}</dd>{% endif %}
+            <dt>Verification</dt><dd><span class="vbadge v-{{ current.verification.status }}">{{ current.verification.status }}</span> {{ current.verification.reason or '' }}</dd>
+            {% if current.dispatch.status %}<dt>Dispatch</dt><dd>{{ current.dispatch.status }}</dd>{% endif %}
+            {% if current.outcome_class %}<dt>Outcome class</dt><dd>{{ current.outcome_class }}</dd>{% endif %}
+            {% if current.semantic_action %}<dt>Semantic action</dt><dd><code>{{ current.semantic_action }}</code></dd>{% endif %}
+            <dt>Graph</dt><dd><code>{{ current.source_node or '—' }}</code> → <code>{{ current.target_node or '—' }}</code></dd>
+            {% if current.download %}<dt>Download</dt><dd>{% if current.download.url %}<a href="{{ current.download.url }}">{{ current.download.path.split('/')[-1] }}</a>{% else %}<code>{{ current.download.path }}</code> <span class="muted">(outside artifact root, not served)</span>{% endif %}</dd>{% endif %}
+          </dl>
+        </article>
+      </div>
+
+      <h4>Timing <span class="muted small">{{ current.total_ms|duration }}</span></h4>
+      <div class="timing" role="img" aria-label="observe {{ current.timings.observe|duration }}, model {{ current.timings.model|duration }}, execute {{ current.timings.execute|duration }}, persist {{ current.timings.persist|duration }}">
+        {% for name, value in current.timings.items() if value %}
+          <span class="seg seg-{{ name }}" style="flex-grow: {{ value }}" title="{{ name }} {{ value|duration }}"></span>
+        {% endfor %}
+      </div>
+      <p class="timing-legend small">
+        {% for name, value in current.timings.items() %}<span><i class="seg-{{ name }}"></i>{{ name }} {{ value|duration }}</span>{% endfor %}
+      </p>
+
+      {% set result = current.result_screen %}
+      {% if result and (result.marked or result.screenshot) %}
+      <h4>After the action <span class="muted small">{{ result.title }}</span></h4>
+      <figure class="after-shot">
+        <a href="{{ result.marked or result.screenshot }}" target="_blank" rel="noopener"><img src="{{ result.marked or result.screenshot }}" alt="Screen after step {{ current.step }}" loading="lazy"></a>
+      </figure>
+      {% endif %}
+
+      <details>
+        <summary>Raw action and graph context</summary>
+        <pre><code>{{ {"action": action, "graph_context": current.graph_context, "dispatch": current.dispatch.info}|tojson(indent=2) }}</code></pre>
+      </details>
+    </section>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/app.js"></script>{% endblock %}

@@ -109,6 +109,20 @@ uv run vision-gui-agent --artifacts artifacts --metrics
 ```
 
 SQLite transitions retain the observation, graph context, action, and outcome so they can be exported as action-selection training examples later.
+
+## Inspect runs in the viewer
+
+```bash
+uv run vision-gui-viewer --artifacts artifacts --open
+```
+
+This starts a local, read-only web viewer at `http://127.0.0.1:8765/`. It finds every artifact root under `--artifacts` (each directory holding `runs-v2.sqlite3`, or the calibration harness's `runs.sqlite3`). It has four views:
+- **Runs list:** filterable, with optional auto-refresh.
+- **Per-run step pages:** the screenshot the decision was made on, hoverable element boxes, the action and its outcome, a timing breakdown and the after-action screen.
+- **State graph:** repeated attempts are collapsed, and the selected run's path is highlighted.
+- **Metrics:** the same completion figures as `--metrics`, plus latency, verification and decision-source breakdowns.
+
+The viewer opens databases in SQLite read-only mode and never changes artifacts. It is safe to leave open while a run is in progress. Screenshots may contain sensitive page content, so keep the default `--host 127.0.0.1`. Frontend libraries are vendored under `vision_gui_agent/viewer/static/vendor/`, with versions and checksums listed in `VERSIONS.txt`, so the viewer works offline.
 Each transition also records `observe_ms`, `model_ms`, `execute_ms`, and `persist_ms` for direct latency comparisons.
 The metrics command groups average model latency by the selected `--model`, so runs against available Gemini tiers (or another policy implementation) can be compared directly.
 

@@ -1,0 +1,7 @@
+htmx.min.js  https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js  sha256=e209dda5c8235479f3166defc7750e1dbcd5a5c1808b7792fc2e6733768fb447
+alpine.min.js  https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js  sha256=b600e363d99d95444db54acbfb2deffec9ae792aa99a09229bcda078e5b55643
+cytoscape.min.js  https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js  sha256=1bb5340e549511e111b31e5684872c949ad33d40ea5dba0ad8e7d90c62c7b3b9
+dagre.min.js  https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js  sha256=62eb9787ccfdbdf4148d4d99d31dbf9ee4770eafee81e637d759b52aac22cd51
+cytoscape-dagre.js  https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js  sha256=bf70fe402991dcbff33e05a7e4a5271c78020bb75e85d1c80ab7538e4157112e
+chart.umd.min.js  https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js  sha256=206b6e8bb00fc7bba2c7ee80ca41db3e9e05ba7be0aa35abeba9cfd5357f5d0e
+pico.min.css  https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css  sha256=dd5fd5591afd81ee21dcc117ad85c014dc3f1f19dc2d7b7d101ea0acc29274c2

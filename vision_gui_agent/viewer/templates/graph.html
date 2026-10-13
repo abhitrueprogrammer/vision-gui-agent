@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}State graph{% endblock %}
+{% block head %}
+<script src="/static/vendor/cytoscape.min.js"></script>
+<script src="/static/vendor/dagre.min.js"></script>
+<script src="/static/vendor/cytoscape-dagre.js"></script>
+{% endblock %}
+{% block content %}
+<div class="graph-page" data-root="{{ root.slug }}" data-run="{{ run_id or '' }}">
+  <div class="graph-toolbar">
+    <h2>State graph</h2>
+    {% if run_id %}
+      <span>Highlighting run <a href="/runs/{{ root.slug }}/{{ run_id }}"><code>{{ run_id[:8] }}</code></a></span>
+      <label class="inline"><input type="checkbox" id="show-all" role="switch"> Show whole graph</label>
+    {% endif %}
+    <label class="inline"><input type="checkbox" id="expand" role="switch"> Show individual attempts</label>
+    <button type="button" class="outline" id="fit">Fit</button>
+    <span id="graph-status" class="muted small" role="status"></span>
+  </div>
+  <div class="graph-layout">
+    <div id="cy" aria-label="State graph"></div>
+    <aside id="node-panel">
+      <p class="muted">Select a state to see its screenshot and outgoing actions. Edge width shows how often an action was taken; green succeeded, red failed.</p>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/graph.js"></script>{% endblock %}

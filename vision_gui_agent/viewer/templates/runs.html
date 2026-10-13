@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Runs{% endblock %}
+{% block content %}
+{% if not roots %}
+<article>
+  <h2>No runs found</h2>
+  <p>No <code>runs-v2.sqlite3</code> or <code>runs.sqlite3</code> under <code>{{ base }}</code>. Run the agent first, then <a href="/?rescan=1">rescan</a>.</p>
+</article>
+{% else %}
+<form class="filters" method="get" action="/">
+  <label>Artifact root
+    <select name="root" onchange="this.form.submit()">
+      {% for item in roots %}<option value="{{ item.slug }}" {% if root and item.slug == root.slug %}selected{% endif %}>{{ item.slug }}</option>{% endfor %}
+    </select>
+  </label>
+</form>
+<form class="filters" hx-get="/" hx-target="#runs-table" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="change, input changed delay:300ms from:input[name=q], submit">
+  <input type="hidden" name="root" value="{{ root.slug if root else '' }}">
+  <label>Status
+    <select name="status">
+      <option value="">All</option>
+      {% for value in options.status %}<option {% if value == filters.status %}selected{% endif %}>{{ value }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Model
+    <select name="model">
+      <option value="">All</option>
+      {% for value in options.model %}<option {% if value == filters.model %}selected{% endif %}>{{ value }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Goal contains
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="e.g. Launch Brief">
+  </label>
+  <label class="inline"><input type="checkbox" name="auto" value="true" role="switch" {% if auto %}checked{% endif %}> Auto-refresh</label>
+  <a href="/?rescan=1{{ '&root=' ~ root.slug if root else '' }}" class="secondary rescan">Rescan roots</a>
+</form>
+{% include "_runs_table.html" %}
+{% endif %}
+{% endblock %}

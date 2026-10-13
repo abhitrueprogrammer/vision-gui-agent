@@ -1,0 +1,26 @@
+<div id="runs-table"
+     {% if auto %}hx-get="/?root={{ root.slug }}&status={{ filters.status|urlencode }}&model={{ filters.model|urlencode }}&q={{ filters.q|urlencode }}&auto=true"
+     hx-trigger="every 5s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  <p class="muted">{{ runs|length }} run{{ '' if runs|length == 1 else 's' }}{% if auto %} · refreshing every 5 s{% endif %}</p>
+  <div class="table-scroll">
+  <table class="striped runs">
+    <thead><tr><th>Started (UTC)</th><th>Goal</th><th>Model</th><th>Status</th><th class="num">Steps</th><th class="num">Failed</th><th class="num">Time</th></tr></thead>
+    <tbody>
+    {% for run in runs %}
+      <tr>
+        <td class="nowrap">{{ run.started_at }}</td>
+        <td><a href="/runs/{{ root.slug }}/{{ run.run_id }}">{{ run.goal }}</a>
+          {% if run.error %}<div class="error-text" title="{{ run.error }}">{{ run.error|truncate(90) }}</div>{% endif %}</td>
+        <td class="nowrap">{{ run.model or '—' }}</td>
+        <td><span class="badge status-{{ run.status }}">{{ run.status }}</span></td>
+        <td class="num">{{ run.transition_count }}</td>
+        <td class="num">{{ run.failures or '' }}</td>
+        <td class="num nowrap">{{ run.total_ms|duration }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="muted">No runs match these filters.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
