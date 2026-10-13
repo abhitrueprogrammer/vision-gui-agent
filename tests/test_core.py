@@ -285,48 +285,64 @@ class CoreTests(unittest.TestCase):
 
     def test_planner_handles_self_loops_and_failures(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            image_path = Path(temp_dir) / "login.png"
-            Image.new("RGB", (100, 100), "white").save(image_path)
-            observation = Observation(str(image_path), str(image_path), [
+            login_path, account_path = Path(temp_dir) / "login.png", Path(temp_dir) / "account.png"
+            Image.new("RGB", (100, 100), "white").save(login_path)
+            Image.new("RGB", (100, 100), "black").save(account_path)
+            graph = StateGraph(hash_threshold=0)
+            # Nodes come from real observations, so replay_safe is computed rather than injected.
+            login, _ = graph.add_observation(Observation(str(login_path), str(login_path), [
                 Element(1, "[x]", "input", "", "", "Your email", "", 0, 0, 10, 10),
                 Element(2, "[y]", "input", "", "", "Your password", "", 0, 0, 10, 10),
                 Element(3, "[z]", "button", "Login", "", "", "", 0, 0, 10, 10),
-            ], "https://example.test/login", "Login")
-            graph = StateGraph(hash_threshold=0)
-            graph.graph.add_nodes_from([("login", {"replay_safe": True}), ("account", {"replay_safe": True})])
-            login, account = "login", "account"
-            dashboard_path = Path(temp_dir) / "dashboard.png"
-            Image.new("RGB", (100, 100), "black").save(dashboard_path)
-            dashboard = Observation(str(dashboard_path), str(dashboard_path), [], "https://example.test/account", "Account")
-            graph.add_transition(login, login, ActionDecision(action="fill", element_id=1, text="customer@example.test", grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "log in", "run-1", verification_status="passed")
-            graph.add_transition(login, account, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "log in", "run-1", verification_status="passed")
-            graph.add_transition(login, login, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), False, "log in", "run-2", "blocked", verification_status="failed")
+            ], "https://example.test/login", "Login"))
+            account, _ = graph.add_observation(Observation(str(account_path), str(account_path), [], "https://example.test/account", "Account"))
+            self.assertTrue(graph.graph.nodes[login]["replay_safe"])
+            fill = ActionDecision(action="fill", element_id=1, text="customer@example.test", grounding=(EvidenceRecord("placeholder", "Your email", 1),))
+            click = ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Login", 3),))
+            graph.add_transition(login, login, fill, True, "log in", "run-1", verification_status="passed")
+            graph.add_transition(login, account, click, True, "log in", "run-1", verification_status="passed")
+            graph.add_transition(login, login, click, False, "log in", "run-2", "blocked", verification_status="failed")
             graph.add_transition(account, account, ActionDecision(action="done"), True, "log in", "run-1", verification_status="goal_complete")
-            graph.graph.nodes[login]["elements"] = [Element(i, "", "input" if i == 1 else "button", label, "", "", "", 0, 0, 10, 10).__dict__ for i, label in ((1,"Go"),(3,"Next"))]
             graph.mark_run_completed("run-1")
             first = graph.replay(login, "log in")
             second = graph.replay(login, "log in", {graph.replay_key(first)})
             self.assertEqual((first.action, second.action), ("fill", "click"))
-            self.assertLess(graph._reliability(login, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), "log in"), 0.75)
+            self.assertLess(graph._reliability(login, click, "log in"), 0.75)
+
+    def test_replay_refuses_screens_with_ambiguous_controls(self) -> None:
+        screens = {
+            "duplicate labels": [Element(1, "", "button", "Delete", "", "", "button", 0, 0, 10, 10),
+                                 Element(2, "", "button", "Delete", "", "", "button", 0, 20, 10, 10)],
+            "unknown checkbox state": [Element(1, "", "checkbox", "Remember me", "", "", "checkbox", 0, 0, 10, 10)],
+            "unlabeled control": [Element(1, "", "button", "", "", "", "button", 0, 0, 10, 10)],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for name, elements in screens.items():
+                with self.subTest(name):
+                    path = Path(temp_dir) / f"{name}.png"
+                    Image.new("RGB", (100, 100), "white").save(path)
+                    graph = StateGraph()
+                    node, _ = graph.add_observation(Observation(str(path), str(path), elements, "https://example.test/rows", "Rows"))
+                    self.assertFalse(graph.graph.nodes[node]["replay_safe"])
+                    # Even a completed, verified done edge must not be replayed here.
+                    graph.add_transition(node, node, ActionDecision(action="done"), True, "clear", "run-1", verification_status="goal_complete")
+                    graph.mark_run_completed("run-1")
+                    self.assertIsNone(graph.replay(node, "clear"))
 
     def test_planner_prefers_reliable_route_and_retry_limit(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            base = Path(temp_dir); paths = [base / f"{n}.png" for n in range(4)]
-            for path, color in zip(paths, ("white", "black", "red", "blue")): Image.new("RGB", (20, 20), color).save(path)
-            make = lambda path, ident: Observation(str(path), str(path), [Element(ident, "[x]", "button", "Go", "", "", "", 0, 0, 1, 1)], "https://example.test", "Page")
-            graph = StateGraph(hash_threshold=0); start, bad, good, done = "start", "bad", "good", "done"
-            graph.graph.add_nodes_from((node, {"replay_safe": True}) for node in (start, bad, good, done))
-            graph.add_transition(start, bad, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "goal", "good", verification_status="passed")
-            graph.add_transition(start, start, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), False, "goal", "bad", verification_status="failed")
-            graph.add_transition(start, good, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
-            graph.add_transition(bad, done, ActionDecision(action="click", element_id=2, grounding=(EvidenceRecord("element_text", "Other", 2),)), True, "goal", "good", verification_status="passed")
-            graph.add_transition(good, done, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
-            graph.add_transition(done, done, ActionDecision(action="done"), True, "goal", "good", verification_status="goal_complete")
-            for node in (start, bad, good, done):
-                graph.graph.nodes[node]["elements"] = [Element(i, "", "button", label, "", "", "", 0, 0, 10, 10).__dict__ for i,label in ((1,"Go"),(2,"Other"),(3,"Next"))]
-            graph.mark_run_completed("good")
-            self.assertEqual(graph.replay(start, "goal").element_id, 3)
-            self.assertEqual(graph.replay(start, "goal", {graph.replay_key(ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)))}).element_id, 1)
+        graph = StateGraph(hash_threshold=0); start, bad, good, done = "start", "bad", "good", "done"
+        graph.graph.add_nodes_from((node, {"replay_safe": True}) for node in (start, bad, good, done))
+        graph.add_transition(start, bad, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), True, "goal", "good", verification_status="passed")
+        graph.add_transition(start, start, ActionDecision(action="click", element_id=1, grounding=(EvidenceRecord("element_text", "Go", 1),)), False, "goal", "bad", verification_status="failed")
+        graph.add_transition(start, good, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
+        graph.add_transition(bad, done, ActionDecision(action="click", element_id=2, grounding=(EvidenceRecord("element_text", "Other", 2),)), True, "goal", "good", verification_status="passed")
+        graph.add_transition(good, done, ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)), True, "goal", "good", verification_status="passed")
+        graph.add_transition(done, done, ActionDecision(action="done"), True, "goal", "good", verification_status="goal_complete")
+        for node in (start, bad, good, done):
+            graph.graph.nodes[node]["elements"] = [Element(i, "", "button", label, "", "", "", 0, 0, 10, 10).__dict__ for i,label in ((1,"Go"),(2,"Other"),(3,"Next"))]
+        graph.mark_run_completed("good")
+        self.assertEqual(graph.replay(start, "goal").element_id, 3)
+        self.assertEqual(graph.replay(start, "goal", {graph.replay_key(ActionDecision(action="click", element_id=3, grounding=(EvidenceRecord("element_text", "Next", 3),)))}).element_id, 1)
 
 
     def test_failed_actions_are_recorded_and_retried_only_twice(self) -> None:
@@ -414,16 +430,16 @@ class CoreTests(unittest.TestCase):
             {"kind": "element_absent", "pattern": "Loading"}, {"kind": "element_value", "element_id": 1, "expected": "x"},
             {"kind": "element_changed", "element_id": 1}, {"kind": "download_created"},
         ]
-        for verify in valid:
-            action = "click" if verify["kind"] in {"download_created", "page_changed"} else "done"
-            raw = {"action": action, "verify": verify}
+        for condition in valid:
+            action = "click" if condition["kind"] in {"download_created", "page_changed"} else "done"
+            raw = {"action": action, "verify": condition}
             if action == "click": raw["element_id"] = 1
             decision = ActionDecision.from_dict(raw)
-            self.assertEqual(decision.to_dict()["verify"], verify)
-        for verify in [{"kind": "unknown"}, {"kind": "url_matches", "pattern": "/account"},
+            self.assertEqual(decision.to_dict()["verify"], condition)
+        for condition in [{"kind": "unknown"}, {"kind": "url_matches", "pattern": "/account"},
                        {"kind": "element_visible"}, {"kind": "element_visible", "pattern": 4}, {"kind": "page_changed", "extra": 1},
                        {"kind": "element_value", "element_id": 0, "expected": "x"}]:
-            with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": verify})
+            with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": condition})
         with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "page_changed"}})
         with self.assertRaises(ValueError): ActionDecision.from_dict({"action": "done", "verify": {"kind": "download_created"}})
 

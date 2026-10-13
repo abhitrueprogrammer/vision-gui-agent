@@ -20,6 +20,7 @@ class GeminiTransportTests(unittest.TestCase):
         pool=self.pool()
         with patch('time.sleep') as sleep:
             self.assertEqual(pool.generate(request),'response')
+        sleep.assert_called_once_with(.5)
         self.assertEqual(request.call_count,2)
         self.assertIs(request.call_args.args[0],pool.client)
 
