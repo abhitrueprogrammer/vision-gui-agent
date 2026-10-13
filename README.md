@@ -28,13 +28,7 @@ GEMINI_API_KEY=first-key
 GEMINI_API_KEY_2=second-key
 ```
 
-OmniParser + RapidOCR grounding is the default. The `third_party/OmniParser` directory is empty in this checkout, so clone the parser to its correct location by:
-
-```bash
-git clone https://github.com/microsoft/OmniParser.git third_party/OmniParser
-```
-
-The integration specifically expects `util/yolov9.py` exposing `YOLOv9Detector` and initializes it with `revision="refs/pr/37"`. A checkout with a different API will need an adapter; an arbitrary upstream checkout is not guaranteed to work. Detector initialization may need network access to retrieve model weights.
+OmniParser + RapidOCR grounding is the default. The parser is the `third_party/OmniParser` submodule fetched above; set `OMNIPARSER_HOME` to use a checkout elsewhere. The integration specifically expects `util/yolov9.py` exposing `YOLOv9Detector` and initializes it with `revision="refs/pr/37"`. A checkout with a different API will need an adapter; an arbitrary upstream checkout is not guaranteed to work. Detector initialization may need network access to retrieve model weights.
 
 To run without an OmniParser checkout, pass `--grounder gemini` for Gemini visual detection. With the default grounder, OmniParser regions determine clickability and OCR supplies labels; uncertain region types remain generic click targets.
 
@@ -94,9 +88,9 @@ Desktop mode controls the active graphical session. Keep the target application 
 
 ## How it works
 
-Each observation is a screenshot. The visual grounder returns a semantic screen label, visible controls, key state text, and pixel boxes. Only items marked actionable may receive input. The policy sees the numbered screenshot, current visual inventory, graph neighbors, path, constraints, and recent outcomes, then returns up to three linked actions.
+Each observation is a screenshot plus the page URL and viewport size (browser mode); target discovery never reads the DOM or accessibility tree. The visual grounder returns a semantic screen label, visible controls, key state text, and pixel boxes. Only items marked actionable may receive input. The policy sees the numbered screenshot, current visual inventory, graph neighbors, path, constraints, and recent outcomes, then returns up to three linked actions.
 
-The state graph combines perceptual hashes with position-independent semantic signatures. This keeps distinct screens separate while recognizing the same state after controls move. Replayed actions are re-grounded against their visible label and role before execution, so stored element numbers are never treated as permanent coordinates.
+A screen is the same graph state only when its normalized URL, functional control signature and exact screenshot pixels all match; perceptual hashes are stored but never establish identity. A layout shift therefore creates a new state, and cross-run replay fires only on pixel-identical screens. Layout robustness comes from re-grounding: replayed actions are matched against their visible label and role before execution, so stored element numbers are never treated as permanent coordinates.
 
 Actions support `click`, `fill`, `select`, `set_checked`, `set_date`, `set_range`, `upload`, `set_color`, `press`, `scroll`, and `done`. Optional visual postconditions include checked-state and visible-value checks. Failed postconditions trigger one fresh observation before the plan is abandoned. Browser downloads are verified and saved under `artifacts/<run_id>/downloads/`; desktop download discovery is intentionally unsupported because it is not reliably observable from the screen alone.
 

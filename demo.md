@@ -1,5 +1,5 @@
 1. `uv run visual-function-lab --port 4200`
-
+    `uv run vision-gui-viewer --artifacts artifacts --open`
 2. //old
 ```bash
 uv run vision-gui-agent http://127.0.0.1:4200 \
@@ -30,7 +30,7 @@ uv run vision-gui-agent https://wikipedia.com \
     --headed \
     --memory-mode none \
     --max-steps 20 \
-    --artifacts artifacts/141 \
+    --artifacts artifacts/wikipedia \
     --verbose \
     --model gemini-flash-lite-latest
 ```
@@ -55,6 +55,6 @@ uv run vision-gui-agent http://127.0.0.1:4200/fullsuite \
     --memory-mode active-action-model \
     --max-steps 20 \
     --artifacts artifacts/143 \
-    --verbose \`
+    --verbose \
     --model gemini-flash-lite-latest
-``
+```

@@ -9,7 +9,7 @@ Four separate evaluation tracks must not be pooled into a GUI accuracy number:
 | Gemini with calibration grounding | Model selection over a benchmark label whitelist | Requires separately saved evaluator outcomes |
 | Normal Gemini + OmniParser (or Gemini detection) | Normal discovery, selection and input | No representative accuracy result; internal completion is not evaluator truth |
 
-`vision_gui_agent/task_split.json` is the single versioned manifest (the benchmark path links to it). All existing positives have already been used for exploration, so held-out, composition and layout-shift task groups are empty. Compact layout reruns of seen tasks are calibration, not held-out generalization. Development contains the three negative tasks. Loading rejects unknown/overlapping IDs.
+`vision_gui_agent/task_split.json` is the single versioned manifest (the benchmark path links to it). All existing positives have already been used for exploration, so held-out, composition and layout-shift task groups are empty. Compact layout reruns of seen tasks are calibration, not held-out generalization. Development contains the three negative tasks. Their target controls are hidden or disabled in the rendered UI, so a GUI agent cannot produce the ineffective attempt they require; they are currently symbolic-only. Loading rejects unknown/overlapping IDs. Protocol `fullsuite-v2` renamed the settings entry button to "Manage settings" (its old label contained its own confirmation phrase) and shows "Q3 Forecast report created" on the Data tab.
 
 Run from the repository root:
 
@@ -21,7 +21,7 @@ uv run python -m unittest discover -s tests -v
 
 Symbolic output is 12 task/layout runs and 12 actions. Tasks are `export_launch_brief`, `create_q3_report`, `enable_approval_workflow`, `export_before_open`, `report_before_selection`, `save_before_reviewers`. Layouts are `classic` and `compact`. Scoring requires the task's complete action sequence and terminal state; zero, partial and wrong-task traces fail, including negative tasks with no attempted action.
 
-For model experiments start `uv run visual-function-lab --port 4200`, reset the evaluator before each run, and retain task/reset/layout, command/config, commit and dirty diff, model/grounder/weights, memory snapshot, artifacts and independent evaluator outcome. Do not expose evaluator endpoints/state to the agent. Use `--benchmark-grounder` only for the third track; omit it for normal grounding. Report service failures/timeouts in the assigned-run denominator. No paid model run or generalization result is implied by local tests.
+For model experiments start `uv run visual-function-lab --port 4200`, reset the evaluator before each run, read the outcome afterwards from `GET /score?task=<task_id>` (passed, action trace, invalid attempts, protocol), and retain task/reset/layout, command/config, commit and dirty diff, model/grounder/weights, memory snapshot, artifacts and independent evaluator outcome. Do not expose evaluator endpoints/state to the agent. Use `--benchmark-grounder` only for the third track; omit it for normal grounding. Report service failures/timeouts in the assigned-run denominator. No paid model run or generalization result is implied by local tests.
 
 ## Capability limits
 

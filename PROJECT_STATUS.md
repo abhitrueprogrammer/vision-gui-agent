@@ -2,7 +2,7 @@
 
 ## Status
 
-The TRL-3 prototype described in Review 1 is implemented for both browser pages and the visible operating-system desktop. The agent's application-facing inputs are screenshots only; actions are mouse and keyboard events. It does not inspect DOM, accessibility, selector, URL, title, or application API data while observing or acting.
+The TRL-3 prototype described in Review 1 is implemented for both browser pages and the visible operating-system desktop. Target discovery uses screenshots; actions are mouse and keyboard events. Browser runs also read the page URL (graph identity, change detection, Laya prompt) and viewport size, and hybrid mode uses browser helpers for upload, color and verified downloads. The agent does not inspect DOM, accessibility, selector, or application API data to find targets.
 
 ## Implemented capabilities
 
@@ -11,7 +11,7 @@ The TRL-3 prototype described in Review 1 is implemented for both browser pages 
 - Natural-language multi-step planning with validation, action history, persistent constraints, high-impact guards, and bounded retries.
 - Pixel-coordinate click, fill, select, key press, scroll, and browser download handling.
 - Browser execution through Playwright input devices and desktop execution through PyAutoGUI.
-- Persistent directed state graph with perceptual and semantic state matching, layout-shift recovery, semantic action re-grounding, reliability-weighted route replay, and atomic JSON export.
+- Persistent directed state graph keyed by URL, functional signature and exact pixels, with semantic action re-grounding after layout shifts, reliability-weighted route replay, and atomic JSON export.
 - Visual postcondition verification and dependency-aware plan cancellation.
 - SQLite run/transition logging, latency metrics, reusable completed workflows, and training-example export.
 
@@ -23,7 +23,7 @@ Run:
 uv run python -m unittest discover -s tests -v
 ```
 
-The current suite contains 31 passing tests. It includes a real headless-Chromium flow in which the agent grounder examines screenshot pixels, identifies a button, clicks its visual center, observes the resulting visual state, verifies completion, and closes the task without agent-side DOM inspection.
+Run the suite for the current test count. It includes a real headless-Chromium flow in which the agent grounder examines screenshot pixels, identifies a button, clicks its visual center, observes the resulting visual state, verifies completion, and closes the task without agent-side DOM inspection.
 
 A live Gemini smoke run against `example.com` completed successfully. A second run with the same goal reused the same persisted graph node and completed successfully again. The installed `vision-gui-agent` console command and metrics command were also exercised successfully.
 

@@ -6,7 +6,7 @@ The review describes a TRL-3 prototype that combines pure visual perception, sem
 | --- | --- | --- |
 | Browser perception depended on DOM metadata in the original baseline | Screenshot-native grounding now supplies labels, visible values, actionability, state evidence, and pixel boxes | `test_observe_uses_screenshot_grounding_without_page_inspection` |
 | The only runnable target was a browser | Added a visible-desktop screenshot/mouse/keyboard adapter and `--desktop` CLI mode | `test_desktop_adapter_exposes_screenshot_mouse_and_keyboard` |
-| State identity relied on perceptual hash and could split after layout changes | Added position-independent semantic signatures and semantic state matching | `test_layout_shift_reuses_semantically_identical_state` |
+| State identity relied on perceptual hash and could merge distinct screens | State identity now requires matching URL, functional signature and exact pixels; layout shifts create a new state and are handled by semantic re-grounding | `test_layout_shift_similarity_does_not_prove_functional_identity` |
 | Stored element numbers could point to a different control after reordering | Remembered decisions are re-grounded by visible semantic evidence before execution | `test_remembered_action_is_regrounded_by_visible_semantics` |
 | Headings/status messages were unavailable to verification | Perception now records non-actionable visual state evidence; execution rejects it as a target | `test_state_evidence_cannot_be_clicked` |
 | The policy could declare completion without an observable success condition | `done` now requires a visual postcondition or valid currently visible grounding | `test_done_requires_visible_proof` |
