@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
-import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -153,7 +152,7 @@ class ViewerTests(unittest.TestCase):
         (self.root / RUN / "link.png").symlink_to(outside)
         (self.root / RUN / "notes.txt").write_text("x")
         for url in (f"/file/exp1/run/{RUN}/link.png", f"/file/exp1/run/{RUN}/notes.txt",
-                    f"/file/exp1/run/{RUN}/..%2F..%2F..%2Fsecret.png", f"/file/exp1/run/%2e%2e/secret.png",
+                    f"/file/exp1/run/{RUN}/..%2F..%2F..%2Fsecret.png", "/file/exp1/run/%2e%2e/secret.png",
                     "/file/exp1/run/../../secret.png", "/file/exp1/snap/..%2Fstate-graph-v2.json",
                     f"/file/nope/run/{RUN}/step-000-x.png"):
             response = self.client.get(url)

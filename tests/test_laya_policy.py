@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from vision_gui_agent.decision import CascadingPolicy, LayaPolicy
-from vision_gui_agent.models import ActionDecision, ActionRecord, Element, Observation, VerificationCondition
+from vision_gui_agent.models import ActionDecision, Element, Observation, VerificationCondition
 
 
 def _sample_observation() -> Observation:

@@ -1,6 +1,5 @@
 import socket
 import unittest
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from vision_gui_agent.gemini import GeminiClientPool
 

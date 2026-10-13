@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image
 
 from vision_gui_agent.decision import GeminiPolicy
-from vision_gui_agent.models import ActionDecision, Element, Observation
+from vision_gui_agent.models import Element, Observation
 from vision_gui_agent.perception import GeminiVisualGrounder
 
 

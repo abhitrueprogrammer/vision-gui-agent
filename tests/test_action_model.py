@@ -12,7 +12,7 @@ from vision_gui_agent.action_model import ActionModel
 from vision_gui_agent.experimentation import ExperimentSelector, safe_for_experiment
 from vision_gui_agent.functional_planner import FunctionalPlanner
 from vision_gui_agent.models import ActionDecision, ActionEffect, ActionPrecondition, ActionSchema, Element, EvidenceRecord, Observation, PredicateGrounding, SemanticAction, VerificationCondition, VerificationResult, VisualPredicate
-from vision_gui_agent.predicates import delta, element_signature, normalize_name
+from vision_gui_agent.predicates import delta, normalize_name
 from vision_gui_agent.visual_function_lab import ACTIONS, RULES, TASKS, TASK_SPLIT, VisualFunctionLabEvaluator
 from vision_gui_agent.visual_function_lab_server import serve_visual_function_lab
 from vision_gui_agent.agent import Agent, AgentConfig

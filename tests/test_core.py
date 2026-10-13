@@ -1,10 +1,8 @@
 import asyncio
 import io
-import sys
 import tempfile
 import unittest
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 from contextlib import redirect_stdout
 from pathlib import Path
 from PIL import Image, ImageDraw

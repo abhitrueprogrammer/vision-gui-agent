@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from vision_gui_agent.models import Element, Observation, ActionDecision
 from vision_gui_agent.perception import OmniParserVisualGrounder, GeminiVisualGrounder
