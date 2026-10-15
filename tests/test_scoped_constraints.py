@@ -92,6 +92,17 @@ class ScopedConstraintTests(unittest.TestCase):
         self.assertEqual(ledger["goal-part-2"].status, "proven")
         Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval required", 4),)), saved, ledger)
 
+    def test_proven_goal_parts_are_the_done_evidence(self):
+        # Rerun: both parts proven, yet done cited the "Archive brief" button and was refused ten times.
+        ledger = {item.id: item for item in Agent._goal_clauses("export the brief and archive it", {})}
+        screen = Observation("", "", [report(1, "Archive brief")], "", "Documents")
+        done = ActionDecision("done", grounding=(EvidenceRecord("element_text", "Archive brief", 1),))
+        with self.assertRaises(ValueError): Agent._guard(done, screen, ledger)
+        Agent._prove_named_clause(ledger, report(2, "Confirm export")); Agent._prove_named_clause(ledger, report(1, "Archive brief"))
+        self.assertTrue(Agent._parts_established(ledger))
+        Agent._guard(done, screen, ledger)
+        self.assertFalse(Agent._parts_established({}))  # no parts: done still needs its own evidence
+
     def test_a_goal_part_naming_the_clicked_control_is_proven_by_it(self):
         ledger = {item.id: item for item in Agent._goal_clauses("turn on notifications and archive the brief", {})}
         Agent._prove_named_clause(ledger, report(1, "Notifications"))

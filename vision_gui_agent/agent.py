@@ -463,6 +463,11 @@ class Agent:
         return any(not item.actionable and len(item.text.strip()) >= 3 and Agent._normal(item.text) not in shown for item in after.elements)
 
     @staticmethod
+    def _parts_established(ledger: dict[str, GoalConstraint]) -> bool:
+        material = [item for item in ledger.values() if item.material]
+        return any(item.kind == "goal_clause" for item in material) and all(item.status == "proven" for item in material)
+
+    @staticmethod
     def _prove_last_clause(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
                            initial: Observation | None) -> None:
         """A done's own evidence (its grounding, or the status text its verify names) proves the one part still open."""
@@ -640,7 +645,7 @@ class Agent:
             raise ValueError("download goal requires a successful download_created verification")
         # Declaring a goal unavailable has nothing to point at (a hidden control
         # leaves no evidence); the material constraint's reason is the record.
-        if decision.action == "done" and decision.verify is None and not unavailable and not any(
+        if decision.action == "done" and decision.verify is None and not unavailable and not Agent._parts_established(ledger) and not any(
                 Agent._completion_evidence(item, observation) for item in decision.grounding):
             raise ValueError("done requires a visual postcondition or visible state evidence, not a control's label")
         if decision.element_id is not None and Agent._is_high_impact(decision, observation):
@@ -1104,7 +1109,9 @@ class Agent:
                         pending = required_fields - completed_fields
                         if pending:
                             raise ValueError(f"Submit deferred; incomplete visible fields: {', '.join(label for _, _, label in sorted(pending))}")
-                    if decision.action == "done" and action_executed:
+                    # Once every goal part is proven by a checkable rule, those proofs are the done's evidence; the policy
+                    # otherwise kept citing a control visible from the start and repeated the refused done to the step limit.
+                    if decision.action == "done" and action_executed and not self._parts_established(ledger):
                         if decision.verify and not self._fresh_verification(decision.verify, initial_observation, observation):
                             raise ValueError("done verification was already satisfied initially")
                         valid_grounding = [item for item in decision.grounding if self._valid_evidence(item, observation, [])]
