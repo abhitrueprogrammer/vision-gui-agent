@@ -29,6 +29,10 @@ from .state_graph import StateGraph, instance_matches
 from .verification import already_satisfied, control_key, verify, _same_visual_element
 
 
+# Stems of verbs that controls commonly use for "create" ("Generate report", "New order", "Add item").
+VERB_SYNONYMS = {"creat": {"gener", "new", "add", "make"}, "make": {"creat", "new"}}
+
+
 @dataclass(frozen=True)
 class AgentConfig:
     artifact_dir: Path = Path("artifacts")
@@ -425,7 +429,8 @@ class Agent:
                          initial: Observation | None) -> bool:
         """Status evidence for one goal part: visible state, new since the run began, used by no other part."""
         if not Agent._completion_evidence(evidence, observation): return False
-        if initial is not None and not Agent._fresh_grounding(evidence, initial, observation): return False
+        # By text, not position: a header or title already on the first screen proves nothing once it moves.
+        if initial is not None and Agent._normal(evidence.expected or "") in {Agent._normal(item.text) for item in initial.elements}: return False
         used = {Agent._normal(item.expected or "") for other in ledger.values() if other.kind == "goal_clause" for item in other.evidence}
         return Agent._normal(evidence.expected or "") not in used
 
@@ -433,17 +438,25 @@ class Agent:
     def _prove_named_clause(ledger: dict[str, GoalConstraint], target) -> None:
         """A goal part naming the control just clicked is shown done by that click's passed verification.
 
-        The label must start with the part's verb ("Resolve ticket" does "resolve", "Share brief" does
-        "share the launch brief", opening the "Launch Brief" document does not), or be one word the
-        part names ("Notifications" in "turn on notifications").
+        The label must contain the part's verb ("Resolve ticket" does "resolve", "Confirm export" does
+        "export the brief"; opening the "Launch Brief" document does not "share the launch brief"), or
+        be one word the part names ("Notifications" in "turn on notifications").
         """
-        label = re.findall(r"\w+", target.text.casefold())
+        label = {word[:5] for word in re.findall(r"\w+", target.text.casefold())}
         def names(part: str) -> bool:
-            words = re.findall(r"\w+", part.casefold())
-            return bool(words) and (label[0] == words[0] or len(label) == 1 and label[0] in words)
+            words = [word[:5] for word in re.findall(r"\w+", part.casefold()) if word not in {"a", "an", "the"}]
+            if not words: return False
+            verbs = {words[0]} | VERB_SYNONYMS.get(words[0], set())
+            return bool(verbs & label) or len(label) == 1 and label <= set(words)
         if len("".join(label)) < 3: return
         part = next((item for item in ledger.values() if item.kind == "goal_clause" and item.status == "unproven" and names(item.expected)), None)
         if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),))
+
+    @staticmethod
+    def _new_status(before: Observation, after: Observation) -> bool:
+        """Status text (not a control) that appeared with this action."""
+        shown = {Agent._normal(item.text) for item in before.elements}
+        return any(not item.actionable and len(item.text.strip()) >= 3 and Agent._normal(item.text) not in shown for item in after.elements)
 
     @staticmethod
     def _prove_last_clause(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
@@ -499,7 +512,7 @@ class Agent:
 
     @staticmethod
     def _merge_constraints(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
-                           download_paths: list[str], initial: Observation | None = None) -> None:
+                           download_paths: list[str]) -> None:
         for proposed in decision.constraints:
             old = ledger.get(proposed.id)
             if old is None and any(item.source_span for item in ledger.values()):
@@ -511,8 +524,8 @@ class Agent:
                         ledger[old.id] = replace(old, status="unavailable", evidence=(), unavailable_reason=proposed.unavailable_reason)
                     continue
                 evidence = tuple(item for item in proposed.evidence if Agent._valid_evidence(item, observation, download_paths))
-                if old.kind == "goal_clause":
-                    evidence = tuple(item for item in proposed.evidence if Agent._clause_evidence(item, observation, ledger, initial))[:1]
+                if old.kind == "goal_clause" and proposed.status == "proven":
+                    continue  # the policy cited headers and titles as proof; parts are proven by checkable rules only
                 if proposed.status == "proven" and evidence:
                     ledger[old.id] = replace(old, status="proven", evidence=evidence)
                 elif proposed.status == "unavailable" and proposed.unavailable_reason:
@@ -1064,7 +1077,7 @@ class Agent:
                     attempt_limit = 1 if (self._is_high_impact(decision, observation) and decision.action != "done") else self.config.max_action_attempts
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
-                    self._merge_constraints(ledger, decision, observation, download_paths, initial_observation)
+                    self._merge_constraints(ledger, decision, observation, download_paths)
                     # Item identity is pre-action visual evidence.  Record it
                     # as soon as the selected control itself names the scoped
                     # target, even if a later postcondition is overly strict
@@ -1130,7 +1143,7 @@ class Agent:
                         self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
                     if success:
-                        self._merge_constraints(ledger, decision, observation, download_paths, initial_observation)
+                        self._merge_constraints(ledger, decision, observation, download_paths)
                         self.graph.mark_run_completed(run_id)
                         result = RunResult(run_id, True, step, current_node, history=history, download_paths=download_paths,
                                            constraints=list(ledger.values()))
@@ -1237,7 +1250,9 @@ class Agent:
                         attempt_replay_keys.clear()
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
-                        if decision.action == "click": self._prove_named_clause(ledger, target)
+                    # The policy rarely asks for a strict check, so new status text after the click is the evidence too.
+                    if target and decision.action == "click" and (verification.status == "passed" or self._new_status(observation, next_observation)):
+                        self._prove_named_clause(ledger, target)
                     if verification.status != "passed" or next_observation.url != observation.url:
                         planned.clear(); workflow.clear()
                     # Cross-page templates lack a functional state contract. Keep
@@ -1250,7 +1265,7 @@ class Agent:
                     if verification.download_path and verification.download_path not in download_paths:
                         download_paths.append(verification.download_path)
                     self._prove_constraints(ledger, decision, observation, download_paths)
-                    self._merge_constraints(ledger, decision, next_observation, download_paths, initial_observation)
+                    self._merge_constraints(ledger, decision, next_observation, download_paths)
                     observation = next_observation
                     observe_ms = next_observe_ms
                 except StaleObservation as exc:
