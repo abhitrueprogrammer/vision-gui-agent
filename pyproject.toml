@@ -28,6 +28,8 @@ dependencies = [
 vision-gui-agent = "vision_gui_agent.cli:main"
 vision-gui-benchmark = "vision_gui_agent.benchmark_runner:main"
 vision-gui-calibrate = "vision_gui_agent.benchmark_calibration:main"
+vision-gui-evaluate = "vision_gui_agent.evaluation:main"
+vision-gui-truth = "vision_gui_agent.visible_truth:main"
 visual-function-lab = "vision_gui_agent.visual_function_lab_server:main"
 vision-gui-viewer = "vision_gui_agent.viewer.cli:main"
 

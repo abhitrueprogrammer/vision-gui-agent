@@ -48,6 +48,34 @@ def _semantic_schema(refinement: bool = False) -> dict:
         "screen_label":{"type":"STRING"}, "elements":{"type":"ARRAY", "items":item}}, "required":["screen_label","elements"]}
 
 
+DISABLED_CONTRAST = 3.0  # WCAG 1.4.3 exempts inactive controls; active text needs 4.5:1.
+
+
+def _relative_luminance(rgb: Any) -> Any:
+    import numpy as np
+    channel = np.asarray(rgb, dtype=float) / 255
+    linear = np.where(channel <= .04045, channel / 12.92, ((channel + .055) / 1.055) ** 2.4)
+    return linear @ np.array([.2126, .7152, .0722])
+
+
+def label_contrast(image: Image.Image, box: tuple[float, float, float, float]) -> float | None:
+    """WCAG contrast between a text box's glyph cores and its background.
+
+    Uses the 5th and 95th luminance percentiles rather than means: strokes are
+    1-1.5 px wide, so averages are pulled toward grey by anti-aliasing. Taking
+    the ratio of the two extremes makes no assumption about text polarity.
+    Returns None for boxes too small to measure.
+    """
+    import numpy as np
+    left, top, right, bottom = (int(round(value)) for value in box)
+    left, top = max(0, left), max(0, top)
+    right, bottom = min(image.width, right), min(image.height, bottom)
+    if right - left < 8 or bottom - top < 8: return None
+    luminance = _relative_luminance(np.asarray(image.crop((left, top, right, bottom)).convert("RGB")).reshape(-1, 3))
+    low, high = np.percentile(luminance, [5, 95])
+    return float((high + .05) / (low + .05))
+
+
 def _observed_state(item: dict) -> tuple[str, ...]:
     return tuple(key for key in ("checked", "enabled", "readonly", "selected", "value")
                  if isinstance(item.get(key), str if key == "value" else bool))
@@ -82,8 +110,11 @@ class OmniParserVisualGrounder:
     """OmniParser regions reconciled with RapidOCR; no contour-derived controls."""
     last_label = "OmniParser screen"
 
+    # Bump whenever detect() changes what it returns, so cached detections are not reused.
+    DETECTION_VERSION = "omniparser-v2-contrast"
+
     def __init__(self, detector: Any | None = None, ocr: Callable[..., Any] | None = None,
-                 omniparser_home: Path | None = None, refiner: Any | None = None) -> None:
+                 omniparser_home: Path | None = None, refiner: Any | None = None, cache: Any | None = None) -> None:
         injected = detector is not None or ocr is not None
         if detector is None:
             home = (omniparser_home or (Path(os.environ["OMNIPARSER_HOME"]) if os.environ.get("OMNIPARSER_HOME") else None)
@@ -104,7 +135,7 @@ class OmniParserVisualGrounder:
         assert detector is not None and ocr is not None
         self.detector: Any = detector
         self.ocr: Callable[..., Any] = ocr
-        self._injected, self.refiner = injected, refiner
+        self._injected, self.refiner, self.cache = injected, refiner, cache
 
     @property
     def last_refinement_rejection(self) -> str | None:
@@ -226,6 +257,18 @@ class OmniParserVisualGrounder:
         return float(edge_left), float(edge_top), float(control_width), float(control_height)
 
     async def detect(self, screenshot: Path) -> list[Element]:
+        if self.cache is None: return await self._detect(screenshot)
+        key = self.cache.key(screenshot, self.DETECTION_VERSION)
+        cached = self.cache.get(key)
+        if cached is not None:
+            elements, label = cached
+            if label: self.last_label = label
+            return elements
+        elements = await self._detect(screenshot)
+        self.cache.put(key, elements, self.last_label)
+        return elements
+
+    async def _detect(self, screenshot: Path) -> list[Element]:
         with Image.open(screenshot) as source:
             image = source.convert("RGB")
         def read_ocr():
@@ -258,8 +301,11 @@ class OmniParserVisualGrounder:
             matched.update(index for index, _ in labels)
             text = " ".join(" ".join(record[1].split()) for _, record in labels)[:200]
             context = text if len(contained) > 1 else ""
+            contrasts = [value for _, record in labels if (value := label_contrast(image, self._box(record))) is not None]
+            # The clearest label decides, so one badly cropped OCR box can't disable a control.
+            enabled = max(contrasts) >= DISABLED_CONTRAST if contrasts else True
             elements.append(Element(len(elements) + 1, "", kind, text, "", "", kind, x, y, width, height,
-                                    actionable=True, confidence=confidence, context=context,
+                                    actionable=True, confidence=confidence, context=context, enabled=enabled,
                                     context_bounds=region if context else None,
                                     proposal_sources=("detector", "ocr") if labels else ("detector",),
                                     recognition_confidence=min((record[2] for _,record in labels),default=None),
@@ -275,8 +321,10 @@ class OmniParserVisualGrounder:
             if control is None: continue
             matched.add(index)
             x, y, width, height = control
+            contrast = label_contrast(image, self._box(record))
             elements.append(Element(len(elements) + 1, "", "button", " ".join(record[1].split())[:200], "", "", "button",
                                     x, y, width, height, actionable=True, confidence=record[2],
+                                    enabled=contrast is None or contrast >= DISABLED_CONTRAST,
                                     context=record[1].strip()[:500], context_bounds=control,
                                     proposal_sources=("ocr", "outline"), recognition_confidence=record[2],
                                     uncertainties=("control_type",), label_bounds=self._box(record)))
@@ -438,7 +486,10 @@ class GeminiVisualGrounder:
         observed = _observed_state(result)
         return replace(target, x=x1, y=y1, width=x2-x1, height=y2-y1, tag=kind, role=kind, actionable=actionable,
                        checked=result.get("checked") if isinstance(result.get("checked"),bool) else None,
-                       enabled=result.get("enabled") if isinstance(result.get("enabled"),bool) else target.enabled,
+                       # Pixel verdict stays authoritative for labelled controls. A field's text is a
+                       # placeholder, whose low contrast says nothing about being disabled.
+                       enabled=True if kind in {"input", "select", "textarea"} else target.enabled,
+                       enabled_vlm=result.get("enabled") if isinstance(result.get("enabled"),bool) else None,
                        readonly=result.get("readonly") if isinstance(result.get("readonly"),bool) else target.readonly,
                        value=result.get("value") if isinstance(result.get("value"),str) else target.value,
                        input_type=result.get("input_type") if isinstance(result.get("input_type"),str) else target.input_type,
@@ -531,6 +582,49 @@ class GeminiVisualGrounder:
                 continue
             elements.append(candidate)
         return elements
+
+    AVAILABILITY_VERSION = "availability-vlm-v1"
+
+    async def availability(self, screenshot: Path, controls: list[Element], cache: Any | None = None) -> dict[int, bool | None]:
+        """Ask once per screen which listed controls look enabled; the VLM-assisted availability condition.
+
+        Controls are identified by id and box only, so the answer is a reading of
+        the pixels at those positions. Results are cached by pixels plus the control list.
+        """
+        if not controls: return {}
+        with Image.open(screenshot) as image:
+            width, height = image.size
+        listing = [{"id": item.id, "label": item.text or item.aria_label,
+                    "box_2d": [round(item.y / height * 1000), round(item.x / width * 1000),
+                               round((item.y + item.height) / height * 1000), round((item.x + item.width) / width * 1000)]}
+                   for item in controls]
+        key = None
+        if cache is not None:
+            key = cache.key(screenshot, self.AVAILABILITY_VERSION + json.dumps(listing, sort_keys=True))
+            cached = cache.get_json(key)
+            if cached is not None: return {int(ident): value for ident, value in cached.items()}
+
+        def generate() -> str:
+            prompt = ("Inspect this screenshot only. For each listed control (box_2d is [top,left,bottom,right] normalized to 0..1000), "
+                      "report enabled=false when it is visibly disabled: greyed out, faded or washed out compared with how this page "
+                      "renders active controls of the same kind. Report enabled=true when it looks active, and null if you cannot tell. "
+                      "Judge appearance only. Controls: " + json.dumps(listing))
+            schema = {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                "id": {"type": "INTEGER"}, "enabled": {"type": "BOOLEAN", "nullable": True}}, "required": ["id", "enabled"]}}
+            response = self._generate(lambda client: client.models.generate_content(
+                model=self.model,
+                contents=[self.types.Part.from_bytes(data=model_image(str(screenshot), max_width=None), mime_type="image/jpeg"), prompt],
+                config=self.types.GenerateContentConfig(
+                    response_mime_type="application/json", response_schema=schema,
+                    automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True))))
+            return response.text
+
+        raw = json.loads(await asyncio.to_thread(generate))
+        known = {item.id for item in controls}
+        result = {int(entry["id"]): entry.get("enabled") if isinstance(entry.get("enabled"), bool) else None
+                  for entry in raw if isinstance(entry, dict) and entry.get("id") in known}
+        if cache is not None and key is not None: cache.put_json(key, {str(ident): value for ident, value in result.items()})
+        return result
 
     def _generate(self, request):
         return self._clients.generate(request) if hasattr(self, "_clients") else request(self.client)

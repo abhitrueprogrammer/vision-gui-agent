@@ -83,7 +83,8 @@ class StateGraph:
     """Persistent UI-state graph deduplicated by perceptual screenshot hash."""
 
     def __init__(self, hash_threshold: int = 6, graph: nx.MultiDiGraph | None = None) -> None:
-        self.graph = graph or nx.MultiDiGraph()
+        # An empty graph is falsy; `or` would discard a loaded graph's attributes.
+        self.graph = graph if graph is not None else nx.MultiDiGraph()
         self.hash_threshold = hash_threshold
 
     @classmethod
@@ -93,7 +94,10 @@ class StateGraph:
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or data.get("format_version") != 2 or not isinstance(data.get("nodes"), list) or not isinstance(data.get("edges"), list):
             raise ValueError("malformed state-graph export")
-        return cls(hash_threshold, nx.node_link_graph(data, edges="edges", directed=True, multigraph=True))
+        graph = nx.node_link_graph(data, edges="edges", directed=True, multigraph=True)
+        # node_link_graph drops graph-level attributes; they hold the section inventory and links.
+        graph.graph.update(data.get("graph") or {})
+        return cls(hash_threshold, graph)
 
     def add_observation(self, observation: Observation, label: str | None = None) -> tuple[str, bool]:
         with Image.open(observation.screenshot_path) as image:

@@ -48,7 +48,7 @@ async def execute(page: Page, observation: Observation, decision: ActionDecision
         await page.mouse.wheel(0, 650 if decision.direction != "up" else -650); await page.wait_for_timeout(250); return None
     element = next((item for item in observation.elements if item.id == decision.element_id), None)
     if element is None: raise ValueError(f"Element {decision.element_id} is not present in this observation")
-    if not element.enabled or element.readonly:
+    if (not element.enabled or element.readonly) and not decision.direct_click:
         raise ValueError(f"Element {decision.element_id} is not editable")
     x, y = await prepare_dispatch(page, observation, element, info)
     if decision.action == "upload":

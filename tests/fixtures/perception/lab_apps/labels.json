@@ -1,0 +1,4043 @@
+[
+ {
+  "id": "lab_000_workspace_classic_documents",
+  "image": "lab_000_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_001_workspace_classic_documents",
+  "image": "lab_001_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     223,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     399,
+     223,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_002_workspace_classic_documents",
+  "image": "lab_002_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     248,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     399,
+     248,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     543,
+     248,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     685,
+     248,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_003_workspace_classic_documents",
+  "image": "lab_003_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     273,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     399,
+     273,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     543,
+     273,
+     132,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     685,
+     273,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_004_workspace_classic_documents",
+  "image": "lab_004_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     273,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive brief",
+    "box": [
+     399,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     529,
+     273,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_005_workspace_classic_settings",
+  "image": "lab_005_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     260,
+     223,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     414,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_006_workspace_classic_settings",
+  "image": "lab_006_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     390,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_007_workspace_classic_data",
+  "image": "lab_007_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_008_workspace_classic_data",
+  "image": "lab_008_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     223,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_009_workspace_classic_data",
+  "image": "lab_009_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     248,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_010_workspace_classic_documents",
+  "image": "lab_010_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_011_workspace_classic_documents",
+  "image": "lab_011_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     223,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     399,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_012_workspace_classic_settings",
+  "image": "lab_012_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     260,
+     223,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     414,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_013_workspace_classic_settings",
+  "image": "lab_013_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     390,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_014_workspace_classic_settings",
+  "image": "lab_014_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Require approval",
+    "box": [
+     260,
+     273,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     418,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_015_workspace_classic_settings",
+  "image": "lab_015_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Add reviewers",
+    "box": [
+     260,
+     298,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     399,
+     298,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     532,
+     298,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_016_workspace_classic_settings",
+  "image": "lab_016_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Add reviewers",
+    "box": [
+     260,
+     323,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     399,
+     323,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     532,
+     323,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_017_workspace_classic_settings",
+  "image": "lab_017_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Require approval",
+    "box": [
+     260,
+     273,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     418,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_018_workspace_classic_data",
+  "image": "lab_018_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_019_workspace_classic_data",
+  "image": "lab_019_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     223,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_020_workspace_classic_data",
+  "image": "lab_020_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     248,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_021_workspace_classic_documents",
+  "image": "lab_021_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_022_workspace_classic_documents",
+  "image": "lab_022_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     223,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     399,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_023_helpdesk_classic_queue",
+  "image": "lab_023_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_024_helpdesk_classic_queue",
+  "image": "lab_024_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Assign to me",
+    "box": [
+     260,
+     223,
+     121,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     390,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     520,
+     223,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     684,
+     223,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_025_helpdesk_classic_queue",
+  "image": "lab_025_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     390,
+     248,
+     155,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     554,
+     248,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_026_helpdesk_classic_queue",
+  "image": "lab_026_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     260,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     390,
+     273,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_027_helpdesk_classic_queue",
+  "image": "lab_027_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     260,
+     298,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Close ticket",
+    "box": [
+     390,
+     298,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_028_helpdesk_classic_queue",
+  "image": "lab_028_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     260,
+     323,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reopen",
+    "box": [
+     390,
+     323,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_029_helpdesk_classic_escalations",
+  "image": "lab_029_helpdesk_classic_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     260,
+     223,
+     137,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_030_helpdesk_classic_escalations",
+  "image": "lab_030_helpdesk_classic_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Approve escalation",
+    "box": [
+     260,
+     248,
+     162,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_031_helpdesk_classic_macros",
+  "image": "lab_031_helpdesk_classic_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     260,
+     223,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_032_helpdesk_classic_profile",
+  "image": "lab_032_helpdesk_classic_profile.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=profile",
+  "controls": [
+   {
+    "text": "Away mode",
+    "box": [
+     260,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_033_helpdesk_classic_macros",
+  "image": "lab_033_helpdesk_classic_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     260,
+     223,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_034_workspace_classic_settings",
+  "image": "lab_034_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     260,
+     223,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     414,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_035_workspace_classic_settings",
+  "image": "lab_035_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     390,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_036_workspace_classic_settings",
+  "image": "lab_036_workspace_classic_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     260,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_037_workspace_classic_documents",
+  "image": "lab_037_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_038_workspace_classic_documents",
+  "image": "lab_038_workspace_classic_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     223,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     399,
+     223,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_039_workspace_classic_data",
+  "image": "lab_039_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_040_workspace_classic_data",
+  "image": "lab_040_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     223,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_041_workspace_classic_data",
+  "image": "lab_041_workspace_classic_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     390,
+     248,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_042_helpdesk_classic_queue",
+  "image": "lab_042_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_043_helpdesk_classic_queue",
+  "image": "lab_043_helpdesk_classic_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Assign to me",
+    "box": [
+     260,
+     223,
+     121,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     390,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     520,
+     223,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     684,
+     223,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_044_helpdesk_classic_escalations",
+  "image": "lab_044_helpdesk_classic_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     260,
+     223,
+     137,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_045_helpdesk_classic_macros",
+  "image": "lab_045_helpdesk_classic_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     260,
+     223,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_046_orders_classic_orders",
+  "image": "lab_046_orders_classic_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "New order",
+    "box": [
+     260,
+     189,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_047_orders_classic_orders",
+  "image": "lab_047_orders_classic_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Add item",
+    "box": [
+     260,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Apply discount",
+    "box": [
+     390,
+     248,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Add note",
+    "box": [
+     531,
+     248,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     660,
+     248,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Request approval",
+    "box": [
+     795,
+     248,
+     152,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_048_orders_classic_orders",
+  "image": "lab_048_orders_classic_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Apply discount",
+    "box": [
+     260,
+     273,
+     132,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add note",
+    "box": [
+     401,
+     273,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     531,
+     273,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Request approval",
+    "box": [
+     665,
+     273,
+     152,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_049_orders_classic_approvals",
+  "image": "lab_049_orders_classic_approvals.png",
+  "url": "http://127.0.0.1:38933/orders?tab=approvals",
+  "controls": [
+   {
+    "text": "Override price",
+    "box": [
+     260,
+     248,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_050_orders_classic_shipping",
+  "image": "lab_050_orders_classic_shipping.png",
+  "url": "http://127.0.0.1:38933/orders?tab=shipping",
+  "controls": [
+   {
+    "text": "Ship order",
+    "box": [
+     260,
+     223,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_051_workspace_compact_documents",
+  "image": "lab_051_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_052_workspace_compact_documents",
+  "image": "lab_052_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     257,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     163,
+     257,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_053_workspace_compact_documents",
+  "image": "lab_053_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     282,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     163,
+     282,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     307,
+     282,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     449,
+     282,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_054_workspace_compact_documents",
+  "image": "lab_054_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     307,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     163,
+     307,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     307,
+     307,
+     132,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     449,
+     307,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_055_workspace_compact_documents",
+  "image": "lab_055_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     307,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive brief",
+    "box": [
+     163,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     293,
+     307,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_056_workspace_compact_settings",
+  "image": "lab_056_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     24,
+     257,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     178,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_057_workspace_compact_settings",
+  "image": "lab_057_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     154,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_058_workspace_compact_data",
+  "image": "lab_058_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_059_workspace_compact_data",
+  "image": "lab_059_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     257,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_060_workspace_compact_data",
+  "image": "lab_060_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     282,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_061_workspace_compact_documents",
+  "image": "lab_061_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_062_workspace_compact_documents",
+  "image": "lab_062_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     257,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     163,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_063_workspace_compact_settings",
+  "image": "lab_063_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     24,
+     257,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     178,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_064_workspace_compact_settings",
+  "image": "lab_064_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     154,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_065_workspace_compact_settings",
+  "image": "lab_065_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Require approval",
+    "box": [
+     24,
+     307,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     182,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_066_workspace_compact_settings",
+  "image": "lab_066_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Add reviewers",
+    "box": [
+     24,
+     332,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     163,
+     332,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     296,
+     332,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_067_workspace_compact_settings",
+  "image": "lab_067_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Add reviewers",
+    "box": [
+     24,
+     357,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     163,
+     357,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     296,
+     357,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_068_workspace_compact_settings",
+  "image": "lab_068_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Require approval",
+    "box": [
+     24,
+     307,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     182,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_069_workspace_compact_data",
+  "image": "lab_069_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_070_workspace_compact_data",
+  "image": "lab_070_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     257,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_071_workspace_compact_data",
+  "image": "lab_071_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     282,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_072_workspace_compact_documents",
+  "image": "lab_072_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_073_workspace_compact_documents",
+  "image": "lab_073_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     257,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     163,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_074_helpdesk_compact_queue",
+  "image": "lab_074_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_075_helpdesk_compact_queue",
+  "image": "lab_075_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Assign to me",
+    "box": [
+     24,
+     257,
+     121,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     154,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     284,
+     257,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     448,
+     257,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_076_helpdesk_compact_queue",
+  "image": "lab_076_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     154,
+     282,
+     155,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     318,
+     282,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_077_helpdesk_compact_queue",
+  "image": "lab_077_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     24,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     154,
+     307,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_078_helpdesk_compact_queue",
+  "image": "lab_078_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     24,
+     332,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Close ticket",
+    "box": [
+     154,
+     332,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_079_helpdesk_compact_queue",
+  "image": "lab_079_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark urgent",
+    "box": [
+     24,
+     357,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reopen",
+    "box": [
+     154,
+     357,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_080_helpdesk_compact_escalations",
+  "image": "lab_080_helpdesk_compact_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     24,
+     257,
+     137,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_081_helpdesk_compact_escalations",
+  "image": "lab_081_helpdesk_compact_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Approve escalation",
+    "box": [
+     24,
+     282,
+     162,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_082_helpdesk_compact_macros",
+  "image": "lab_082_helpdesk_compact_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     24,
+     257,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_083_helpdesk_compact_profile",
+  "image": "lab_083_helpdesk_compact_profile.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=profile",
+  "controls": [
+   {
+    "text": "Away mode",
+    "box": [
+     24,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_084_helpdesk_compact_macros",
+  "image": "lab_084_helpdesk_compact_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     24,
+     257,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_085_workspace_compact_settings",
+  "image": "lab_085_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Manage settings",
+    "box": [
+     24,
+     257,
+     144,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     178,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_086_workspace_compact_settings",
+  "image": "lab_086_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Sign in",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Notifications",
+    "box": [
+     154,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_087_workspace_compact_settings",
+  "image": "lab_087_workspace_compact_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     24,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_088_workspace_compact_documents",
+  "image": "lab_088_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_089_workspace_compact_documents",
+  "image": "lab_089_workspace_compact_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     257,
+     130,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Share brief",
+    "box": [
+     163,
+     257,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_090_workspace_compact_data",
+  "image": "lab_090_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_091_workspace_compact_data",
+  "image": "lab_091_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     257,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_092_workspace_compact_data",
+  "image": "lab_092_workspace_compact_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "West region",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     154,
+     282,
+     140,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_093_helpdesk_compact_queue",
+  "image": "lab_093_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_094_helpdesk_compact_queue",
+  "image": "lab_094_helpdesk_compact_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Assign to me",
+    "box": [
+     24,
+     257,
+     121,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     154,
+     257,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     284,
+     257,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark resolved",
+    "box": [
+     448,
+     257,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_095_helpdesk_compact_escalations",
+  "image": "lab_095_helpdesk_compact_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     24,
+     257,
+     137,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_096_helpdesk_compact_macros",
+  "image": "lab_096_helpdesk_compact_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     24,
+     257,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_097_orders_compact_orders",
+  "image": "lab_097_orders_compact_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "New order",
+    "box": [
+     24,
+     223,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_098_orders_compact_orders",
+  "image": "lab_098_orders_compact_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Add item",
+    "box": [
+     24,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Apply discount",
+    "box": [
+     154,
+     282,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Add note",
+    "box": [
+     295,
+     282,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     424,
+     282,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Request approval",
+    "box": [
+     559,
+     282,
+     152,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_099_orders_compact_orders",
+  "image": "lab_099_orders_compact_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Apply discount",
+    "box": [
+     24,
+     307,
+     132,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add note",
+    "box": [
+     165,
+     307,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     295,
+     307,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Request approval",
+    "box": [
+     429,
+     307,
+     152,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_100_orders_compact_approvals",
+  "image": "lab_100_orders_compact_approvals.png",
+  "url": "http://127.0.0.1:38933/orders?tab=approvals",
+  "controls": [
+   {
+    "text": "Override price",
+    "box": [
+     24,
+     282,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_101_orders_compact_shipping",
+  "image": "lab_101_orders_compact_shipping.png",
+  "url": "http://127.0.0.1:38933/orders?tab=shipping",
+  "controls": [
+   {
+    "text": "Ship order",
+    "box": [
+     24,
+     257,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_102_workspace_reordered_documents",
+  "image": "lab_102_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_103_workspace_reordered_documents",
+  "image": "lab_103_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export options",
+    "box": [
+     194,
+     239,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_104_workspace_reordered_documents",
+  "image": "lab_104_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     264,
+     120,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     194,
+     264,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     336,
+     264,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     479,
+     264,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_105_workspace_reordered_documents",
+  "image": "lab_105_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     289,
+     120,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Confirm export",
+    "box": [
+     194,
+     289,
+     132,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "PDF document",
+    "box": [
+     336,
+     289,
+     134,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     479,
+     289,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_106_workspace_reordered_documents",
+  "image": "lab_106_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     289,
+     120,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive brief",
+    "box": [
+     194,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     323,
+     289,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_107_workspace_reordered_settings",
+  "image": "lab_107_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     194,
+     239,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_108_workspace_reordered_settings",
+  "image": "lab_108_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Sign in",
+    "box": [
+     194,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_109_workspace_reordered_data",
+  "image": "lab_109_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_110_workspace_reordered_data",
+  "image": "lab_110_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     239,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_111_workspace_reordered_data",
+  "image": "lab_111_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     264,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_112_workspace_reordered_documents",
+  "image": "lab_112_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_113_workspace_reordered_documents",
+  "image": "lab_113_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     194,
+     239,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_114_workspace_reordered_settings",
+  "image": "lab_114_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     194,
+     239,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_115_workspace_reordered_settings",
+  "image": "lab_115_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Sign in",
+    "box": [
+     194,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_116_workspace_reordered_settings",
+  "image": "lab_116_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Require approval",
+    "box": [
+     194,
+     289,
+     148,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_117_workspace_reordered_settings",
+  "image": "lab_117_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     314,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     194,
+     314,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add reviewers",
+    "box": [
+     327,
+     314,
+     129,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_118_workspace_reordered_settings",
+  "image": "lab_118_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     339,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     194,
+     339,
+     124,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add reviewers",
+    "box": [
+     327,
+     339,
+     129,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_119_workspace_reordered_settings",
+  "image": "lab_119_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Require approval",
+    "box": [
+     194,
+     289,
+     148,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_120_workspace_reordered_data",
+  "image": "lab_120_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_121_workspace_reordered_data",
+  "image": "lab_121_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     239,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_122_workspace_reordered_data",
+  "image": "lab_122_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     264,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_123_workspace_reordered_documents",
+  "image": "lab_123_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_124_workspace_reordered_documents",
+  "image": "lab_124_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     194,
+     239,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_125_helpdesk_reordered_queue",
+  "image": "lab_125_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_126_helpdesk_reordered_queue",
+  "image": "lab_126_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark resolved",
+    "box": [
+     64,
+     239,
+     128,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     202,
+     239,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     366,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Assign to me",
+    "box": [
+     496,
+     239,
+     121,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_127_helpdesk_reordered_queue",
+  "image": "lab_127_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark resolved",
+    "box": [
+     64,
+     264,
+     128,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     202,
+     264,
+     155,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     366,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_128_helpdesk_reordered_queue",
+  "image": "lab_128_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark resolved",
+    "box": [
+     64,
+     289,
+     128,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     202,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_129_helpdesk_reordered_queue",
+  "image": "lab_129_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Close ticket",
+    "box": [
+     64,
+     314,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     194,
+     314,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_130_helpdesk_reordered_queue",
+  "image": "lab_130_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Reopen",
+    "box": [
+     64,
+     339,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     194,
+     339,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_131_helpdesk_reordered_escalations",
+  "image": "lab_131_helpdesk_reordered_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     64,
+     239,
+     137,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_132_helpdesk_reordered_escalations",
+  "image": "lab_132_helpdesk_reordered_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Approve escalation",
+    "box": [
+     64,
+     264,
+     162,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_133_helpdesk_reordered_macros",
+  "image": "lab_133_helpdesk_reordered_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     64,
+     239,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_134_helpdesk_reordered_profile",
+  "image": "lab_134_helpdesk_reordered_profile.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=profile",
+  "controls": [
+   {
+    "text": "Away mode",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_135_helpdesk_reordered_macros",
+  "image": "lab_135_helpdesk_reordered_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     64,
+     239,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_136_workspace_reordered_settings",
+  "image": "lab_136_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     194,
+     239,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_137_workspace_reordered_settings",
+  "image": "lab_137_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Sign in",
+    "box": [
+     194,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_138_workspace_reordered_settings",
+  "image": "lab_138_workspace_reordered_settings.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=settings",
+  "controls": [
+   {
+    "text": "Notifications",
+    "box": [
+     64,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_139_workspace_reordered_documents",
+  "image": "lab_139_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Launch Brief",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_140_workspace_reordered_documents",
+  "image": "lab_140_workspace_reordered_documents.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=documents",
+  "controls": [
+   {
+    "text": "Share brief",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export options",
+    "box": [
+     194,
+     239,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_141_workspace_reordered_data",
+  "image": "lab_141_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_142_workspace_reordered_data",
+  "image": "lab_142_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     239,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_143_workspace_reordered_data",
+  "image": "lab_143_workspace_reordered_data.png",
+  "url": "http://127.0.0.1:38933/workspace?tab=data",
+  "controls": [
+   {
+    "text": "Generate report",
+    "box": [
+     64,
+     264,
+     140,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     214,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_144_helpdesk_reordered_queue",
+  "image": "lab_144_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Ticket #4821",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_145_helpdesk_reordered_queue",
+  "image": "lab_145_helpdesk_reordered_queue.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=queue",
+  "controls": [
+   {
+    "text": "Mark resolved",
+    "box": [
+     64,
+     239,
+     128,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reply to customer",
+    "box": [
+     202,
+     239,
+     155,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Mark urgent",
+    "box": [
+     366,
+     239,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Assign to me",
+    "box": [
+     496,
+     239,
+     121,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_146_helpdesk_reordered_escalations",
+  "image": "lab_146_helpdesk_reordered_escalations.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=escalations",
+  "controls": [
+   {
+    "text": "Escalate #4821",
+    "box": [
+     64,
+     239,
+     137,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_147_helpdesk_reordered_macros",
+  "image": "lab_147_helpdesk_reordered_macros.png",
+  "url": "http://127.0.0.1:38933/helpdesk?tab=macros",
+  "controls": [
+   {
+    "text": "Save reply macro",
+    "box": [
+     64,
+     239,
+     151,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_148_orders_reordered_orders",
+  "image": "lab_148_orders_reordered_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "New order",
+    "box": [
+     64,
+     205,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_149_orders_reordered_orders",
+  "image": "lab_149_orders_reordered_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Request approval",
+    "box": [
+     64,
+     264,
+     152,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     225,
+     264,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add note",
+    "box": [
+     360,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Apply discount",
+    "box": [
+     489,
+     264,
+     132,
+     44
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Add item",
+    "box": [
+     630,
+     264,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_150_orders_reordered_orders",
+  "image": "lab_150_orders_reordered_orders.png",
+  "url": "http://127.0.0.1:38933/orders?tab=orders",
+  "controls": [
+   {
+    "text": "Request approval",
+    "box": [
+     64,
+     289,
+     152,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Rush delivery",
+    "box": [
+     225,
+     289,
+     125,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add note",
+    "box": [
+     360,
+     289,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Apply discount",
+    "box": [
+     489,
+     289,
+     132,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_151_orders_reordered_approvals",
+  "image": "lab_151_orders_reordered_approvals.png",
+  "url": "http://127.0.0.1:38933/orders?tab=approvals",
+  "controls": [
+   {
+    "text": "Override price",
+    "box": [
+     64,
+     264,
+     128,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_152_orders_reordered_shipping",
+  "image": "lab_152_orders_reordered_shipping.png",
+  "url": "http://127.0.0.1:38933/orders?tab=shipping",
+  "controls": [
+   {
+    "text": "Ship order",
+    "box": [
+     64,
+     239,
+     120,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ }
+]

@@ -14,6 +14,10 @@ The TRL-3 prototype described in Review 1 is implemented for both browser pages 
 - Persistent directed state graph keyed by URL, functional signature and exact pixels, with semantic action re-grounding after layout shifts, reliability-weighted route replay, and atomic JSON export.
 - Visual postcondition verification and dependency-aware plan cancellation.
 - SQLite run/transition logging, latency metrics, reusable completed workflows, and training-example export.
+- Action model learned from screen facts: effects in both directions, deferred credit, context conditions (role lines), and declaring a goal unavailable from what was learned.
+- Pixel-contrast detection of disabled controls, validated on lab, CSS-framework and Gitea screenshots.
+- Experiment phase (positive-control replays with a reload check, tours, ablated replays) that confirms preconditions without model calls.
+- Three-app Visual Function Lab with a perception-derived ground truth and a resumable, rate-limited evaluation harness.
 
 ## Verification
 

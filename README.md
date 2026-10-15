@@ -2,7 +2,7 @@
 
 Screenshot-based GUI target discovery with local OmniParser/OCR proposals, hosted Gemini planning/refinement, browser or desktop input, and optional browser-native execution helpers. Normal target discovery uses screenshots; color, upload and download execution use browser APIs. This is not fully local or independent of all APIs.
 
-Learned planning and predicates currently use controlled benchmark vocabulary; general planning or causal learning outside it is unverified. Active experiments default to zero. See [capability and evaluation limits](BENCHMARK_TESTING.md).
+Learned facts are read from the screen and scoped to the section they appear in; the action model learns effects and preconditions from them. Experiments run only inside the evaluation harness on resettable lab apps. See [capability and evaluation limits](BENCHMARK_TESTING.md).
 
 ## Setup
 
@@ -63,11 +63,11 @@ P1 adds semantic confirmation for uncertain proposals, bounded missing-target in
 
 Use `uv run vision-gui-agent --help` for all options. Exit codes are `0` for completion, `1` for an incomplete run, and `2` for CLI or handled runtime errors.
 
-Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model-v2.json`; SQLite transitions retain predicate and evidence fields for audit. Active experiments default to a budget of zero. A nonzero `--experiment-budget` requires `--memory-mode active-action-model`, `--benchmark-reset`, and `--benchmark-grounder` together.
+Use comparable memory configurations with `--memory-mode none`, `graph`, `passive-action-model`, or `active-action-model`. Action-model runs write atomically to `artifacts/action-model-v2.json`; SQLite transitions retain fact snapshots, decision origins and Gemini calls by purpose for audit. Both action-model modes plan with what they learned; they differ only in the experiment phase, which `vision-gui-evaluate` runs for active mode.
 
 ## Visual Function Lab
 
-Run `uv run visual-function-lab` to start the deterministic local benchmark and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Versioned task groups and the two layout names are in `vision_gui_agent/task_split.json`. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete validation loop and agent-run protocol.
+Run `uv run visual-function-lab` to serve the three benchmark apps (`/workspace`, `/helpdesk`, `/orders`) and `uv run vision-gui-benchmark` to validate every task/layout combination. Its evaluator maintains hidden state for reset/scoring; the agent-facing browser has only rendered controls and pixels. Versioned task groups and the three layout names are in `vision_gui_agent/task_split.json`. `vision-gui-evaluate` runs the evaluation matrix and `vision-gui-truth` builds the ground truth for learned rules. See [BENCHMARK_TESTING.md](BENCHMARK_TESTING.md) for the complete protocol.
 
 The evaluator check and browser-agent calibration are separate commands:
 

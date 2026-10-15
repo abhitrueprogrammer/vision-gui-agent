@@ -80,7 +80,9 @@ async def _run(args: argparse.Namespace) -> int:
                 context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1440, "height": 1000})
                 page = await context.new_page()
                 if args.benchmark_reset:
-                    await page.goto(urljoin(args.url, "/reset?") + urlencode({"state": args.benchmark_reset}), wait_until="domcontentloaded")
+                    reset = {"state": args.benchmark_reset, "layout": args.benchmark_layout}
+                    if args.benchmark_app: reset["app"] = args.benchmark_app
+                    await page.goto(urljoin(args.url, "/reset?") + urlencode(reset), wait_until="domcontentloaded")
                 await page.goto(args.url, wait_until="domcontentloaded")
                 result = await Agent(policy, config, grounder).run(page, args.goal)
         print(f"run_id={result.run_id} completed={result.completed} steps={result.steps} final_node={result.final_node_id}")
@@ -114,8 +116,11 @@ def main() -> None:
     parser.add_argument("--experiment-budget", type=int, default=0, help="reserved active experiments; active mode is sandbox-only")
     parser.add_argument("--min-schema-confidence", type=float, default=.6)
     parser.add_argument("--max-plan-depth", type=int, default=4)
-    from .visual_function_lab import INITIAL_STATES
-    parser.add_argument("--benchmark-reset", choices=INITIAL_STATES, help="named deterministic Visual Function Lab reset state")
+    from .visual_function_lab import APPS, LAYOUTS
+    parser.add_argument("--benchmark-reset", choices=sorted({name for app in APPS.values() for name in app.states}),
+                        help="named deterministic Visual Function Lab reset state")
+    parser.add_argument("--benchmark-app", choices=sorted(APPS), help="Visual Function Lab app to reset")
+    parser.add_argument("--benchmark-layout", choices=LAYOUTS, default="classic", help="Visual Function Lab layout to reset to")
     parser.add_argument("--benchmark-grounder", action="store_true", help="use the screenshot-only calibration grounder for Visual Function Lab")
     parser.add_argument("--no-laya", action="store_true", help="disable the Laya System 1 policy and use Gemini for every decision")
     parser.add_argument("--gemini-key-slot", type=int, choices=[1, 2], help="select a configured Gemini key slot without exposing it")

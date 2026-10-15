@@ -1,0 +1,982 @@
+[
+ {
+  "id": "lab_classic_blank_overview",
+  "image": "lab_classic_blank_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_blank_documents",
+  "image": "lab_classic_blank_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_blank_data",
+  "image": "lab_classic_blank_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_blank_reports",
+  "image": "lab_classic_blank_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_blank_settings",
+  "image": "lab_classic_blank_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     280,
+     215,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_document_open_overview",
+  "image": "lab_classic_document_open_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_document_open_documents",
+  "image": "lab_classic_document_open_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     260,
+     198,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_document_open_data",
+  "image": "lab_classic_document_open_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_document_open_reports",
+  "image": "lab_classic_document_open_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_document_open_settings",
+  "image": "lab_classic_document_open_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     280,
+     215,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_dataset_open_overview",
+  "image": "lab_classic_dataset_open_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_dataset_open_documents",
+  "image": "lab_classic_dataset_open_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_dataset_open_data",
+  "image": "lab_classic_dataset_open_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     276,
+     246,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     260,
+     352,
+     140,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_dataset_open_reports",
+  "image": "lab_classic_dataset_open_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_dataset_open_settings",
+  "image": "lab_classic_dataset_open_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     280,
+     215,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_approval_enabled_overview",
+  "image": "lab_classic_approval_enabled_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_approval_enabled_documents",
+  "image": "lab_classic_approval_enabled_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_approval_enabled_data",
+  "image": "lab_classic_approval_enabled_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     280,
+     215,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_approval_enabled_reports",
+  "image": "lab_classic_approval_enabled_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_classic_approval_enabled_settings",
+  "image": "lab_classic_approval_enabled_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Require approval",
+    "box": [
+     260,
+     200,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add reviewers",
+    "box": [
+     260,
+     283,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     260,
+     340,
+     124,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_blank_overview",
+  "image": "lab_compact_blank_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_blank_documents",
+  "image": "lab_compact_blank_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_blank_data",
+  "image": "lab_compact_blank_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_blank_reports",
+  "image": "lab_compact_blank_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_blank_settings",
+  "image": "lab_compact_blank_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     44,
+     249,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_document_open_overview",
+  "image": "lab_compact_document_open_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_document_open_documents",
+  "image": "lab_compact_document_open_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export options",
+    "box": [
+     24,
+     232,
+     130,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_document_open_data",
+  "image": "lab_compact_document_open_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_document_open_reports",
+  "image": "lab_compact_document_open_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_document_open_settings",
+  "image": "lab_compact_document_open_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     44,
+     249,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_dataset_open_overview",
+  "image": "lab_compact_dataset_open_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_dataset_open_documents",
+  "image": "lab_compact_dataset_open_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_dataset_open_data",
+  "image": "lab_compact_dataset_open_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "West region",
+    "box": [
+     40,
+     280,
+     120,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Generate report",
+    "box": [
+     24,
+     386,
+     140,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_dataset_open_reports",
+  "image": "lab_compact_dataset_open_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_dataset_open_settings",
+  "image": "lab_compact_dataset_open_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Manage settings",
+    "box": [
+     44,
+     249,
+     144,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_approval_enabled_overview",
+  "image": "lab_compact_approval_enabled_overview.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=overview",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_approval_enabled_documents",
+  "image": "lab_compact_approval_enabled_documents.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=documents",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Launch Brief",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_approval_enabled_data",
+  "image": "lab_compact_approval_enabled_data.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=data",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Q3 Forecast",
+    "box": [
+     44,
+     249,
+     120,
+     44
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_approval_enabled_reports",
+  "image": "lab_compact_approval_enabled_reports.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=reports",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "lab_compact_approval_enabled_settings",
+  "image": "lab_compact_approval_enabled_settings.png",
+  "url": "http://127.0.0.1:37145/fullsuite?tab=settings",
+  "controls": [
+   {
+    "text": "Reset workspace",
+    "box": [
+     1283,
+     14,
+     133,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Require approval",
+    "box": [
+     24,
+     234,
+     148,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add reviewers",
+    "box": [
+     24,
+     317,
+     129,
+     44
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save settings",
+    "box": [
+     24,
+     374,
+     124,
+     44
+    ],
+    "disabled": true
+   }
+  ]
+ }
+]

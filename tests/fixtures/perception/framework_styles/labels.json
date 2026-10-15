@@ -1,0 +1,2458 @@
+[
+ {
+  "id": "framework_bootstrap_0",
+  "image": "framework_bootstrap_0.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     160,
+     128,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     160,
+     127,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     160,
+     89,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     160,
+     109,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     160,
+     81,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     160,
+     94,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     212,
+     128,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     212,
+     127,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     212,
+     89,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     212,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     212,
+     81,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     212,
+     94,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     264,
+     128,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     264,
+     127,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     264,
+     89,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     264,
+     109,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     264,
+     81,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     264,
+     94,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     316,
+     128,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     316,
+     127,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     316,
+     89,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     316,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     316,
+     81,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     316,
+     94,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     368,
+     128,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     368,
+     127,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     368,
+     89,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     368,
+     109,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     368,
+     81,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     368,
+     94,
+     38
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "framework_bootstrap_1",
+  "image": "framework_bootstrap_1.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     160,
+     128,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     160,
+     127,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     160,
+     89,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     160,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     160,
+     81,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     160,
+     94,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     212,
+     128,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     212,
+     127,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     212,
+     89,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     212,
+     109,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     212,
+     81,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     212,
+     94,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     264,
+     128,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     264,
+     127,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     264,
+     89,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     264,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     264,
+     81,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     264,
+     94,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     316,
+     128,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     316,
+     127,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     316,
+     89,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     316,
+     109,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     316,
+     81,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     316,
+     94,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     368,
+     128,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     368,
+     127,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     368,
+     89,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     559,
+     368,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     684,
+     368,
+     81,
+     38
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     782,
+     368,
+     94,
+     38
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "framework_bulma_0",
+  "image": "framework_bulma_0.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     131,
+     133,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     131,
+     124,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     131,
+     92,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     131,
+     111,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     131,
+     85,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     131,
+     96,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     185,
+     133,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     185,
+     124,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     185,
+     92,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     185,
+     111,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     185,
+     85,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     185,
+     96,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     239,
+     133,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     239,
+     124,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     239,
+     92,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     239,
+     111,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     239,
+     85,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     239,
+     96,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     293,
+     133,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     293,
+     124,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     293,
+     92,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     293,
+     111,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     293,
+     85,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     293,
+     96,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     347,
+     133,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     347,
+     124,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     347,
+     92,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     347,
+     111,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     347,
+     85,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     347,
+     96,
+     40
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "framework_bulma_1",
+  "image": "framework_bulma_1.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     131,
+     133,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     131,
+     124,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     131,
+     92,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     131,
+     111,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     131,
+     85,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     131,
+     96,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     185,
+     133,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     185,
+     124,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     185,
+     92,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     185,
+     111,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     185,
+     85,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     185,
+     96,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     239,
+     133,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     239,
+     124,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     239,
+     92,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     239,
+     111,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     239,
+     85,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     239,
+     96,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     293,
+     133,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     293,
+     124,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     293,
+     92,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     293,
+     111,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     293,
+     85,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     293,
+     96,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     347,
+     133,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     317,
+     347,
+     124,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     458,
+     347,
+     92,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     565,
+     347,
+     111,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     693,
+     347,
+     85,
+     40
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     794,
+     347,
+     96,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "framework_fomantic_0",
+  "image": "framework_fomantic_0.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     141,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     141,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     141,
+     95,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     141,
+     111,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     141,
+     90,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     141,
+     99,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     191,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     191,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     191,
+     95,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     191,
+     111,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     191,
+     90,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     191,
+     99,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     241,
+     125,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     313,
+     241,
+     125,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     457,
+     241,
+     94,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     571,
+     241,
+     110,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     241,
+     88,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     808,
+     241,
+     99,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     291,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     291,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     291,
+     95,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     291,
+     111,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     291,
+     90,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     291,
+     99,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     341,
+     125,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     313,
+     341,
+     125,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     457,
+     341,
+     94,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     571,
+     341,
+     110,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     341,
+     88,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     808,
+     341,
+     99,
+     36
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "framework_fomantic_1",
+  "image": "framework_fomantic_1.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     141,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     141,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     141,
+     95,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     141,
+     111,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     141,
+     90,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     141,
+     99,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     191,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     191,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     191,
+     95,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     191,
+     111,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     191,
+     90,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     191,
+     99,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     241,
+     125,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     313,
+     241,
+     125,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     457,
+     241,
+     94,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     571,
+     241,
+     110,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     241,
+     88,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     808,
+     241,
+     99,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     291,
+     124,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     312,
+     291,
+     124,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     455,
+     291,
+     95,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     570,
+     291,
+     111,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     291,
+     90,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     810,
+     291,
+     99,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     341,
+     125,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     313,
+     341,
+     125,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     457,
+     341,
+     94,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     571,
+     341,
+     110,
+     36
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     700,
+     341,
+     88,
+     36
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     808,
+     341,
+     99,
+     36
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "framework_pico_0",
+  "image": "framework_pico_0.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     216,
+     170,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     216,
+     168,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     216,
+     120,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     216,
+     145,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     216,
+     111,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     216,
+     127,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     292,
+     170,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     292,
+     168,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     292,
+     120,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     292,
+     145,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     292,
+     111,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     292,
+     127,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     368,
+     170,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     368,
+     168,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     368,
+     120,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     368,
+     145,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     368,
+     111,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     368,
+     127,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     444,
+     170,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     444,
+     168,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     444,
+     120,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     444,
+     145,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     444,
+     111,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     444,
+     127,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     520,
+     170,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     520,
+     168,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     520,
+     120,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     520,
+     145,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     520,
+     111,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     520,
+     127,
+     62
+    ],
+    "disabled": true
+   }
+  ]
+ },
+ {
+  "id": "framework_pico_1",
+  "image": "framework_pico_1.png",
+  "url": "about:blank",
+  "controls": [
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     216,
+     170,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     216,
+     168,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     216,
+     120,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     216,
+     145,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     216,
+     111,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     216,
+     127,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     292,
+     170,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     292,
+     168,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     292,
+     120,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     292,
+     145,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     292,
+     111,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     292,
+     127,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     368,
+     170,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     368,
+     168,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     368,
+     120,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     368,
+     145,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     368,
+     111,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     368,
+     127,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     444,
+     170,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     444,
+     168,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     444,
+     120,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     444,
+     145,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     444,
+     111,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     444,
+     127,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Save changes",
+    "box": [
+     168,
+     520,
+     170,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Export report",
+    "box": [
+     354,
+     520,
+     168,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Approve",
+    "box": [
+     537,
+     520,
+     120,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Send invite",
+    "box": [
+     674,
+     520,
+     145,
+     62
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Archive",
+    "box": [
+     835,
+     520,
+     111,
+     62
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Continue",
+    "box": [
+     962,
+     520,
+     127,
+     62
+    ],
+    "disabled": false
+   }
+  ]
+ }
+]

@@ -9,6 +9,7 @@ import traceback
 from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from playwright.async_api import Page
@@ -20,8 +21,9 @@ from .capture import StaleObservation
 from .experimentation import ExperimentSelector
 from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
+from .gemini import CALL_COUNTS, call_purpose
 from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition, VerificationResult
-from .predicates import PredicateExtractor, delta
+from .predicates import BeliefState, Inventory, PredicateExtractor, control_identity, fact_parts, normalize_name
 from .perception import GroundingAbstention, VisualGrounder, draw_set_of_mark, observe, refinement_reasons
 from .state_graph import StateGraph, instance_matches
 from .verification import already_satisfied, control_key, verify, _same_visual_element
@@ -45,6 +47,8 @@ class AgentConfig:
     action_model_path: Path | None = None
     evaluation_context: dict | None = None
     execution_mode: str = "pixels"
+    # URL query keys that select a section (fact scope); host and port are never part of it.
+    section_keys: tuple[str, ...] = ("tab",)
 
 
 @dataclass(frozen=True)
@@ -69,7 +73,9 @@ class Agent:
             legacy = config.artifact_dir / "action-model.json"
             if legacy.exists(): self.action_model_path = legacy
         self.action_model = ActionModel.load(self.action_model_path)
-        self.predicates = PredicateExtractor()
+        self.predicates = PredicateExtractor(config.section_keys)
+        # Section inventory and links persist with the graph across runs.
+        self.inventory = Inventory(self.graph.graph.graph.setdefault("inventory", {}))
         self.functional_planner = FunctionalPlanner(self.action_model, config.max_plan_depth, config.min_schema_confidence)
         self.experiments = ExperimentSelector(config.experiment_budget, config.experiment_sandbox)
 
@@ -80,14 +86,14 @@ class Agent:
         name = type(self.policy).__name__
         return {"GeminiPolicy": "gemini", "LayaPolicy": "laya"}.get(name, name)
 
-    @staticmethod
-    def _semantic_action(decision: ActionDecision, observation: Observation) -> SemanticAction | None:
-        if decision.element_id is None: return None
+    def _semantic_action(self, decision: ActionDecision, observation: Observation) -> SemanticAction | None:
+        """Name an action by the section it was taken in and its control's label."""
+        if decision.element_id is None or decision.action == "done": return None
         element = next((item for item in observation.elements if item.id == decision.element_id), None)
-        if element is None: return None
-        label = Agent._normal(element.text or element.aria_label or element.placeholder)
-        return SemanticAction(label.replace(" ", "_"), f"{element.tag.casefold()}|{element.role.casefold()}|{label}",
-                              action_type=decision.action) if label and decision.action != "done" else None
+        identity = control_identity(element) if element else ""
+        if not identity: return None
+        _, key = self.predicates.scope(observation)
+        return SemanticAction(f"{key}__{identity}", f"{key}|{identity}", action_type=decision.action)
 
     @staticmethod
     def _recordable_graph_action(decision: ActionDecision, observation: Observation) -> bool:
@@ -97,52 +103,129 @@ class Agent:
 
     @staticmethod
     def _effect_pattern(effect: ActionEffect) -> str:
-        # A benchmark surface renders ordinary confirmation text, never a
-        # literal "predicate: value" dump; prefer its known visible phrase
-        # when this effect is one of its predicates, and fall back to the
-        # generic humanized form for any other site's learned schemas.
-        try:
-            from .visual_function_lab import EVIDENCE_PHRASES
-            phrase = EVIDENCE_PHRASES.get((effect.predicate, effect.resulting_value))
-        except ImportError:
-            phrase = None
-        return phrase or f"{effect.predicate.replace('_', ' ')}: {str(effect.resulting_value).lower()}"
+        # The text as it appeared on screen, punctuation kept; older models fall back to the fact's label.
+        return effect.evidence_text or fact_parts(effect.predicate)[2].replace("_", " ") or effect.predicate.replace("_", " ")
 
-    def _schema_decision(self, goal: str, observation: Observation) -> tuple[ActionDecision, ActionSchema, ActionEffect] | None:
-        desired = self.action_model.goal_effect(goal, self.config.min_schema_confidence)
-        if desired is None: return None
-        state = self.predicates.extract(observation, "schema-plan")
-        plan = self.functional_planner.plan(desired[0], state, desired[1])
+    @staticmethod
+    def _schema_target(schema: ActionSchema) -> tuple[str | None, str]:
+        """(scope key, control identity); schemas named before scoping match in any section."""
+        if "__" in schema.semantic_name:
+            key, _, identity = schema.semantic_name.partition("__")
+            return key, identity
+        return None, normalize_name(schema.target_signature.split("|")[-1])
+
+    def _belief_values(self, observation: Observation, belief: BeliefState | None) -> dict[str, bool]:
+        if belief is not None: return belief.values()
+        _, key = self.predicates.scope(observation)
+        snapshot = BeliefState()
+        snapshot.observe(key, self.predicates.read(observation, Inventory()), Inventory())
+        return snapshot.values()
+
+    @staticmethod
+    def _confirm_learned_target(observation: Observation, target) -> Observation:
+        """A unique control the model already learned needs no Gemini confirmation.
+
+        Marking it confirmed is what lets validate_for accept a raw detector
+        element, which otherwise always needs semantic refinement.
+        """
+        return replace(observation, elements=[
+            replace(item, semantic_confirmed=True, uncertainties=(), proposal_sources=tuple(item.proposal_sources) + ("learned_identity",))
+            if item.id == target.id else item for item in observation.elements])
+
+    def _navigation_decision(self, key: str, observation: Observation) -> ActionDecision | None:
+        """Click the visible link recorded for a section; OCR may read it as text rather than a control."""
+        link = self.inventory.navigation(key)
+        if not link: return None
+        matches = [item for item in observation.elements if control_identity(item) == link["identity"]]
+        pool = [item for item in matches if item.actionable] or matches
+        if not pool: return None
+        if len(pool) > 1:
+            width, height = self._screen_size(observation)
+            x, y = link["position"]
+            distance = lambda item: abs((item.x + item.width / 2) / width - x) + abs((item.y + item.height / 2) / height - y)
+            pool = sorted(pool, key=distance)
+            if distance(pool[0]) > .1: return None  # still ambiguous: let the policy decide
+        target = pool[0]
+        return ActionDecision("click", target.id, rationale="Navigate to a learned section", verify=VerificationCondition("page_changed"),
+                              grounding=(EvidenceRecord("element_text", target.text, target.id),),
+                              direct_click=None if target.actionable else "navigation")
+
+    @staticmethod
+    def _screen_size(observation: Observation) -> tuple[float, float]:
+        try:
+            from PIL import Image
+            with Image.open(observation.screenshot_path) as image:
+                return float(image.width), float(image.height)
+        except (OSError, ValueError):
+            return 1440.0, 1000.0
+
+    def _schema_decision(self, goal: str, observation: Observation, belief: BeliefState | None = None) -> tuple[ActionDecision, ActionSchema, ActionEffect | None] | None:
+        values = self._belief_values(observation, belief)
+        targets = self.action_model.goal_effects(goal, self.config.min_schema_confidence)
+        if not targets: return None
+        plan = self.functional_planner.plan_all(targets, values)
         if not plan: return None
         schema = plan[0]
         if schema.action_type != "click" or schema.safety_class == "high_impact_or_irreversible": return None
-        parts = schema.target_signature.split("|", 2)
-        if len(parts) != 3: return None
-        tag, role, label = parts
-        compatible = [item for item in observation.elements if item.actionable
-                      and (not tag or item.tag.casefold() == tag) and (not role or item.role.casefold() == role)]
-        candidates = [item for item in compatible
-                      if self._normal(item.text or item.value or item.aria_label or item.placeholder) == self._normal(label)]
-        if not candidates and schema.safety_class != "high_impact_or_irreversible":
-            ranked = sorted(((SequenceMatcher(None, self._normal(label), self._normal(item.text or item.value or item.aria_label or item.placeholder)).ratio(), item)
-                             for item in compatible), key=lambda pair: pair[0], reverse=True)
+        key, identity = self._schema_target(schema)
+        _, current_key = self.predicates.scope(observation)
+        if key is not None and key != current_key:
+            navigation = self._navigation_decision(key, observation)
+            return (navigation, schema, None) if navigation else None
+        # A greyed-out control cannot do what the plan needs now; leave the step to the policy.
+        candidates = [item for item in observation.elements if item.actionable and item.enabled and control_identity(item) == identity]
+        if not candidates:
+            ranked = sorted(((SequenceMatcher(None, identity, control_identity(item)).ratio(), item)
+                             for item in observation.elements if item.actionable and control_identity(item)), key=lambda pair: pair[0], reverse=True)
             if ranked and ranked[0][0] >= .92 and (len(ranked) == 1 or ranked[0][0] - ranked[1][0] >= .08):
                 candidates = [ranked[0][1]]
-        if len(candidates) != 1 or candidates[0].tag not in {"button", "link", "checkbox", "menuitem"}: return None
-        current = {item.name: item.value for item in state}
+        if len(candidates) != 1: return None
         effects = [item for item in schema.effects if item.confidence >= self.config.min_schema_confidence
-                   and current.get(item.predicate) != item.resulting_value]
+                   and item.resulting_value is True and values.get(item.predicate) is not True]
         if not effects: return None
         effect = max(effects, key=lambda item: item.confidence)
         target = candidates[0]
         creates_file = (self._requires_download(goal)
                         and bool(re.search(r"(?:download|export).*(?:complete|ready)|(?:complete|ready).*(?:download|export)",
-                                           f"{schema.semantic_name} {effect.predicate}", re.IGNORECASE)))
-        decision = ActionDecision("click", target.id, rationale=f"Apply learned schema {schema.id}",
-                                  verify=(VerificationCondition("download_created") if creates_file else
-                                          VerificationCondition("element_visible", pattern=self._effect_pattern(effect))),
+                                           f"{schema.semantic_name} {effect.predicate} {effect.evidence_text}", re.IGNORECASE)))
+        effect_key, kind, _ = fact_parts(effect.predicate)
+        if creates_file: verification = VerificationCondition("download_created")
+        elif key is not None and effect_key != current_key: verification = None  # the change shows up in another section
+        elif kind == "available": verification = VerificationCondition("element_enabled", pattern=self._effect_pattern(effect))
+        else: verification = VerificationCondition("element_visible", pattern=self._effect_pattern(effect))
+        decision = ActionDecision("click", target.id, rationale=f"Apply learned schema {schema.id}", verify=verification,
                                   grounding=(EvidenceRecord("element_text", target.text, target.id),))
         return decision, schema, effect
+
+    def _unavailable_reason(self, goal: str, belief: BeliefState) -> tuple[str | None, str | None]:
+        """Why the learned model says this goal cannot be done here, if it does.
+
+        Returns (reason, scope key to confirm): a fact that held every time the
+        producing action worked, that no action can produce (a role or
+        permission line), and that is now absent. One missing observation only
+        asks for a second look; an OCR miss must not end a run.
+        """
+        values = belief.values()
+        for name, value in self.action_model.goal_effects(goal, self.config.min_schema_confidence):
+            if values.get(name) == value or self.functional_planner.plan(name, values, value) is not None: continue
+            for schema in self.action_model.for_effect(name, value, self.config.min_schema_confidence):
+                for condition in self.action_model.context_conditions(schema):
+                    if values.get(condition.predicate) is not False: continue
+                    if not belief.confirmed_absent(condition.predicate): return None, fact_parts(condition.predicate)[0]
+                    shown = next((effect.evidence_text for item in self.action_model.schemas.values() for effect in item.effects
+                                  if effect.predicate == condition.predicate and effect.evidence_text), "")
+                    label = shown or fact_parts(condition.predicate)[2].replace("_", " ")
+                    return f"'{label}' is shown whenever this works and is not shown now", None
+        return None, None
+
+    @staticmethod
+    def _unavailable_decision(goal: str, reason: str, ledger: dict[str, GoalConstraint]) -> ActionDecision:
+        material = [item for item in ledger.values() if item.material]
+        # Existing compiled constraints are marked under their own ids: a new id
+        # would be dropped by _merge_constraints whenever scoped constraints exist.
+        constraints = tuple(GoalConstraint(item.id, item.description, True, "unavailable", (), reason) for item in material) or (
+            GoalConstraint("learned-unavailable", f"Goal: {goal}", True, "unavailable", (), reason),)
+        return ActionDecision("done", rationale=f"Unavailable: {reason}", constraints=constraints)
 
     @staticmethod
     def _safe_plan(decisions: list[ActionDecision]) -> list[ActionDecision]:
@@ -354,6 +437,9 @@ class Agent:
                 evidence = tuple(item for item in proposed.evidence if Agent._valid_evidence(item, observation, download_paths))
                 if proposed.status == "proven" and evidence:
                     ledger[old.id] = replace(old, status="proven", evidence=evidence)
+                elif proposed.status == "unavailable" and proposed.unavailable_reason:
+                    # The model was told to keep a constraint's definition when marking it unavailable.
+                    ledger[old.id] = replace(old, status="unavailable", evidence=(), unavailable_reason=proposed.unavailable_reason)
                 continue
             # A model cannot turn prose into proof: promote only currently checkable evidence.
             evidence = tuple(item for item in proposed.evidence if Agent._valid_evidence(item, observation, download_paths))
@@ -444,7 +530,9 @@ class Agent:
             raise ValueError("final collection quantities require visible exact row verification")
         if decision.action == "done" and Agent._requires_download(goal) and not unavailable and not Agent._has_download(download_paths):
             raise ValueError("download goal requires a successful download_created verification")
-        if decision.action == "done" and decision.verify is None and not any(
+        # Declaring a goal unavailable has nothing to point at (a hidden control
+        # leaves no evidence); the material constraint's reason is the record.
+        if decision.action == "done" and decision.verify is None and not unavailable and not any(
                 Agent._valid_evidence(item, observation, []) for item in decision.grounding):
             raise ValueError("done requires a visual postcondition or valid visible grounding")
         if decision.element_id is not None and Agent._is_high_impact(decision, observation):
@@ -453,7 +541,8 @@ class Agent:
                 raise ValueError("High-impact action lacks valid target grounding")
         if Agent._is_high_impact(decision, observation):
             unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven" and not (item.source_span and decision.element_id is not None)]
-            if unproven: raise ValueError(f"High-impact action deferred; unproven constraints: {', '.join(unproven)}")
+            if unproven and not (decision.action == "done" and unavailable):
+                raise ValueError(f"High-impact action deferred; unproven constraints: {', '.join(unproven)}")
 
     @staticmethod
     def _normal(value: str) -> str:
@@ -611,6 +700,14 @@ class Agent:
         draw_set_of_mark(Path(latest.screenshot_path), marked, elements)
         return replace(latest, elements=elements, marked_screenshot_path=str(marked))
 
+    async def run_experiment_phase(self, page: Page, reset, exploration_runs: list[tuple[str, str]], budget: int = 150,
+                                   start_state: str = "blank") -> dict:
+        """Confirm learned preconditions with planned experiments (sandboxed lab apps only)."""
+        if not self.config.experiment_sandbox:
+            raise ValueError("experiments run only when the harness controls a resettable lab app")
+        from .experiment_phase import ExperimentPhase
+        return await ExperimentPhase(self, page, reset, budget).run(exploration_runs, start_state)
+
     async def run(self, page: Page, goal: str) -> RunResult:
         self.config.artifact_dir.mkdir(parents=True, exist_ok=True)
         logger, run_id = RunLogger(self.config.database_path), uuid4().hex
@@ -656,11 +753,20 @@ class Agent:
         action_attempts: dict[str, int] = {}
         attempt_replay_keys: dict[str, str] = {}
         ledger: dict[str, GoalConstraint] = {}
+        # Gemini calls since the last logged step, by purpose; the first step also carries the goal compiler's.
+        calls_seen = dict(CALL_COUNTS)
+        def step_calls() -> dict[str, int]:
+            nonlocal calls_seen
+            now = dict(CALL_COUNTS)
+            diff = {purpose: count - calls_seen.get(purpose, 0) for purpose, count in now.items() if count != calls_seen.get(purpose, 0)}
+            calls_seen = now
+            return diff
         compiler = getattr(self.policy, "compile_goal", None)
         if callable(compiler):
             try:
-                compiled = compiler(goal)
-                compiled = await compiled if inspect.isawaitable(compiled) else compiled
+                with call_purpose("goal_compiler"):
+                    compiled = compiler(goal)
+                    compiled = await compiled if inspect.isawaitable(compiled) else compiled
                 if not isinstance(compiled, (tuple, list)) or not all(isinstance(item, GoalConstraint) and item.source_span for item in compiled):
                     raise ValueError("compiler returned invalid constraints")
                 compiled = self._compiled_constraints(goal, compiled)
@@ -675,6 +781,19 @@ class Agent:
         comparison = self._comparison_constraint(goal)
         if comparison: ledger[comparison.id] = comparison
         current_node = ""
+        learning = self.config.memory_mode in {"passive-action-model", "active-action-model"}
+        if learning and not self.action_model.schemas and getattr(page, "url", ""):
+            # A fresh model is scoped to the app it learns, by path only (never host or port).
+            self.action_model.scope = "/" + (urlsplit(page.url).path.strip("/").split("/")[0] or "")
+        belief = BeliefState() if learning else None
+        belief_synced: Observation | None = None
+        # Actions that changed something, and where each section was last seen, for delayed effects.
+        changed_actions: list[tuple[SemanticAction, str]] = []
+        visit_index: dict[str, int] = {}
+        # A learned decision that recurs is not making progress (the model and the policy
+        # can undo each other); after that the learned model sits out the rest of the run.
+        learned_seen: set[str] = set()
+        learned_enabled = True
         try:
             observed_at = perf_counter()
             observation = await observe(page, self.config.artifact_dir / run_id, 0, self.grounder)
@@ -685,6 +804,11 @@ class Agent:
             observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
                 self._prove_entity_quantities(ledger, observation)
+                if belief is not None and belief_synced is not observation:
+                    _, scope_now = self.predicates.scope(observation)
+                    belief.observe(scope_now, self.predicates.read(observation, self.inventory), self.inventory)
+                    belief_synced, visit_index[scope_now] = observation, len(changed_actions)
+                before_values = belief.values() if belief is not None else {}
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
@@ -719,13 +843,27 @@ class Agent:
                             planned.clear()
                         else:
                             decision, decision_origin = candidate, "planned"
-                    if decision is None and self.config.memory_mode == "active-action-model" and not force_planner:
-                        schema_choice = self._schema_decision(goal, observation)
+                    if decision is None and belief is not None and not force_planner:
+                        reason, confirm_scope = self._unavailable_reason(goal, belief)
+                        if reason is None and confirm_scope is not None and confirm_scope == self.predicates.scope(observation)[1]:
+                            # Look once more before declaring anything from a single missing reading.
+                            observation = await observe(page, self.config.artifact_dir / run_id, step, self.grounder)
+                            belief.observe(confirm_scope, self.predicates.read(observation, self.inventory), self.inventory)
+                            belief_synced, before_values = observation, belief.values()
+                            reason, _ = self._unavailable_reason(goal, belief)
+                        if reason:
+                            decision, decision_origin = self._unavailable_decision(goal, reason, ledger), "learned_unavailable"
+                    if decision is None and belief is not None and not force_planner and learned_enabled:
+                        schema_choice = self._schema_decision(goal, observation, belief)
                         if schema_choice:
-                            decision, selected_schema, selected_effect = schema_choice
-                            decision_origin = "learned_schema"
-                            current = {item.name: item.value for item in self.predicates.extract(observation, f"{run_id}:{step}:experiment")}
-                            selected_experiment = self.experiments.select(selected_schema, {}, step + 1, current)
+                            repeat = f"{self.predicates.scope(observation)[1]}|{schema_choice[1].id}|{schema_choice[0].element_id}"
+                            if repeat in learned_seen:
+                                learned_enabled = False
+                                if self.config.verbose: print(f"[step {step}] learned plan repeated a decision; leaving the rest to the policy")
+                            else:
+                                learned_seen.add(repeat)
+                                decision, selected_schema, selected_effect = schema_choice
+                                decision_origin = "learned_schema" if selected_effect is not None else "section_navigation"
                     if decision is None and self.config.memory_mode != "none" and not force_planner:
                         reusable = self._reuse_workflow(templates, observation, current_label)
                         if reusable:
@@ -738,7 +876,7 @@ class Agent:
                         decision = self.graph.replay(current_node, goal, seen)
                         if decision and self._is_high_impact(decision, observation): decision = None
                         decision_origin = "graph_replay" if decision else None
-                    if decision is not None:
+                    if decision is not None and not decision.direct_click and decision.action != "done":
                         try:
                             decision = self._reground(decision, observation)
                         except ValueError:
@@ -746,7 +884,8 @@ class Agent:
                     if decision is None:
                         started = perf_counter()
                         try:
-                            response = await self.policy.decide(goal, observation, graph_context, history)
+                            with call_purpose("policy"):
+                                response = await self.policy.decide(goal, observation, graph_context, history)
                         finally:
                             timings["model_ms"] = (perf_counter() - started) * 1000
                             decision_origin = self._policy_origin()
@@ -756,7 +895,8 @@ class Agent:
                         if discovery_attempts >= 2 or not hasattr(self.grounder, "discover"):
                             raise GroundingAbstention("Missing-target recovery unavailable or budget exhausted")
                         discovery_attempts += 1
-                        recovered = await self.grounder.discover(Path(observation.screenshot_path), (decision.text or "") + "; goal: " + goal)
+                        with call_purpose("discover"):
+                            recovered = await self.grounder.discover(Path(observation.screenshot_path), (decision.text or "") + "; goal: " + goal)
                         if not recovered:
                             raise GroundingAbstention("The requested visible target was not found")
                         before_discovery = observation
@@ -769,7 +909,7 @@ class Agent:
                         observation = replace(observation,elements=enriched,marked_screenshot_path=str(marked))
                         history.append(ActionRecord(decision,True))
                         logger.log(run_id,step,current_node,current_node,decision,True,observation,graph_context,
-                                   before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable", decision_origin=decision_origin)
+                                   before_observation=before_discovery,after_observation=observation,dispatch_status="not_applicable", decision_origin=decision_origin, gemini_calls=step_calls())
                         continue
                     if decision.action == "done":
                         if not decision.grounding and decision.element_id is not None:
@@ -781,11 +921,16 @@ class Agent:
                     unrefined_node = discovery_node if discovery_base else current_node
                     if decision.action != "done" and decision.element_id is not None and hasattr(self.grounder, "refine"):
                         target = next((item for item in observation.elements if item.id == decision.element_id), None)
-                        if target and not target.actionable:
+                        if target and not target.actionable and not decision.direct_click:
                             raise ValueError("Selected target is visual evidence, not an action target. Use inspect to recover a missing control, or done with evidence if the goal is complete.")
-                        if target and refinement_reasons(target, observation.elements, decision):
-                            refined = await self.grounder.refine(Path(observation.screenshot_path), target,
-                                                                goal=goal, decision=decision, elements=observation.elements)
+                        learned_target = (decision_origin in {"learned_schema", "section_navigation"} and target is not None
+                                          and sum(control_identity(item) == control_identity(target) for item in observation.elements) == 1)
+                        if learned_target:
+                            observation = self._confirm_learned_target(observation, target)
+                        elif target and not decision.direct_click and refinement_reasons(target, observation.elements, decision):
+                            with call_purpose("refine"):
+                                refined = await self.grounder.refine(Path(observation.screenshot_path), target,
+                                                                    goal=goal, decision=decision, elements=observation.elements)
                             if refined is None or not refined.actionable:
                                 detail = getattr(self.grounder, "last_refinement_rejection", None)
                                 raise GroundingAbstention("Selected target could not be confirmed"
@@ -856,7 +1001,7 @@ class Agent:
                     attempt_replay_keys[rejected_key] = self.graph.replay_key(rejected)
                     action_attempts[rejected_key] = action_attempts.get(rejected_key, 0) + 1
                     history.append(ActionRecord(rejected, False, error))
-                    logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings, decision_origin=decision_origin)
+                    logger.log(run_id, step, current_node, current_node, rejected, False, observation, graph_context, error, timings, decision_origin=decision_origin, gemini_calls=step_calls())
                     planned.clear(); workflow.clear()
                     if self.config.verbose: print(f"[step {step}] {error}")
                     if isinstance(exc, GroundingAbstention):
@@ -870,7 +1015,7 @@ class Agent:
                     error = f"Decision failed: {exc}{detail}"
                     if self.config.verbose: print(f"[step {step}] {error}\n{traceback.format_exc()}")
                     invalid = ActionDecision(action="done", rationale=error)
-                    logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings, decision_origin=decision_origin)
+                    logger.log(run_id, step, current_node, current_node, invalid, False, observation, graph_context, error, timings, decision_origin=decision_origin, gemini_calls=step_calls())
                     result = RunResult(run_id, False, step, current_node, error, history, constraints=list(ledger.values()))
                     logger.finish_run(run_id, result.completed, result.steps, result.final_node_id, result.error)
                     return result
@@ -889,7 +1034,7 @@ class Agent:
                     error = None if success else verification.reason
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, current_node, decision, success, observation, graph_context, error, timings, verification,
-                               before_observation=observation, after_observation=observation, dispatch_status="not_applicable", decision_origin=decision_origin)
+                               before_observation=observation, after_observation=observation, dispatch_status="not_applicable", decision_origin=decision_origin, gemini_calls=step_calls())
                     if self._recordable_graph_action(decision, observation):
                         self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
@@ -949,31 +1094,46 @@ class Agent:
                     history.append(ActionRecord(decision, success, error, verification))
                     logger.log(run_id, step, current_node, target_node, decision, success, next_observation,
                                graph_context, error, timings, verification, before_observation=observation,
-                               after_observation=next_observation, dispatch_status="dispatched", dispatch_info=dispatch_info, decision_origin=decision_origin)
-                    if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
-                        semantic = self._semantic_action(decision, observation)
-                        before = self.predicates.extract(observation, f"{run_id}:{step}:before")
-                        after = self.predicates.extract(next_observation, f"{run_id}:{step}:after")
-                        positives, _ = delta(before, after)
-                        if verification.status == "passed" or (success and bool(positives)):
-                            outcome = "effective"
-                        elif selected_experiment and not success:
-                            outcome = "ineffective"
-                        else:
-                            outcome = "ambiguous"
+                               after_observation=next_observation, dispatch_status="dispatched", dispatch_info=dispatch_info, decision_origin=decision_origin, gemini_calls=step_calls())
+                    if belief is not None:
+                        _, before_scope = self.predicates.scope(observation)
+                        _, after_scope = self.predicates.scope(next_observation)
+                        readings = self.predicates.read(next_observation, self.inventory)
+                        belief.after_action()
+                        remembered = {name: item.value for name, item in belief.entries.items() if fact_parts(name)[0] == after_scope}
+                        belief.observe(after_scope, readings, self.inventory)
+                        belief_synced, after_values = next_observation, belief.values()
                         evidence_id = f"{run_id}:{step}"
-                        schema = self.action_model.ingest(semantic, before, after, outcome, evidence_id,
-                                                          intervention=selected_experiment is not None) if semantic else None
-                        logger.log_action_model(run_id, step, [item.to_dict() for item in before], [item.to_dict() for item in after],
+                        semantic, schema, outcome = None, None, "navigation"
+                        if before_scope != after_scope:
+                            # Moving between sections is recorded as a link, never learned as an action.
+                            target = next((item for item in observation.elements if item.id == decision.element_id), None)
+                            if target is not None and control_identity(target):
+                                width, height = self._screen_size(observation)
+                                self.inventory.record_navigation(after_scope, control_identity(target),
+                                                                 ((target.x + target.width / 2) / width, (target.y + target.height / 2) / height))
+                            since = visit_index.get(after_scope)
+                            changed = {name: value for name, value in after_values.items()
+                                       if name in remembered and remembered[name] != value and fact_parts(name)[0] == after_scope}
+                            # Credit a change found on return only when exactly one action could have caused it.
+                            if since is not None and changed and len(changed_actions[since:]) == 1:
+                                cause, cause_evidence = changed_actions[since]
+                                self.action_model.ingest_delayed(cause, changed, f"{cause_evidence}>{evidence_id}", belief.texts())
+                        else:
+                            semantic = self._semantic_action(decision, observation)
+                            if semantic:
+                                outcome = self.action_model.classify(semantic, before_values, after_values)
+                                schema = self.action_model.ingest(semantic, before_values, after_values, outcome, evidence_id,
+                                                                  run_id=run_id, texts=belief.texts())
+                                if outcome in {"effective", "provisional"}: changed_actions.append((semantic, evidence_id))
+                                if outcome == "effective":
+                                    belief.predict((effect.predicate, effect.resulting_value, effect.evidence_text) for effect in schema.effects
+                                                   if self.action_model.is_confident(effect) and fact_parts(effect.predicate)[0] != after_scope)
+                        visit_index[after_scope] = len(changed_actions)
+                        logger.log_action_model(run_id, step, before_values, after_values,
                                                 semantic.name if semantic else "", self._effect_pattern(selected_effect) if selected_effect else None,
                                                 outcome, (selected_schema or schema).id if selected_schema or schema else None,
-                                                "active_schema" if selected_schema else "passive_schema",
-                                                selected_experiment.id if selected_experiment else None,
-                                                "intervention" if selected_experiment else "passive")
-                        if selected_experiment:
-                            effect_observed = (any(item.name == selected_effect.predicate and item.value == selected_effect.resulting_value
-                                                   for item in after) if selected_effect else None)
-                            logger.finish_experiment(run_id, selected_experiment.id, outcome, effect_observed, evidence_id)
+                                                "active_schema" if selected_schema else "passive_schema", None, "passive")
                     if not success:
                         planned.clear(); workflow.clear(); observation = next_observation; observe_ms = next_observe_ms
                         continue
@@ -1003,7 +1163,7 @@ class Agent:
                     history.append(ActionRecord(decision, False, str(exc), verification))
                     logger.log(run_id,step,current_node,None,decision,False,source_observation,graph_context,
                                str(exc),timings,verification,before_observation=source_observation,
-                               dispatch_status="not_dispatched",dispatch_info=dispatch_info, decision_origin=decision_origin)
+                               dispatch_status="not_dispatched",dispatch_info=dispatch_info, decision_origin=decision_origin, gemini_calls=step_calls())
                     observation = await observe(page,self.config.artifact_dir/run_id,step+1,self.grounder)
                     planned.clear(); workflow.clear()
                     continue
@@ -1022,7 +1182,7 @@ class Agent:
                         target_node = current_node
                     history.append(ActionRecord(decision, False, error))
                     logger.log(run_id, step, current_node, target_node, decision, False, observation, graph_context, error, timings,
-                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error", dispatch_info=dispatch_info, decision_origin=decision_origin)
+                               before_observation=source_observation, after_observation=failure_observation, dispatch_status="error", dispatch_info=dispatch_info, decision_origin=decision_origin, gemini_calls=step_calls())
                     if selected_experiment:
                         logger.finish_experiment(run_id, selected_experiment.id, "execution_error", None, f"{run_id}:{step}")
                     if self._recordable_graph_action(decision, source_observation):

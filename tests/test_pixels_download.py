@@ -70,7 +70,7 @@ class PixelsDownloadTests(unittest.TestCase):
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
                             result = await Agent(ExportPolicy(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
                                 max_steps=6, execution_mode="pixels", memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
                             valid_pdf = bool(result.download_paths and Path(result.download_paths[0]).read_bytes().startswith(b"%PDF-"))
@@ -130,7 +130,7 @@ class PixelsDownloadTests(unittest.TestCase):
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
                             result = await Agent(RecoveryExportPolicy(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
                                 max_steps=8, execution_mode="pixels", memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
                             valid_pdf = bool(result.download_paths and Path(result.download_paths[0]).read_bytes().startswith(b"%PDF-"))
@@ -177,7 +177,7 @@ class PixelsDownloadTests(unittest.TestCase):
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
                             config = AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
                                 max_steps=8, execution_mode="pixels", memory_mode="active-action-model")
                             agent = Agent(StepPolicy(), config, CalibrationGrounder())
@@ -186,11 +186,11 @@ class PixelsDownloadTests(unittest.TestCase):
 
                             # Verify action model captured effects from the harmless actions
                             model = ActionModel.load(root / "action-model-v2.json")
-                            self.assertIn("launch_brief.v1", model.schemas)
-                            self.assertIn("export_options.v1", model.schemas)
-                            self.assertIn("pdf_document.v1", model.schemas)
-                            self.assertIn("confirm_export.v1", model.schemas)
-                            self.assertTrue(any(e.predicate == "export_format" and e.resulting_value == "pdf" for e in model.schemas["pdf_document.v1"].effects))
+                            # Schemas are named by section and control label, facts by what was on screen.
+                            by_label = {schema.semantic_name.partition("__")[2]: schema for schema in model.schemas.values()}
+                            self.assertTrue({"launch_brief", "export_options", "pdf_document", "confirm_export"} <= set(by_label))
+                            self.assertTrue(any(e.predicate.endswith("__text_pdf_document_selected") and e.resulting_value is True
+                                                for e in by_label["pdf_document"].effects))
                             return result, valid_pdf
                         finally:
                             await browser.close()

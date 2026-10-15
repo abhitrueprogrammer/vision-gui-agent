@@ -6,21 +6,22 @@ class EvaluationRegression(unittest.TestCase):
         for task in TASKS.values():
             with self.subTest(task=task.id):
                 evaluator = VisualFunctionLabEvaluator()
-                evaluator.reset(task.initial_state)
+                evaluator.reset(task.initial_state, app=task.app)
                 self.assertFalse(evaluator.score(task.id))
                 for action in task.actions[:-1]:
                     evaluator.act(action)
                 self.assertFalse(evaluator.score(task.id))
                 evaluator.act(task.actions[-1])
                 self.assertTrue(evaluator.score(task.id))
-                evaluator.reset(task.initial_state)
-                evaluator.act('open_dataset' if task.actions[0] != 'open_dataset' else 'open_document')
+                evaluator.reset(task.initial_state, app=task.app)
+                evaluator.act(next(name for name in task.spec.actions if name != task.actions[0]))
                 self.assertFalse(evaluator.score(task.id))
 
     def test_splits_do_not_claim_seen_tasks_are_held_out(self):
-        groups = list(TASK_SPLIT.values())
+        from vision_gui_agent.visual_function_lab import parse_entry
+        groups = [[parse_entry(entry) for entry in group] for group in TASK_SPLIT.values()]
         for index, group in enumerate(groups):
-            self.assertTrue(set(group) <= set(TASKS))
+            self.assertTrue({task for task, _ in group} <= set(TASKS))
             for other in groups[index + 1:]:
                 self.assertFalse(set(group) & set(other))
 

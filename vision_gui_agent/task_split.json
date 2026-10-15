@@ -1,20 +1,29 @@
 {
-  "version": 3,
-  "layouts": [
-    "classic",
-    "compact"
-  ],
+  "version": 4,
+  "layouts": ["classic", "compact", "reordered"],
   "exploration": [
-    "export_launch_brief",
-    "create_q3_report",
-    "enable_approval_workflow"
+    "A_explore_export@classic", "A_explore_report_share@classic", "A_explore_approval@classic", "A_explore_review@classic",
+    "B_explore_resolve@classic", "B_explore_escalate@classic", "B_explore_macro@classic", "B_explore_lead@classic"
   ],
-  "development": [
-    "export_before_open",
-    "report_before_selection",
-    "save_before_reviewers"
+  "held_out": [
+    "A_ho_report@classic", "A_ho_export@classic", "A_ho_share@classic", "A_ho_reviewers@classic",
+    "B_ho_reply@classic", "B_ho_close@classic", "B_ho_escalate@classic", "B_ho_away@classic"
   ],
-  "held_out": [],
-  "layout_shift": [],
-  "composition": []
+  "composition": [
+    "A_co_report_export@classic", "A_co_save_share@classic", "A_co_archive_notify@classic",
+    "B_co_close_away@classic", "B_co_escalate_macro@classic", "B_co_resolve_approve@classic"
+  ],
+  "layout_shift": [
+    "A_ho_export@compact", "A_ho_export@reordered", "A_co_save_share@compact", "A_co_save_share@reordered",
+    "B_ho_close@compact", "B_ho_close@reordered", "B_co_escalate_macro@compact", "B_co_escalate_macro@reordered"
+  ],
+  "unavailable": [
+    "A_u_hidden@classic", "A_u_disabled@classic", "A_u_error@classic",
+    "B_u_hidden@classic", "B_u_disabled@classic", "B_u_error@classic",
+    "C_u_hidden@classic", "C_u_disabled@classic", "C_u_error@classic"
+  ],
+  "unseen_app": [
+    "C1_draft@classic", "C2_discount@classic", "C3_request@classic", "C4_approve@classic",
+    "C5_ship@classic", "C6_label@classic", "C7_track@classic", "C8_invoice@classic"
+  ]
 }

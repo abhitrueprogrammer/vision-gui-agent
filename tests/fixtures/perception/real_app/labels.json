@@ -1,0 +1,3727 @@
+[
+ {
+  "id": "gitea_owner_owner_launch-plan",
+  "image": "gitea_owner_owner_launch-plan.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Manage Topics",
+    "box": [
+     80,
+     185,
+     84,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "main",
+    "box": [
+     80,
+     246,
+     101,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Pull Request",
+    "box": [
+     191,
+     246,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Go to file",
+    "box": [
+     236,
+     246,
+     81,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add File",
+    "box": [
+     324,
+     246,
+     86,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Search...",
+    "box": [
+     678,
+     246,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "HTTP",
+    "box": [
+     724,
+     246,
+     54,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "SSH",
+    "box": [
+     777,
+     246,
+     46,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy URL",
+    "box": [
+     1287,
+     246,
+     36,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "More Operations",
+    "box": [
+     1322,
+     246,
+     38,
+     30
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_issues",
+  "image": "gitea_owner_owner_launch-plan_issues.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Search...",
+    "box": [
+     1208,
+     158,
+     38,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Issue",
+    "box": [
+     1253,
+     158,
+     104,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_issues_1",
+  "image": "gitea_owner_owner_launch-plan_issues_1.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues/1",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1185,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Issue",
+    "box": [
+     1256,
+     161,
+     104,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     467,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     664,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Close Issue",
+    "box": [
+     795,
+     710,
+     118,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Comment",
+    "box": [
+     920,
+     710,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "No Branch/Tag Specified",
+    "box": [
+     1075,
+     269,
+     222,
+     43
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unsubscribe",
+    "box": [
+     1075,
+     770,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     858,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add Time",
+    "box": [
+     1075,
+     905,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_issues_new",
+  "image": "gitea_owner_owner_launch-plan_issues_new.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues/new",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     149,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     175,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     201,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     234,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     260,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     286,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     319,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     345,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     371,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     404,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     430,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     285,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     481,
+     481,
+     217,
+     17
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Create Issue",
+    "box": [
+     904,
+     524,
+     125,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "No Branch/Tag Specified",
+    "box": [
+     1075,
+     173,
+     222,
+     43
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_labels",
+  "image": "gitea_owner_owner_launch-plan_labels.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/labels",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "New Label",
+    "box": [
+     1252,
+     158,
+     104,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_milestones",
+  "image": "gitea_owner_owner_launch-plan_milestones.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/milestones",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Search...",
+    "box": [
+     1180,
+     158,
+     38,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Milestone",
+    "box": [
+     1225,
+     158,
+     132,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_settings",
+  "image": "gitea_owner_owner_launch-plan_settings.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/settings",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Update Settings",
+    "box": [
+     350,
+     570,
+     149,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Update Avatar",
+    "box": [
+     350,
+     685,
+     139,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Delete Current Avatar",
+    "box": [
+     496,
+     685,
+     187,
+     38
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_settings_collaboration",
+  "image": "gitea_owner_owner_launch-plan_settings_collaboration.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/settings/collaboration",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Remove",
+    "box": [
+     1266,
+     219,
+     77,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Remove",
+    "box": [
+     1266,
+     272,
+     77,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add Collaborator",
+    "box": [
+     586,
+     332,
+     156,
+     38
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_releases_new",
+  "image": "gitea_owner_owner_launch-plan_releases_new.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/releases/new",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     80,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     106,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     132,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     165,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     191,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     217,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     250,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     276,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     302,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     335,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     361,
+     401,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1334,
+     402,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     612,
+     599,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Create Tag Only",
+    "box": [
+     973,
+     746,
+     137,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Save Draft",
+    "box": [
+     1113,
+     746,
+     104,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Publish Release",
+    "box": [
+     1221,
+     746,
+     136,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_compare_main___main",
+  "image": "gitea_owner_owner_launch-plan_compare_main___main.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/compare/main...main",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "merge into: owner:main",
+    "box": [
+     78,
+     234,
+     206,
+     31
+    ],
+    "disabled": false
+   },
+   {
+    "text": "pull from: owner:main",
+    "box": [
+     319,
+     234,
+     194,
+     31
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_repo_create",
+  "image": "gitea_owner_repo_create.png",
+  "url": "http://127.0.0.1:3300/repo/create",
+  "controls": []
+ },
+ {
+  "id": "gitea_owner_user_settings",
+  "image": "gitea_owner_user_settings.png",
+  "url": "http://127.0.0.1:3300/user/settings",
+  "controls": [
+   {
+    "text": "Update Profile",
+    "box": [
+     350,
+     818,
+     138,
+     38
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_pulls_5",
+  "image": "gitea_owner_owner_launch-plan_pulls_5.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/5",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1296,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     538,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Update branch by merge",
+    "box": [
+     783,
+     656,
+     207,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Create merge commit",
+    "box": [
+     150,
+     717,
+     206,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     919,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     920,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unsubscribe",
+    "box": [
+     1075,
+     872,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     960,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_pulls_6",
+  "image": "gitea_owner_owner_launch-plan_pulls_6.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/6",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1296,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     562,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     796,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     993,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unsubscribe",
+    "box": [
+     1075,
+     872,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     960,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_owner_owner_launch-plan_settings_branches",
+  "image": "gitea_owner_owner_launch-plan_settings_branches.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/settings/branches",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     940,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Unwatch 1",
+    "box": [
+     994,
+     62,
+     135,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Update Default Branch",
+    "box": [
+     693,
+     252,
+     194,
+     43
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add New Rule",
+    "box": [
+     1246,
+     332,
+     101,
+     26
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1171,
+     381,
+     59,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Delete Rule",
+    "box": [
+     1241,
+     381,
+     102,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan",
+  "image": "gitea_viewer_owner_launch-plan.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "main",
+    "box": [
+     80,
+     232,
+     101,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Compare",
+    "box": [
+     191,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Go to file",
+    "box": [
+     236,
+     232,
+     81,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Search...",
+    "box": [
+     678,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "HTTP",
+    "box": [
+     724,
+     232,
+     54,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "SSH",
+    "box": [
+     777,
+     232,
+     46,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy URL",
+    "box": [
+     1287,
+     232,
+     36,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "More Operations",
+    "box": [
+     1322,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_issues",
+  "image": "gitea_viewer_owner_launch-plan_issues.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Search...",
+    "box": [
+     1208,
+     158,
+     38,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Issue",
+    "box": [
+     1253,
+     158,
+     104,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_issues_1",
+  "image": "gitea_viewer_owner_launch-plan_issues_1.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues/1",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Issue",
+    "box": [
+     1256,
+     161,
+     104,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     467,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     664,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Comment",
+    "box": [
+     920,
+     710,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "No Branch/Tag Specified",
+    "box": [
+     1075,
+     269,
+     205,
+     43
+    ],
+    "disabled": true
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     770,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_labels",
+  "image": "gitea_viewer_owner_launch-plan_labels.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/labels",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_milestones",
+  "image": "gitea_viewer_owner_launch-plan_milestones.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/milestones",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Search...",
+    "box": [
+     1322,
+     158,
+     38,
+     35
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_user_settings",
+  "image": "gitea_viewer_user_settings.png",
+  "url": "http://127.0.0.1:3300/user/settings",
+  "controls": [
+   {
+    "text": "Update Profile",
+    "box": [
+     350,
+     818,
+     138,
+     38
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_pulls_5",
+  "image": "gitea_viewer_owner_launch-plan_pulls_5.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/5",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     538,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     839,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     840,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     842,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_viewer_owner_launch-plan_pulls_6",
+  "image": "gitea_viewer_owner_launch-plan_pulls_6.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/6",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     562,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     796,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     993,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     842,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_maintainer_owner_launch-plan_pulls_5",
+  "image": "gitea_maintainer_owner_launch-plan_pulls_5.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/5",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1296,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     538,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Update branch by merge",
+    "box": [
+     783,
+     616,
+     207,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Create merge commit (When checks succeed)",
+    "box": [
+     150,
+     677,
+     361,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     879,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     880,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     872,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     960,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_maintainer_owner_launch-plan_pulls_6",
+  "image": "gitea_maintainer_owner_launch-plan_pulls_6.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/pulls/6",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1296,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy branch name",
+    "box": [
+     562,
+     215,
+     14,
+     14
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     795,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     796,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     993,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     872,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     960,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_maintainer_owner_launch-plan",
+  "image": "gitea_maintainer_owner_launch-plan.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "main",
+    "box": [
+     80,
+     232,
+     101,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Pull Request",
+    "box": [
+     191,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Go to file",
+    "box": [
+     236,
+     232,
+     81,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add File",
+    "box": [
+     324,
+     232,
+     86,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Search...",
+    "box": [
+     678,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "HTTP",
+    "box": [
+     724,
+     232,
+     54,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "SSH",
+    "box": [
+     777,
+     232,
+     46,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Copy URL",
+    "box": [
+     1287,
+     232,
+     36,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "More Operations",
+    "box": [
+     1322,
+     232,
+     38,
+     30
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_maintainer_owner_launch-plan_issues_1",
+  "image": "gitea_maintainer_owner_launch-plan_issues_1.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues/1",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Edit",
+    "box": [
+     1185,
+     161,
+     64,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "New Issue",
+    "box": [
+     1256,
+     161,
+     104,
+     35
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     151,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     177,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     203,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     236,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     262,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     288,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     321,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     347,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     373,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     406,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     432,
+     466,
+     26,
+     30
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     467,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     482,
+     664,
+     217,
+     20
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Close Issue",
+    "box": [
+     795,
+     710,
+     118,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Comment",
+    "box": [
+     920,
+     710,
+     109,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "No Branch/Tag Specified",
+    "box": [
+     1075,
+     269,
+     222,
+     43
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Subscribe",
+    "box": [
+     1075,
+     770,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Start Timer",
+    "box": [
+     1075,
+     858,
+     270,
+     40
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add Time",
+    "box": [
+     1075,
+     905,
+     270,
+     40
+    ],
+    "disabled": false
+   }
+  ]
+ },
+ {
+  "id": "gitea_maintainer_owner_launch-plan_issues_new",
+  "image": "gitea_maintainer_owner_launch-plan_issues_new.png",
+  "url": "http://127.0.0.1:3300/owner/launch-plan/issues/new",
+  "controls": [
+   {
+    "text": "RSS Feed",
+    "box": [
+     956,
+     62,
+     47,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Watch 1",
+    "box": [
+     1010,
+     62,
+     119,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Star 0",
+    "box": [
+     1136,
+     62,
+     106,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Fork 0",
+    "box": [
+     1248,
+     62,
+     108,
+     33
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add heading",
+    "box": [
+     149,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add bold text",
+    "box": [
+     175,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add italic text",
+    "box": [
+     201,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Quote text",
+    "box": [
+     234,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add code",
+    "box": [
+     260,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a link",
+    "box": [
+     286,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a bullet list",
+    "box": [
+     319,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a numbered list",
+    "box": [
+     345,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Add a list of tasks",
+    "box": [
+     371,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Mention a user or team",
+    "box": [
+     404,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Reference an issue or pull request",
+    "box": [
+     430,
+     285,
+     26,
+     29
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Use the legacy editor instead",
+    "box": [
+     1003,
+     285,
+     26,
+     28
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Drop files or click here to upload.",
+    "box": [
+     481,
+     481,
+     217,
+     17
+    ],
+    "disabled": false
+   },
+   {
+    "text": "Create Issue",
+    "box": [
+     904,
+     524,
+     125,
+     38
+    ],
+    "disabled": false
+   },
+   {
+    "text": "No Branch/Tag Specified",
+    "box": [
+     1075,
+     173,
+     222,
+     43
+    ],
+    "disabled": false
+   }
+  ]
+ }
+]

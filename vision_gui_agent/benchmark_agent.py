@@ -1,8 +1,8 @@
-"""Offline, screenshot-only integration driver for the /fullsuite Visual Function Lab.
+"""Offline, screenshot-only integration driver for the Visual Function Lab apps.
 
 This is a calibration harness, not a general GUI policy. It proves that the
 actual agent loop can perceive rendered controls purely from OCR text, click
-their pixel centers, verify fresh screenshots, and complete every positive
+their pixel centers, verify fresh screenshots, and complete every scripted
 benchmark workflow without DOM or evaluator access.
 """
 from __future__ import annotations
@@ -11,9 +11,9 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable
 
-from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, Observation, VerificationCondition
+from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition
 from .perception import OmniParserVisualGrounder
-from .visual_function_lab import ACTIONS, EVIDENCE_PHRASES, SIDEBAR, TaskSpec
+from .visual_function_lab import APPS, TaskSpec, evidence_phrases
 
 
 def _normal(value: str) -> str:
@@ -21,28 +21,39 @@ def _normal(value: str) -> str:
 
 
 class CalibrationGrounder:
-    """Ground /fullsuite controls and confirmation text by OCR alone.
+    """Ground lab controls and status text by OCR alone.
 
     Deterministic given a fixed OCR engine and a fixed rendered page: it
-    matches visible text exactly against the benchmark's known control
-    labels and confirmation phrases, and clicks OCR box centers. It never
+    matches visible text exactly against the lab's known control labels,
+    section links and status lines, and clicks OCR box centers. It never
     reads pixel colors, the DOM, or evaluator state.
     """
-    last_label = "Project Workspace"
+    last_label = "Visual Function Lab"
 
-    def __init__(self, ocr: Callable[..., Any] | None = None) -> None:
+    DETECTION_VERSION = "calibration-v2"
+
+    def __init__(self, ocr: Callable[..., Any] | None = None, cache: Any | None = None) -> None:
         if ocr is None:
             try:
                 from rapidocr import RapidOCR
             except ImportError as exc:
                 raise RuntimeError("Calibration grounding requires rapidocr; run uv sync") from exc
             ocr = RapidOCR(params={"Det.box_thresh": .35})
-        self.ocr = ocr
-        self._controls = {_normal(spec.label): name for name, spec in ACTIONS.items()}
-        self._evidence = {_normal(phrase) for phrase in EVIDENCE_PHRASES.values()}
-        self._nav = {_normal(label) for _, label in SIDEBAR}
-
+        self.ocr, self.cache = ocr, cache
+        self._controls = {_normal(spec.label) for app in APPS.values() for spec in app.actions.values()}
+        self._evidence = ({_normal(status.text) for app in APPS.values() for status in app.all_statuses()}
+                          | {_normal(spec.error) for app in APPS.values() for spec in app.actions.values() if spec.error})
+        self._nav = {_normal(label) for app in APPS.values() for _, label in app.sections}
     async def detect(self, screenshot: Path) -> list[Element]:
+        if self.cache is None: return await self._detect(screenshot)
+        key = self.cache.key(screenshot, self.DETECTION_VERSION)
+        cached = self.cache.get(key)
+        if cached is not None: return cached[0]
+        elements = await self._detect(screenshot)
+        self.cache.put(key, elements, None)
+        return elements
+
+    async def _detect(self, screenshot: Path) -> list[Element]:
         def read():
             try: return self.ocr(str(screenshot), return_word_box=True)
             except TypeError: return self.ocr(str(screenshot))
@@ -71,45 +82,60 @@ class BenchmarkTaskPolicy:
     model = "fullsuite-calibration"
 
     def __init__(self, task: TaskSpec) -> None:
-        self.task, self.index, self._checked_reports = task, 0, False
+        self.task, self.index = task, 0
+        self.app = task.spec
+        self.phrases = evidence_phrases(self.app)
+        # An unavailable task walks its setup, then declares the goal unavailable.
+        self.steps = task.actions if task.expected_effective else task.setup
 
-    async def decide(self, _goal: str, observation: Observation, _context: dict, _history: list[ActionRecord]) -> list[ActionDecision]:
-        if self.index >= len(self.task.actions):
-            final_action = self.task.actions[-1]
-            phrase = next((_normal(evidence) for (predicate, value), evidence in EVIDENCE_PHRASES.items()
-                          if (predicate, value) in ACTIONS[final_action].effects.items()), None)
+    def _evidence(self, action: str) -> str:
+        key, value = next((key, value) for key, value in self.app.actions[action].effects.items() if value not in (False, None))
+        return self.phrases[(key, True if value == "__toggle__" else value)]
+
+    def _click(self, observation: Observation, label: str, rationale: str, verify=None) -> list[ActionDecision] | None:
+        target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(label)), None)
+        if target is None: return None
+        return [ActionDecision(action="click", element_id=target.id, grounding=(EvidenceRecord("element_text", label, target.id),),
+                               verify=verify, rationale=rationale)]
+
+    def _progress(self, history: list[ActionRecord]) -> int:
+        """Scripted steps already done, read from the run's history, in any order.
+
+        Memory modes may take scripted steps themselves, possibly earlier than
+        the script would (a learned plan opening a document first), so a
+        private counter or a strict order would fall out of step with the page.
+        """
+        clicked = [_normal(next((item.expected or "" for item in record.decision.grounding if item.source == "element_text"), ""))
+                   for record in history if record.success and record.decision.action == "click"]
+        for index, action in enumerate(self.steps):
+            label = _normal(self.app.actions[action].label)
+            if label in clicked: clicked.remove(label)
+            else: return index
+        return len(self.steps)
+
+    async def decide(self, _goal: str, observation: Observation, _context: dict, history: list[ActionRecord]) -> list[ActionDecision]:
+        self.index = self._progress(history)
+        if self.index >= len(self.steps):
+            if not self.task.expected_effective:
+                reason = f"{self.app.actions[self.task.target].label} is not available here"
+                return [ActionDecision("done", rationale=reason, constraints=(
+                    GoalConstraint("calibration-unavailable", f"Goal: {self.task.goal}", True, "unavailable", (), reason),))]
+            phrase = _normal(self._evidence(self.steps[-1]))
             target = next((item for item in observation.elements if not item.actionable and _normal(item.text) == phrase), None)
             if target is not None:
                 return [ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))]
-            # Some confirmations land on a dedicated Reports section rather
-            # than the tab the action was taken from (matching a real app,
-            # where "generate a report" surfaces it in a Reports view); check
-            # there exactly once before giving up.
-            if not self._checked_reports:
-                self._checked_reports = True
-                reports_label = dict(SIDEBAR)["reports"]
-                nav_target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(reports_label)), None)
-                if nav_target is not None:
-                    return [ActionDecision(action="click", element_id=nav_target.id, grounding=(EvidenceRecord("element_text", reports_label, nav_target.id),),
-                                           rationale="Benchmark calibration navigation")]
             raise ValueError("No visible final-state evidence available to ground benchmark completion")
-        action = self.task.actions[self.index]
-        label = ACTIONS[action].label
-        target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(label)), None)
-        if target is None:
-            # The control lives on a sidebar section that is not the one
-            # currently rendered -- navigate there first, the way a person
-            # would, then retry the same task step once it's back on screen.
-            nav_label = dict(SIDEBAR)[ACTIONS[action].workspace]
-            nav_target = next((item for item in observation.elements if item.actionable and _normal(item.text) == _normal(nav_label)), None)
-            if nav_target is None: raise ValueError(f"Rendered target not found by calibration grounder: {label}")
-            return [ActionDecision(action="click", element_id=nav_target.id, grounding=(EvidenceRecord("element_text", nav_label, nav_target.id),),
-                                   rationale="Benchmark calibration navigation")]
-        self.index += 1
+        action = self.steps[self.index]
+        spec = self.app.actions[action]
         visible = {_normal(item.text) for item in observation.elements}
-        changed = next((evidence for (predicate, value), evidence in EVIDENCE_PHRASES.items()
-                        if (predicate, value) in ACTIONS[action].effects.items() and _normal(evidence) not in visible), None)
-        return [ActionDecision(action="click", element_id=target.id, grounding=(EvidenceRecord("element_text", label, target.id),),
-                               verify=(VerificationCondition("download_created") if action == "confirm_export" else
-                                       VerificationCondition("element_visible", pattern=changed) if changed else None),
-                               rationale="Benchmark calibration action")]
+        evidence = self._evidence(action)
+        verify = (VerificationCondition("download_created") if action in self.app.downloads else
+                  VerificationCondition("element_visible", pattern=evidence) if _normal(evidence) not in visible else None)
+        decision = self._click(observation, spec.label, "Benchmark calibration action", verify)
+        if decision is None:
+            # The control lives on another section: navigate there first, the way a
+            # person would, then retry the same task step once it is on screen.
+            nav = self._click(observation, dict(self.app.sections)[spec.section], "Benchmark calibration navigation")
+            if nav is None: raise ValueError(f"Rendered target not found by calibration grounder: {spec.label}")
+            return nav
+        return decision

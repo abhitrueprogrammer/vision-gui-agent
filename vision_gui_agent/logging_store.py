@@ -22,7 +22,8 @@ def metrics(connection: sqlite3.Connection) -> dict[str, float | int]:
 
 # Decisions that did not come from the run's named model.  Their model_ms is
 # Laya inference or zero, so averaging them in would misstate model latency.
-NON_MODEL_ORIGINS = ("laya", "graph_replay", "workflow_reuse", "planned", "learned_schema")
+NON_MODEL_ORIGINS = ("laya", "graph_replay", "workflow_reuse", "planned", "learned_schema", "section_navigation",
+                     "experiment", "experiment_tour", "learned_unavailable")
 
 
 def model_metrics(connection: sqlite3.Connection) -> list[dict[str, float | int | str]]:
@@ -75,7 +76,7 @@ class RunLogger:
                                  "verification_reason": "TEXT", "download_path": "TEXT", "bridge_used": "TEXT", "detector_confidence": "REAL",
                                  "requested_postcondition": "TEXT", "independent_verification": "TEXT", "before_predicates_json": "TEXT",
                                  "after_predicates_json": "TEXT", "semantic_action": "TEXT", "intended_effect": "TEXT", "outcome_class": "TEXT",
-                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "dispatch_info_json": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "decision_origin": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
+                                 "before_observation_json": "TEXT", "after_observation_json": "TEXT", "dispatch_status": "TEXT", "dispatch_info_json": "TEXT", "schema_id": "TEXT", "decision_source": "TEXT", "decision_origin": "TEXT", "gemini_calls_json": "TEXT", "experiment_id": "TEXT", "evidence_class": "TEXT"}.items():
             if name not in existing: self.connection.execute(f"ALTER TABLE transitions ADD COLUMN {name} {definition}")
         run_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(runs)")}
         for name, definition in {"provenance_json": "TEXT", "model": "TEXT", "completed": "INTEGER", "steps": "INTEGER", "final_node": "TEXT", "error": "TEXT", "status": "TEXT NOT NULL DEFAULT 'running'"}.items():
@@ -103,7 +104,8 @@ class RunLogger:
             success: bool, observation: Observation, graph_context: dict, error: str | None = None,
             timings: dict[str, float] | None = None, verification: VerificationResult | None = None, *,
             before_observation: Observation | None = None, after_observation: Observation | None = None,
-            dispatch_status: str = "unknown", dispatch_info: dict | None = None, decision_origin: str | None = None) -> None:
+            dispatch_status: str = "unknown", dispatch_info: dict | None = None, decision_origin: str | None = None,
+            gemini_calls: dict[str, int] | None = None) -> None:
         timings = timings or {}
         verification = verification or VerificationResult("not_requested", "No postcondition requested")
         action = decision.to_dict()
@@ -123,14 +125,15 @@ class RunLogger:
         )
         before = self._snapshot(before_observation) if before_observation else None
         after = self._snapshot(after_observation) if after_observation else None
-        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=?, dispatch_info_json=?, decision_origin=? WHERE id=?",
-                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, json.dumps(dispatch_info or {}), decision_origin, cursor.lastrowid))
+        self.connection.execute("UPDATE transitions SET before_observation_json=?, after_observation_json=?, dispatch_status=?, dispatch_info_json=?, decision_origin=?, gemini_calls_json=? WHERE id=?",
+                                (json.dumps(before) if before else None, json.dumps(after) if after else None, dispatch_status, json.dumps(dispatch_info or {}),
+                                 decision_origin, json.dumps(gemini_calls or {}), cursor.lastrowid))
         started = time.perf_counter()
         self.connection.commit()
         self.connection.execute("UPDATE transitions SET persist_ms=? WHERE id=?", ((time.perf_counter() - started) * 1000, cursor.lastrowid))
         self.connection.commit()
 
-    def log_action_model(self, run_id: str, step: int, before: list[dict], after: list[dict], semantic_action: str,
+    def log_action_model(self, run_id: str, step: int, before: list[dict] | dict, after: list[dict] | dict, semantic_action: str,
                          intended_effect: str | None, outcome: str, schema_id: str | None, source: str,
                          experiment_id: str | None = None, evidence_class: str | None = None) -> None:
         self.connection.execute("""UPDATE transitions SET before_predicates_json=?, after_predicates_json=?, semantic_action=?,

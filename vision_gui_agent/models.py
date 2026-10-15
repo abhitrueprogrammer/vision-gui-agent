@@ -91,6 +91,9 @@ class Element:
     uncertainties: tuple[str, ...] = ()
     semantic_confirmed: bool = False
     state_observed: tuple[str, ...] = ()
+    # Gemini's own reading of the enabled state, kept apart from the pixel
+    # verdict in ``enabled`` so pixel-only conditions are never contaminated.
+    enabled_vlm: bool | None = None
 
     def summary(self) -> str:
         return f"{self.id}: {self.tag} {(self.text or self.aria_label or self.placeholder or self.tag)!r} ({'actionable' if self.actionable else 'state evidence'})"
@@ -200,6 +203,10 @@ class ActionDecision:
     impact: Impact = "harmless"
     grounding: tuple[EvidenceRecord, ...] = ()
     constraints: tuple[GoalConstraint, ...] = ()
+    # A plain coordinate click that skips the actionable/enabled gates: an
+    # experiment probing a disabled control, or a section link that OCR reads
+    # as text. Set only by the agent, never accepted from a model response.
+    direct_click: Literal["probe", "navigation"] | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "ActionDecision":
@@ -235,6 +242,9 @@ class ActionDecision:
     def validate_for(self, observation: Observation) -> None:
         elements = {element.id: element for element in observation.elements}
         if self.element_id is not None and self.element_id not in elements: raise ValueError(f"Element {self.element_id} is not present in this observation")
+        if self.direct_click:
+            if self.action != "click" or self.element_id is None: raise ValueError("direct clicks are valid only for click with element_id")
+            return
         if self.action != "done" and self.element_id is not None and not elements[self.element_id].actionable: raise ValueError(f"Element {self.element_id} is visual evidence, not an actionable control")
         target = elements.get(self.element_id) if self.element_id is not None else None
         if target and self.action in {"fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color"} and (not target.enabled or target.readonly):
@@ -291,7 +301,7 @@ class RunResult:
 # Action-model records are deliberately independent of the VLM response.  They
 # can only be updated from classified, visually grounded transitions.
 PredicateValue = str | bool | int | float | None
-OutcomeClass = Literal["effective", "ineffective", "execution_error", "ambiguous", "unsafe_skipped"]
+OutcomeClass = Literal["effective", "ineffective", "provisional", "no_change", "execution_error", "ambiguous", "unsafe_skipped"]
 PreconditionStatus = Literal["required", "not_required", "conditional", "unknown", "unobservable"]
 SafetyClass = Literal["observational", "harmless_reversible", "state_changing_reversible", "high_impact_or_irreversible"]
 
@@ -351,6 +361,8 @@ class ActionEffect:
     support: int = 0
     contradiction: int = 0
     evidence_ids: tuple[str, ...] = ()
+    # The text as it appeared on screen, punctuation kept, for verification patterns.
+    evidence_text: str = ""
 
     def __post_init__(self) -> None:
         if not self.predicate or self.support < 0 or self.contradiction < 0: raise ValueError("invalid action effect evidence")
@@ -391,6 +403,9 @@ class ActionSchema:
     contradictions: tuple[str, ...] = ()
     version: int = 1
     action_type: Literal["click", "fill", "select", "set_checked", "set_date", "set_range", "upload", "set_color", "press", "scroll"] = "click"
+    # Changes seen in a positive control ("fact=value"); a probe only counts as
+    # effective if one of these appears, never on incidental text such as an error.
+    success_effects: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if (not self.id or not self.semantic_name or not self.scope or not self.target_signature or self.version != 1
@@ -402,7 +417,8 @@ class ActionSchema:
         return {"id": self.id, "semantic_name": self.semantic_name, "scope": self.scope, "target_signature": self.target_signature,
                 "safety_class": self.safety_class, "preconditions": [{**asdict(x), "confidence": x.confidence} for x in self.preconditions],
                 "effects": [{**asdict(x), "confidence": x.confidence} for x in self.effects], "evidence_ids": list(self.evidence_ids),
-                "contradictions": list(self.contradictions), "version": self.version, "action_type": self.action_type}
+                "contradictions": list(self.contradictions), "version": self.version, "action_type": self.action_type,
+                "success_effects": list(self.success_effects)}
 
 
 @dataclass(frozen=True)

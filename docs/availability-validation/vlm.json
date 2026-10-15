@@ -1,0 +1,841 @@
+{
+  "threshold": 3.0,
+  "sets": [
+    {
+      "set": "lab_availability",
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "tn": 66,
+      "unread": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "mistakes": []
+    },
+    {
+      "set": "framework_styles",
+      "tp": 9,
+      "fp": 6,
+      "fn": 111,
+      "tn": 114,
+      "unread": 0,
+      "precision": 0.6,
+      "recall": 0.075,
+      "mistakes": [
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.45
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.37
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.32
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.3
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.29
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.37
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.33
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.37
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.31
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.48
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.41
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.43
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 5.32
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 4.82
+        },
+        {
+          "image": "framework_bootstrap_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 4.76
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.34
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.31
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.35
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.37
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.33
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.27
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.31
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.33
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.43
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.5
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.5
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.48
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 4.75
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 4.7
+        },
+        {
+          "image": "framework_bootstrap_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 5.29
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.12
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.16
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.12
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.47
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.51
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.55
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.56
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.47
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.44
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.57
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.51
+        },
+        {
+          "image": "framework_bulma_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.54
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.06
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.08
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.51
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.63
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.5
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 0.0
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.58
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.55
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.54
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.48
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.54
+        },
+        {
+          "image": "framework_bulma_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.53
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 1.76
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 1.76
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 1.76
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 1.77
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 1.76
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 1.75
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 1.71
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 1.68
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 1.68
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.05
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 1.65
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 1.64
+        },
+        {
+          "image": "framework_fomantic_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 1.63
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 1.78
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 1.76
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 1.74
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Save changes",
+          "kind": "fp",
+          "contrast": 4.63
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Approve",
+          "kind": "fp",
+          "contrast": 4.54
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Archive",
+          "kind": "fp",
+          "contrast": 4.36
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 1.68
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 1.69
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 1.69
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.05
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.09
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 1.63
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 1.64
+        },
+        {
+          "image": "framework_fomantic_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 1.63
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.12
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.13
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.14
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.14
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 3.22
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 3.22
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 3.15
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.09
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.02
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.08
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.02
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 1.98
+        },
+        {
+          "image": "framework_pico_0.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 1.95
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 2.1
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 2.11
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Export report",
+          "kind": "fn",
+          "contrast": 2.17
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Send invite",
+          "kind": "fn",
+          "contrast": 2.16
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Continue",
+          "kind": "fn",
+          "contrast": 2.11
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Save changes",
+          "kind": "fn",
+          "contrast": 3.22
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Approve",
+          "kind": "fn",
+          "contrast": 3.12
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Archive",
+          "kind": "fn",
+          "contrast": 3.22
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Export report",
+          "kind": "fp",
+          "contrast": 4.93
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Send invite",
+          "kind": "fp",
+          "contrast": 4.6
+        },
+        {
+          "image": "framework_pico_1.png",
+          "text": "Continue",
+          "kind": "fp",
+          "contrast": 4.53
+        }
+      ]
+    },
+    {
+      "set": "real_app",
+      "tp": 0,
+      "fp": 1,
+      "fn": 14,
+      "tn": 338,
+      "unread": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "mistakes": [
+        {
+          "image": "gitea_owner_owner_launch-plan.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_issues.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_issues_1.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_issues_1.png",
+          "text": "Comment",
+          "kind": "fp",
+          "contrast": 3.33
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_issues_new.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_labels.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_milestones.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_settings.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 2.7
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_settings_collaboration.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.39
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_releases_new.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_compare_main___main.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.36
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_pulls_5.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 2.72
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_pulls_6.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 2.72
+        },
+        {
+          "image": "gitea_owner_owner_launch-plan_settings_branches.png",
+          "text": "Fork 0",
+          "kind": "fn",
+          "contrast": 3.34
+        },
+        {
+          "image": "gitea_viewer_owner_launch-plan_issues_1.png",
+          "text": "No Branch/Tag Specified",
+          "kind": "fn",
+          "contrast": 2.9
+        }
+      ]
+    }
+  ],
+  "total": {
+    "tp": 13,
+    "fp": 7,
+    "fn": 125,
+    "tn": 518,
+    "unread": 0,
+    "precision": 0.65,
+    "recall": 0.09420289855072464
+  }
+}

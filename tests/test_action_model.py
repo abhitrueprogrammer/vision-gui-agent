@@ -13,10 +13,10 @@ from vision_gui_agent.experimentation import ExperimentSelector, safe_for_experi
 from vision_gui_agent.functional_planner import FunctionalPlanner
 from vision_gui_agent.models import ActionDecision, ActionEffect, ActionPrecondition, ActionSchema, Element, EvidenceRecord, Observation, PredicateGrounding, SemanticAction, VerificationCondition, VerificationResult, VisualPredicate
 from vision_gui_agent.predicates import delta, normalize_name
-from vision_gui_agent.visual_function_lab import ACTIONS, RULES, TASKS, TASK_SPLIT, VisualFunctionLabEvaluator
+from vision_gui_agent.visual_function_lab import RULES, TASKS, TASK_SPLIT, VisualFunctionLabEvaluator
 from vision_gui_agent.visual_function_lab_server import serve_visual_function_lab
 from vision_gui_agent.agent import Agent, AgentConfig
-from vision_gui_agent.benchmark_runner import score_action_model, validate
+from vision_gui_agent.benchmark_runner import validate
 from vision_gui_agent.benchmark_calibration import calibrate
 from vision_gui_agent.benchmark_agent import CalibrationGrounder
 from vision_gui_agent.logging_store import RunLogger
@@ -46,7 +46,7 @@ class ActionModelTests(unittest.TestCase):
     def test_effect_and_required_precondition_need_evidence(self):
         model, action = ActionModel(), SemanticAction("export_document", "button|button|export")
         model.ingest(action, (predicate("document_open"),), (predicate("document_open"), predicate("export_dialog_visible")), "effective", "success-1")
-        model.ingest(action, (), (), "ineffective", "failure-1", intervention=True)
+        model.ingest(action, (), (), "ineffective", "failure-1", intervention=True, intervened_predicate="document_open")
         model.ingest(action, (predicate("document_open"),), (predicate("document_open"), predicate("export_dialog_visible")), "effective", "success-2")
         schema = model.schema_for(action)
         self.assertEqual(schema.effects[0].predicate, "export_dialog_visible")
@@ -60,20 +60,22 @@ class ActionModelTests(unittest.TestCase):
                          (predicate("document_open"), predicate("blue_theme"), predicate("export_dialog_visible")), "effective", ident)
         self.assertTrue(all(item.status == "unknown" for item in model.schema_for(action).preconditions))
 
-    def test_ingestion_is_idempotent_and_records_effect_contradictions(self):
+    def test_ingestion_is_idempotent_and_failures_never_change_effects(self):
         model, action = ActionModel(), SemanticAction("export_document", "button|button|export document")
         model.ingest(action, (), (predicate("export_dialog_visible"),), "effective", "one")
         model.ingest(action, (), (predicate("export_dialog_visible"),), "effective", "one")
-        model.ingest(action, (), (), "ineffective", "two")
+        # An ineffective click shows the preconditions were missing, not that the effect is wrong.
+        model.ingest(action, {}, {"export_dialog_visible": False}, "ineffective", "two")
         schema = model.schema_for(action)
-        self.assertEqual((schema.effects[0].support, schema.effects[0].contradiction), (1, 1))
+        self.assertEqual((schema.effects[0].support, schema.effects[0].contradiction), (1, 0))
         self.assertEqual(schema.evidence_ids, ("one", "two"))
-        self.assertEqual(schema.contradictions, ("two",))
+        self.assertEqual(schema.contradictions, ())
 
     def test_success_without_candidate_is_a_contradiction(self):
         model, action = ActionModel(), SemanticAction("export_document", "button|button|export")
         model.ingest(action, (predicate("document_open"),), (predicate("document_open"), predicate("export_dialog_visible")), "effective", "one")
-        model.ingest(action, (), (predicate("export_dialog_visible"),), "effective", "two")
+        # Known absent (not merely unseen) while the action worked: the candidate is contradicted.
+        model.ingest(action, {"document_open": False}, {"document_open": False, "export_dialog_visible": True}, "effective", "two")
         self.assertEqual(model.schema_for(action).preconditions[0].status, "conditional")
 
     def test_atomic_roundtrip(self):
@@ -140,36 +142,60 @@ class ActionModelTests(unittest.TestCase):
             decision, _, _ = agent._schema_decision("export a document as PDF", observation)
         self.assertEqual(decision.element_id, 9)
 
-    def test_active_mode_executes_a_composed_schema_plan_through_pixels(self):
-        class FinishWhenVisible:
-            model = "schema-test"
+    def test_passive_model_learned_from_screens_drives_a_later_run(self):
+        """Learn the export workflow from two scripted runs, then complete it from the model alone."""
+        class Scripted:
+            model = "scripted"
             async def decide(self, _goal, observation, _context, _history):
-                target = next(item for item in observation.elements if item.text == "Launch brief.pdf is ready")
-                return ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))
+                visible = {item.text: item for item in observation.elements}
+                if "Launch brief.pdf is ready" in visible:
+                    target = visible["Launch brief.pdf is ready"]
+                    return ActionDecision("done", grounding=(EvidenceRecord("element_text", target.text, target.id),))
+                label = next(text for text in ("Confirm export", "PDF document", "Export options", "Launch Brief") if text in visible
+                             and (text != "Confirm export" or "PDF document selected" in visible))
+                target = visible[label]
+                return ActionDecision("click", target.id, grounding=(EvidenceRecord("element_text", target.text, target.id),))
+
+        class OnlyFinishes(Scripted):
+            asked = 0
+            async def decide(self, goal, observation, context, history):
+                OnlyFinishes.asked += 1
+                if not any(item.text == "Launch brief.pdf is ready" for item in observation.elements):
+                    raise AssertionError("the learned model should have chosen this step")
+                return await super().decide(goal, observation, context, history)
 
         async def run():
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                ActionModel(schemas=export_schemas()).export(root / "action-model.json")
                 server = serve_visual_function_lab(0)
                 try:
-                    server.RequestHandlerClass.evaluator.reset()
                     async with async_playwright() as playwright:
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
-                            result = await Agent(FinishWhenVisible(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
-                                max_steps=6, execution_mode="hybrid", memory_mode="active-action-model", min_schema_confidence=.5), CalibrationGrounder()).run(page, "export a document as PDF")
-                            return result, [item["action"] for item in server.RequestHandlerClass.evaluator.trace]
+                            config = AgentConfig(root, root / "runs.sqlite3", root / "graph.json", max_steps=8,
+                                                 execution_mode="hybrid", memory_mode="passive-action-model")
+                            results = []
+                            for policy in (Scripted(), Scripted(), OnlyFinishes()):
+                                server.RequestHandlerClass.evaluator.reset()
+                                await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
+                                results.append(await Agent(policy, config, CalibrationGrounder()).run(page, "export the Launch Brief as PDF"))
+                            trace = [item["action"] for item in server.RequestHandlerClass.evaluator.trace]
+                            logger = RunLogger(root / "runs.sqlite3")
+                            origins = [row[0] for row in logger.connection.execute(
+                                "SELECT decision_origin FROM transitions WHERE run_id=? ORDER BY step", (results[-1].run_id,))]
+                            logger.close()
+                            return results, trace, origins
                         finally:
                             await browser.close()
                 finally:
                     server.shutdown(); server.server_close()
 
-        result, actions = asyncio.run(run())
-        self.assertTrue(result.completed, result.error)
-        self.assertEqual(actions, ["open_document", "open_export_modal", "select_pdf_format", "confirm_export"])
+        results, trace, origins = asyncio.run(run())
+        self.assertTrue(all(result.completed for result in results), [result.error for result in results])
+        self.assertEqual(trace, ["open_document", "open_export_modal", "select_pdf_format", "confirm_export"])
+        self.assertEqual(origins[:4], ["learned_schema"] * 4)
+        self.assertEqual(OnlyFinishes.asked, 1)
 
     def test_safe_experiments_are_sandbox_only(self):
         self.assertFalse(safe_for_experiment("delete_document", "harmless_reversible", True))
@@ -219,38 +245,28 @@ class ActionModelTests(unittest.TestCase):
         schema = asyncio.run(run())
         self.assertEqual((schema.effects[0].support, schema.effects[0].contradiction), (2, 0))
 
-    def test_benchmark_scores_learned_preconditions_and_effects(self):
-        schemas = tuple(ActionSchema(f"{name}.v1", name, "test", f"button|button|{name}", "harmless_reversible",
-                     tuple(ActionPrecondition(key, value, "required", 2, intervention_support=1) for key, value in spec.preconditions.items()),
-                     tuple(ActionEffect(key, value, 2) for key, value in spec.effects.items())) for name, spec in ACTIONS.items())
-        metrics = score_action_model(ActionModel(schemas=schemas))
-        self.assertEqual((metrics["schema_coverage"], metrics["preconditions"]["f1"], metrics["effects"]["f1"]), (1, 1, 1))
-        from dataclasses import replace
-        runtime = tuple(replace(schema, semantic_name="_".join(ACTIONS[schema.semantic_name].label.casefold().split())) for schema in schemas)
-        self.assertEqual(score_action_model(ActionModel(schemas=runtime)), metrics)
-
     def test_high_impact_actions_do_not_enter_replay_templates(self):
         before = Observation("", "", [Element(1, "", "button", "Delete account", "", "", "button", 0, 0, 10, 10)], "", "Lab")
         self.assertIsNone(Agent._action_template(before, before, ActionDecision("click", 1)))
 
     def test_benchmark_rules_and_deterministic_reset(self):
-        self.assertGreaterEqual(len(RULES), 11); self.assertEqual(set(TASK_SPLIT), {"exploration", "development", "held_out", "layout_shift", "composition"})
+        self.assertGreaterEqual(len(RULES), 11)
+        self.assertEqual(set(TASK_SPLIT), {"exploration", "held_out", "composition", "layout_shift", "unavailable", "unseen_app"})
         lab = VisualFunctionLabEvaluator(); lab.reset(); self.assertFalse(lab.act("open_export_modal")); self.assertEqual(lab.invalid_attempts, 1)
         self.assertTrue(lab.act("open_document")); self.assertTrue(lab.act("open_export_modal"))
-        lab.reset(); self.assertEqual(lab.visible_state(), {})
+        lab.reset(); self.assertEqual(lab.visible_state(), lab.initial_state)
 
     def test_all_declared_tasks_validate_on_every_layout_and_cover_all_actions(self):
         report = validate()
         self.assertTrue(report["passed"])
-        self.assertEqual(report["runs"], len(TASKS) * 2)
+        self.assertEqual(report["runs"], sum(len(task.layouts) for task in TASKS.values()))
         self.assertEqual(report["uncovered_actions"], [])
-        self.assertEqual(set(report["covered_actions"]), set(ACTIONS))
 
     def test_lab_server_renders_only_visible_controls(self):
         from vision_gui_agent.visual_function_lab import ACTION_TOKENS
         server = serve_visual_function_lab(0)
         try:
-            url = f"http://127.0.0.1:{server.server_address[1]}/fullsuite"
+            url = f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents"
             page = urlopen(url).read().decode()
             self.assertIn("Launch Brief", page); self.assertIn("Documents", page)
             self.assertNotIn("invalid_attempts", page)
@@ -276,7 +292,7 @@ class ActionModelTests(unittest.TestCase):
             response = None
             for action in ("open_document", "open_export_modal", "select_pdf_format", "confirm_export"):
                 body = json.dumps({"token": ACTION_TOKENS[action]}).encode()
-                response = json.loads(urlopen(Request(base + "/fullsuite", data=body, method="POST")).read())
+                response = json.loads(urlopen(Request(base + "/workspace?tab=documents", data=body, method="POST")).read())
             self.assertEqual(response["download"], "/downloads/launch-brief.pdf")
             download = urlopen(base + response["download"])
             payload = download.read()
@@ -318,7 +334,7 @@ class ActionModelTests(unittest.TestCase):
                         browser = await playwright.chromium.launch()
                         try:
                             page = await browser.new_page(viewport={"width": 1440, "height": 1000})
-                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/fullsuite")
+                            await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
                             result = await Agent(MistakenPolicy(), AgentConfig(root, root / "runs.sqlite3", root / "graph.json",
                                 max_steps=6, execution_mode="hybrid", memory_mode="none"), CalibrationGrounder()).run(page, "export the Launch Brief as PDF")
                             valid_pdf = bool(result.download_paths and Path(result.download_paths[0]).read_bytes().startswith(b"%PDF-"))
@@ -340,8 +356,10 @@ class ActionModelTests(unittest.TestCase):
             Agent(object(), config).graph.export(config.graph_path)  # setup unrelated stale memory
             self.assertEqual(Agent(object(), config).graph.graph.number_of_nodes(), 0)
 
-    def test_actual_screenshot_input_agent_completes_every_positive_workflow(self):
+    def test_actual_screenshot_input_agent_completes_one_task_per_app_and_declares_unavailable(self):
+        # The full matrix (every task, app and layout) runs through vision-gui-calibrate.
+        tasks = ("A_ho_export", "B_ho_reply", "C1_draft", "A_u_hidden")
         with tempfile.TemporaryDirectory() as directory:
-            report = asyncio.run(calibrate(Path(directory), ("classic",)))
+            report = asyncio.run(calibrate(Path(directory), ("classic",), tasks))
         self.assertTrue(report["passed"], report)
-        self.assertEqual(report["runs"], 3)
+        self.assertEqual(report["runs"], len(tasks))
