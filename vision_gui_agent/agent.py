@@ -1003,7 +1003,11 @@ class Agent:
                         decision = self.graph.replay(current_node, goal, seen)
                         if decision and self._is_high_impact(decision, observation): decision = None
                         decision_origin = "graph_replay" if decision else None
-                    if decision is not None and not decision.direct_click and decision.action != "done":
+                    # Learned decisions are built from this very observation, so their ids are current; re-grounding
+                    # also validated the raw detector element before the learned-target confirmation below could
+                    # mark it, which dropped every learned step to the policy under OmniParser.
+                    if (decision is not None and not decision.direct_click and decision.action != "done"
+                            and decision_origin not in {"learned_schema", "section_navigation"}):
                         try:
                             decision = self._reground(decision, observation)
                         except ValueError:

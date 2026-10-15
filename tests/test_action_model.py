@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import replace
 import json
 import tempfile
 import unittest
@@ -144,6 +145,24 @@ class ActionModelTests(unittest.TestCase):
 
     def test_passive_model_learned_from_screens_drives_a_later_run(self):
         """Learn the export workflow from two scripted runs, then complete it from the model alone."""
+        self._learned_export_run(CalibrationGrounder)
+
+    def test_learned_steps_run_on_omniparser_shaped_elements(self):
+        """Raw detector elements (tag other, unconfirmed) must not make every learned step fall back to the policy.
+
+        The evaluation's learned modes never took a learned step: re-grounding validated the raw
+        element before the learned-target confirmation could mark it, and dropped the decision.
+        """
+        class OmniShaped(CalibrationGrounder):
+            async def detect(self, screenshot):
+                return [replace(item, tag="other", role="other", proposal_sources=("detector", "ocr"),
+                                uncertainties=("actionability",) if item.actionable else ())
+                        for item in await super().detect(screenshot)]
+            async def refine(self, screenshot, target, **_):
+                return replace(target, semantic_confirmed=True, uncertainties=(), tag="button", role="button")
+        self._learned_export_run(OmniShaped)
+
+    def _learned_export_run(self, grounder):
         class Scripted:
             model = "scripted"
             async def decide(self, _goal, observation, _context, _history):
@@ -179,7 +198,7 @@ class ActionModelTests(unittest.TestCase):
                             for policy in (Scripted(), Scripted(), OnlyFinishes()):
                                 server.RequestHandlerClass.evaluator.reset()
                                 await page.goto(f"http://127.0.0.1:{server.server_address[1]}/workspace?tab=documents")
-                                results.append(await Agent(policy, config, CalibrationGrounder()).run(page, "export the Launch Brief as PDF"))
+                                results.append(await Agent(policy, config, grounder()).run(page, "export the Launch Brief as PDF"))
                             trace = [item["action"] for item in server.RequestHandlerClass.evaluator.trace]
                             logger = RunLogger(root / "runs.sqlite3")
                             origins = [row[0] for row in logger.connection.execute(
