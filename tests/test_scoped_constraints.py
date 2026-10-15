@@ -114,6 +114,17 @@ class ScopedConstraintTests(unittest.TestCase):
         Agent._prove_last_clause(ledger, heading, on, settings)  # settings: the screen before the latest action
         self.assertEqual(ledger["goal-part-2"].status, "unproven")
 
+    def test_status_from_a_proven_parts_later_click_cannot_prove_another_part(self):
+        # Rerun: "Export options" proved the export part, then done cited Confirm export's status for the report part.
+        goal = "create the Q3 Forecast report, then export the Launch Brief as PDF"
+        ledger = {item.id: item for item in Agent._goal_clauses(goal, {})}
+        Agent._prove_named_clause(ledger, report(1, "Export options"), (report(2, "Export Launch Brief", actionable=False),))
+        before = Observation("", "", [report(3, "Confirm export")], "", "Documents")
+        after = Observation("", "", [report(3, "Confirm export"), report(4, "Launch brief.pdf is ready", actionable=False)], "", "Documents")
+        Agent._prove_named_clause(ledger, report(3, "Confirm export"), Agent._new_status(before, after))
+        Agent._prove_last_clause(ledger, ActionDecision("done", grounding=(EvidenceRecord("element_text", "Launch brief.pdf is ready", 4),)), after, before)
+        self.assertEqual([item.status for item in ledger.values()], ["unproven", "proven"])
+
     def test_a_navigation_click_proves_no_goal_part(self):
         # Rerun: clicking the "Reports" link proved "create the Q3 Forecast report" by its name.
         passed = VerificationResult("passed", "")

@@ -455,10 +455,14 @@ class Agent:
             verbs = {words[0]} | VERB_SYNONYMS.get(words[0], set())
             return bool(verbs & label) or len(label) == 1 and label <= set(words)
         if len("".join(label)) < 3: return
+        produced = tuple(EvidenceRecord("element_text", item.text, item.id) for item in shown)
         part = next((item for item in ledger.values() if item.kind == "goal_clause" and item.status == "unproven" and names(item.expected)), None)
         # The status text the click produced is this part's evidence too, so done cannot reuse it for another part.
-        if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),)
-                                           + tuple(EvidenceRecord("element_text", item.text, item.id) for item in shown))
+        if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),) + produced)
+        elif done := next((item for item in ledger.values() if item.kind == "goal_clause" and item.status == "proven" and names(item.expected)), None):
+            # A later click of a part already proven ("Confirm export" after "Export options") still belongs to that
+            # part: its "Launch brief.pdf is ready" otherwise proved "create the Q3 Forecast report" at done.
+            ledger[done.id] = replace(done, evidence=done.evidence + produced)
 
     @staticmethod
     def _click_proof(decision: ActionDecision, target, verification, before: Observation, after: Observation) -> tuple | None:
