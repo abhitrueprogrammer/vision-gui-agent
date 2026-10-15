@@ -237,7 +237,13 @@ class ActionDecision:
         if not isinstance(grounding, list) or not isinstance(constraints, list): raise ValueError("grounding and constraints must be lists")
         if verify and verify.kind == "download_created" and (action != "click" or ident is None): raise ValueError("download_created is valid only for click with element_id")
         if verify and action == "done" and verify.kind in {"page_changed", "download_created"}: raise ValueError(f"{verify.kind} is invalid for done")
-        return cls(action, ident, raw.get("text"), raw.get("key"), raw.get("direction"), raw.get("checked"), raw.get("current_label"), raw.get("next_label"), str(raw.get("rationale", "")), verify, impact, tuple(EvidenceRecord.from_dict(item) for item in grounding), tuple(GoalConstraint.from_dict(item) for item in constraints))
+        def constraint(item: Any) -> GoalConstraint | None:
+            # A malformed constraint (Gemini marked parts unavailable without a reason, step after step) is
+            # dropped, not the whole action: rejecting it cost two calls per step until the step limit.
+            try: return GoalConstraint.from_dict(item)
+            except ValueError: return None
+        parsed = tuple(item for item in map(constraint, constraints) if item is not None)
+        return cls(action, ident, raw.get("text"), raw.get("key"), raw.get("direction"), raw.get("checked"), raw.get("current_label"), raw.get("next_label"), str(raw.get("rationale", "")), verify, impact, tuple(EvidenceRecord.from_dict(item) for item in grounding), parsed)
 
     def validate_for(self, observation: Observation) -> None:
         elements = {element.id: element for element in observation.elements}

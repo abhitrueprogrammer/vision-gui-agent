@@ -421,8 +421,10 @@ class Agent:
         otherwise a run could stop after its first part, and a goal the compiler found nothing in
         could never be declared unavailable. "Fill every field" parts are left to the completion tracker.
         """
+        # "and finish" names no action of its own: the last real part's status is its evidence.
         parts = [part for part in Agent._goal_parts(goal)
-                 if not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", part, re.IGNORECASE)]
+                 if not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", part, re.IGNORECASE)
+                 and not set(re.findall(r"\w+", part.casefold())) <= {"finish", "done", "complete", "it", "up"}]
         spans = [item.source_span for item in ledger.values() if item.source_span]
         return tuple(GoalConstraint(f"goal-part-{index}", f"Goal part: {part}", kind="goal_clause", expected=part, source_span=part)
                      for index, part in enumerate(parts, 1)
@@ -439,7 +441,7 @@ class Agent:
         return Agent._normal(evidence.expected or "") not in used
 
     @staticmethod
-    def _prove_named_clause(ledger: dict[str, GoalConstraint], target) -> None:
+    def _prove_named_clause(ledger: dict[str, GoalConstraint], target, shown: tuple = ()) -> None:
         """A goal part naming the control just clicked is shown done by that click's passed verification.
 
         The label must contain the part's verb ("Resolve ticket" does "resolve", "Confirm export" does
@@ -454,13 +456,15 @@ class Agent:
             return bool(verbs & label) or len(label) == 1 and label <= set(words)
         if len("".join(label)) < 3: return
         part = next((item for item in ledger.values() if item.kind == "goal_clause" and item.status == "unproven" and names(item.expected)), None)
-        if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),))
+        # The status text the click produced is this part's evidence too, so done cannot reuse it for another part.
+        if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),)
+                                           + tuple(EvidenceRecord("element_text", item.text, item.id) for item in shown))
 
     @staticmethod
-    def _new_status(before: Observation, after: Observation) -> bool:
+    def _new_status(before: Observation, after: Observation) -> tuple:
         """Status text (not a control) that appeared with this action."""
         shown = {Agent._normal(item.text) for item in before.elements}
-        return any(not item.actionable and len(item.text.strip()) >= 3 and Agent._normal(item.text) not in shown for item in after.elements)
+        return tuple(item for item in after.elements if not item.actionable and len(item.text.strip()) >= 3 and Agent._normal(item.text) not in shown)
 
     @staticmethod
     def _parts_established(ledger: dict[str, GoalConstraint]) -> bool:
@@ -1275,8 +1279,9 @@ class Agent:
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
                     # The policy rarely asks for a strict check, so new status text after the click is the evidence too.
-                    if target and decision.action == "click" and (verification.status == "passed" or self._new_status(observation, next_observation)):
-                        self._prove_named_clause(ledger, target)
+                    shown = self._new_status(observation, next_observation) if target and decision.action == "click" else ()
+                    if target and decision.action == "click" and (verification.status == "passed" or shown):
+                        self._prove_named_clause(ledger, target, shown)
                     if verification.status != "passed" or next_observation.url != observation.url:
                         planned.clear(); workflow.clear()
                     # Cross-page templates lack a functional state contract. Keep

@@ -92,6 +92,21 @@ class ScopedConstraintTests(unittest.TestCase):
         self.assertEqual(ledger["goal-part-2"].status, "proven")
         Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval required", 4),)), saved, ledger)
 
+    def test_status_a_proving_click_produced_cannot_prove_another_part(self):
+        # Rerun: "Notifications" proved part 1, then done cited "Notifications are on" for part 2.
+        goal = "turn on notifications and save project approval with reviewers"
+        ledger = {item.id: item for item in Agent._goal_clauses(goal, {})}
+        initial = Observation("", "", [report(1, "Notifications")], "", "Settings")
+        on = Observation("", "", [report(1, "Notifications"), report(2, "Notifications are on", actionable=False)], "", "Settings")
+        Agent._prove_named_clause(ledger, report(1, "Notifications"), Agent._new_status(initial, on))
+        Agent._prove_last_clause(ledger, ActionDecision("done", grounding=(EvidenceRecord("element_text", "Notifications are on", 2),)), on, initial)
+        self.assertEqual(ledger["goal-part-2"].status, "unproven")
+
+    def test_a_malformed_constraint_drops_only_itself(self):
+        decision = ActionDecision.from_dict({"action": "click", "element_id": 1, "constraints": [
+            {"id": "goal-part-1", "description": "", "status": "unavailable"}]})
+        self.assertEqual((decision.action, decision.constraints), ("click", ()))
+
     def test_proven_goal_parts_are_the_done_evidence(self):
         # Rerun: both parts proven, yet done cited the "Archive brief" button and was refused ten times.
         ledger = {item.id: item for item in Agent._goal_clauses("export the brief and archive it", {})}
@@ -121,7 +136,7 @@ class ScopedConstraintTests(unittest.TestCase):
         self.assertEqual(export["goal-part-1"].status, "proven")
         before = Observation("", "", [report(1, "Archive brief")], "", "Documents")
         self.assertTrue(Agent._new_status(before, Observation("", "", [report(1, "Archive brief"), report(2, "Brief moved to archive", actionable=False)], "", "Documents")))
-        self.assertFalse(Agent._new_status(before, Observation("", "", [report(1, "Archive brief"), report(3, "Restore")], "", "Documents")))
+        self.assertFalse(Agent._new_status(before, Observation("", "", [report(1, "Archive brief"), report(3, "Restore")], "", "Documents")))  # a control is not status
 
     def test_only_an_unambiguous_enabled_click_skips_refinement(self):
         def detected(id, text, enabled=True):
