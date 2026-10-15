@@ -74,6 +74,19 @@ class ResumeTests(unittest.TestCase):
             MemorySnapshot(root).take()
             self.assertEqual((root / "graph.json").read_text(), "learned by a finished run")
 
+    def test_a_network_outage_is_a_service_failure_and_is_waited_out(self):
+        from vision_gui_agent.evaluation import wait_for_network
+        for message in ("Decision failed: [Errno 101] Network is unreachable", "Decision failed: [Errno -2] Name or service not known"):
+            self.assertTrue(SERVICE_FAILURE.search(message), message)
+        attempts, pauses = [], []
+        def resolve():
+            attempts.append(1)
+            if len(attempts) < 3: raise OSError("Name or service not known")
+        self.assertTrue(wait_for_network(resolve=resolve, sleep=pauses.append))
+        self.assertEqual(len(pauses), 2)
+        def down(): raise OSError("Network is unreachable")
+        self.assertFalse(wait_for_network(limit_s=60, pause_s=30, resolve=down, sleep=lambda _: None))
+
     def test_service_failure_classification(self):
         for message in ("429 RESOURCE_EXHAUSTED", "TimeoutError: ", "Gemini quota exhausted on every key", "503 UNAVAILABLE"):
             self.assertTrue(SERVICE_FAILURE.search(message), message)

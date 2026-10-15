@@ -33,7 +33,24 @@ from .visual_function_lab import APPS, PROTOCOL_VERSION, TASK_SPLIT, TASKS, pars
 MODES = ("none", "graph", "passive-action-model", "active-action-model")
 LEARNING_APPS = ("workspace", "helpdesk")
 UNSEEN_APP = "orders"
-SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|TimeoutError|DEADLINE_EXCEEDED|UNAVAILABLE|\b50[234]\b", re.IGNORECASE)
+SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|TimeoutError|DEADLINE_EXCEEDED|UNAVAILABLE|\b50[234]\b"
+                             r"|Network is unreachable|Name or service not known|name resolution|Connection (?:refused|reset|aborted)"
+                             r"|ConnectError|RemoteProtocolError", re.IGNORECASE)
+GEMINI_HOST = "generativelanguage.googleapis.com"
+
+
+def wait_for_network(limit_s: float = 7200.0, pause_s: float = 30.0, resolve: Any = None, sleep: Any = None) -> bool:
+    """Wait until the Gemini host resolves again; an outage otherwise failed every remaining task in seconds."""
+    import socket
+    resolve, sleep = resolve or (lambda: socket.getaddrinfo(GEMINI_HOST, 443)), sleep or time.sleep
+    waited = 0.0
+    while True:
+        try:
+            resolve(); return True
+        except OSError:
+            if waited >= limit_s: return False
+            if waited == 0: print(f"Network down; waiting up to {limit_s / 60:.0f} min for {GEMINI_HOST}", flush=True)
+            sleep(pause_s); waited += pause_s
 MAX_REQUEUES = 2
 PHASE = "experiment_phase"
 
@@ -274,6 +291,7 @@ class Harness:
                     for attempt in range(MAX_REQUEUES + 1):
                         rows = read_rows(self.out)
                         if job.key in finished_keys(rows): break
+                        if self.policy != "scripted": await asyncio.to_thread(wait_for_network)
                         if since_launch >= self.relaunch_every:
                             await browser.close(); browser, since_launch = await playwright.chromium.launch(), 0
                         context = await browser.new_context(viewport={"width": 1440, "height": 1000}, accept_downloads=True)
