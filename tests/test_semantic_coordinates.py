@@ -37,6 +37,20 @@ class SemanticCoordinateTests(unittest.TestCase):
         # Crop [352,260,488,380]: 136x120.
         self.assertEqual((refined.x,refined.y,refined.width,refined.height),(386,290,68,60))
 
+    def test_a_menu_row_around_a_detected_word_is_the_same_control(self):
+        # Sidebar link: the detected box is the word, Gemini returns the whole row around it.
+        grounder=self.grounder({'found':True,'actionable':True,'kind':'link','box_2d':[326,0,674,662]})
+        target=Element(1,'','other','Documents','','','other',400,300,40,20,proposal_sources=('detector','ocr'))
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+            refined=asyncio.run(grounder.refine(path,target))
+        self.assertIsNotNone(refined)
+        # A box that does not contain the word at all is still a different control.
+        grounder=self.grounder({'found':True,'actionable':True,'kind':'link','box_2d':[0,0,200,200]})
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'screen.png';Image.new('RGB',(1440,1000),'white').save(path)
+            self.assertIsNone(asyncio.run(grounder.refine(path,target)))
+
     def test_invalid_normalized_box_never_falls_back_to_legacy_coordinates(self):
         for box in ([0,-2,500,1000],[500,100,100,500],[0,0,1001,1000]):
             grounder=self.grounder({'elements':[{'kind':'input','label':'Search','box_2d':box,

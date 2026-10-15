@@ -55,7 +55,7 @@ def configured_gemini_keys(env_path: Path = Path(".env")) -> list[str]:
 def _overloaded(error: Exception) -> bool:
     """A temporary server-side failure (overload, internal error, deadline) worth waiting out."""
     message = str(error).upper()
-    return any(marker in message for marker in ("503", "UNAVAILABLE", "HIGH DEMAND", "OVERLOADED", "500 INTERNAL", "DEADLINE_EXCEEDED"))
+    return any(marker in message for marker in ("503", "502", "BAD GATEWAY", "UNAVAILABLE", "HIGH DEMAND", "OVERLOADED", "500 INTERNAL", "DEADLINE_EXCEEDED"))
 
 
 def _quota_exhausted(error: Exception) -> bool:

@@ -474,8 +474,11 @@ class GeminiVisualGrounder:
             return reject("instance_unconfirmed")
         x1, y1 = left + x, top + y
         x2, y2 = min(float(right), x1 + width), min(float(bottom), y1 + height)
-        if target.proposal_sources and not (target.x <= x1+width/2 <= target.x+target.width
-                                            and target.y <= y1+height/2 <= target.y+target.height):
+        # Same physical control: either centre lies inside the other box. A sidebar link's OCR box is the
+        # word alone while the refined box is the whole menu row, so only one direction holds then.
+        refined_in_target = target.x <= x1 + width / 2 <= target.x + target.width and target.y <= y1 + height / 2 <= target.y + target.height
+        target_in_refined = x1 <= target.x + target.width / 2 <= x1 + width and y1 <= target.y + target.height / 2 <= y1 + height
+        if target.proposal_sources and not (refined_in_target or target_in_refined):
             return reject("selected_instance_changed")
         kind = str(result.get("kind", target.tag)).strip().lower()
         kind = kind if kind in {"button", "link", "input", "select", "textarea", "checkbox", "menuitem", "text", "other"} else target.tag
