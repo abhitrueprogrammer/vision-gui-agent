@@ -925,6 +925,7 @@ class Agent:
             required_fields = self._completion_requirements(goal, observation)
             completed_fields: set[tuple[str, str, str]] = set()
             action_executed = False
+            effect_base = observation  # what was on screen before the latest action
             observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
                 self._prove_entity_quantities(ledger, observation)
@@ -1122,7 +1123,9 @@ class Agent:
                         if valid_grounding and not all(self._fresh_grounding(item, initial_observation, observation) for item in valid_grounding):
                             raise ValueError("done grounding was already satisfied initially or is not current")
                     if decision.action == "done":
-                        self._prove_last_clause(ledger, decision, observation, initial_observation if action_executed else None)
+                        # The last part's evidence must have appeared with the latest action: a heading already on screen
+                        # ("Approval, reviewers and access") proved "save approval" when only "new since the start" was asked.
+                        self._prove_last_clause(ledger, decision, observation, effect_base if action_executed else None)
                     self._guard(decision, observation, ledger, goal, download_paths)
                     if selected_experiment:
                         logger.start_experiment(run_id, step, selected_experiment)
@@ -1279,6 +1282,7 @@ class Agent:
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
                     # The policy rarely asks for a strict check, so new status text after the click is the evidence too.
+                    effect_base = observation
                     shown = self._new_status(observation, next_observation) if target and decision.action == "click" else ()
                     if target and decision.action == "click" and (verification.status == "passed" or shown):
                         self._prove_named_clause(ledger, target, shown)

@@ -102,6 +102,18 @@ class ScopedConstraintTests(unittest.TestCase):
         Agent._prove_last_clause(ledger, ActionDecision("done", grounding=(EvidenceRecord("element_text", "Notifications are on", 2),)), on, initial)
         self.assertEqual(ledger["goal-part-2"].status, "unproven")
 
+    def test_a_heading_navigated_to_cannot_prove_the_last_part(self):
+        # Rerun: done cited the "Approval, reviewers and access" heading of the Settings page for "save approval".
+        goal = "turn on notifications and save project approval with reviewers"
+        ledger = {item.id: item for item in Agent._goal_clauses(goal, {})}
+        settings = Observation("", "", [report(1, "Notifications"), report(3, "Approval, reviewers and access", actionable=False)], "", "Settings")
+        on = Observation("", "", [report(1, "Notifications"), report(3, "Approval, reviewers and access", actionable=False),
+                                  report(2, "Notifications are on", actionable=False)], "", "Settings")
+        Agent._prove_named_clause(ledger, report(1, "Notifications"), Agent._new_status(settings, on))
+        heading = ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval, reviewers and access", 3),))
+        Agent._prove_last_clause(ledger, heading, on, settings)  # settings: the screen before the latest action
+        self.assertEqual(ledger["goal-part-2"].status, "unproven")
+
     def test_a_malformed_constraint_drops_only_itself(self):
         decision = ActionDecision.from_dict({"action": "click", "element_id": 1, "constraints": [
             {"id": "goal-part-1", "description": "", "status": "unavailable"}]})
