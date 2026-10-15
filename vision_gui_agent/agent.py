@@ -925,7 +925,7 @@ class Agent:
             required_fields = self._completion_requirements(goal, observation)
             completed_fields: set[tuple[str, str, str]] = set()
             action_executed = False
-            effect_base = observation  # what was on screen before the latest action
+            effect_base = observation  # what was on screen before the latest action that showed new status
             observe_ms = (perf_counter() - observed_at) * 1000
             for step in range(self.config.max_steps):
                 self._prove_entity_quantities(ledger, observation)
@@ -1273,6 +1273,10 @@ class Agent:
                                                 semantic.name if semantic else "", self._effect_pattern(selected_effect) if selected_effect else None,
                                                 outcome, (selected_schema or schema).id if selected_schema or schema else None,
                                                 "active_schema" if selected_schema else "passive_schema", None, "passive")
+                    # "New" for the last goal part is judged against the screen before the latest action that showed new
+                    # status, failed or not: a slow-verified Archive click followed by a no-op repeat otherwise hid
+                    # "Brief moved to archive" from the done.
+                    if self._new_status(observation, next_observation): effect_base = observation
                     if not success:
                         planned.clear(); workflow.clear(); observation = next_observation; observe_ms = next_observe_ms
                         continue
@@ -1282,7 +1286,6 @@ class Agent:
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
                     # The policy rarely asks for a strict check, so new status text after the click is the evidence too.
-                    effect_base = observation
                     shown = self._new_status(observation, next_observation) if target and decision.action == "click" else ()
                     if target and decision.action == "click" and (verification.status == "passed" or shown):
                         self._prove_named_clause(ledger, target, shown)
