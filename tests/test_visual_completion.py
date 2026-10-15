@@ -182,6 +182,18 @@ class VisualCompletionTests(unittest.TestCase):
                 result = asyncio.run(Agent(policy, config).run(object(), "show route"))
             self.assertTrue(result.completed)
 
+    def test_a_navigation_link_label_never_proves_done(self):
+        # Smoke run: "share the launch brief" ended on step 0 with the Documents sidebar link as its evidence.
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp); image = base / "screen.png"; Image.new("RGB", (40, 30), "white").save(image)
+            observation = Observation(str(image), str(image), [element(4, "other", "Documents"),
+                                                               element(8, "text", "Welcome to the project workspace", actionable=False)], "", "Overview")
+            policy = type("Policy", (), {"decide": AsyncMock(return_value=[ActionDecision("done", grounding=(EvidenceRecord("element_text", "Documents", 4),))])})()
+            config = AgentConfig(base / "artifacts", base / "runs.db", base / "graph.json", max_steps=1)
+            with patch("vision_gui_agent.agent.observe", new=AsyncMock(return_value=observation)):
+                result = asyncio.run(Agent(policy, config).run(object(), "share the launch brief with the team"))
+            self.assertFalse(result.completed)
+
     def test_fresh_done_verification_ignores_invalid_optional_grounding(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp); before_path, after_path = base / "before.png", base / "after.png"

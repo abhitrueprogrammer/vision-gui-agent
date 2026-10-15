@@ -278,6 +278,13 @@ class Agent:
         return evidence.source in fields and expected in Agent._normal(fields[evidence.source])
 
     @staticmethod
+    def _completion_evidence(evidence: EvidenceRecord, observation: Observation) -> bool:
+        """A control's own label is something still to click, not proof the goal finished; its state may be."""
+        if not Agent._valid_evidence(evidence, observation, []): return False
+        element = next((item for item in observation.elements if item.id == evidence.element_id), None)
+        return not (element and element.actionable and evidence.source in {"element_text", "aria_label", "placeholder", "role", "tag", "href", "type"})
+
+    @staticmethod
     def _target_evidence_matches(evidence: EvidenceRecord, element) -> bool:
         if evidence.source not in {"element_text", "value"} or not evidence.expected:
             return False
@@ -535,8 +542,8 @@ class Agent:
         # Declaring a goal unavailable has nothing to point at (a hidden control
         # leaves no evidence); the material constraint's reason is the record.
         if decision.action == "done" and decision.verify is None and not unavailable and not any(
-                Agent._valid_evidence(item, observation, []) for item in decision.grounding):
-            raise ValueError("done requires a visual postcondition or valid visible grounding")
+                Agent._completion_evidence(item, observation) for item in decision.grounding):
+            raise ValueError("done requires a visual postcondition or visible state evidence, not a control's label")
         if decision.element_id is not None and Agent._is_high_impact(decision, observation):
             target_evidence = [item for item in decision.grounding if item.element_id == decision.element_id and item.source in {"element_text", "value"}]
             if not target or not target_evidence or not any(Agent._target_evidence_matches(item, target) for item in target_evidence):

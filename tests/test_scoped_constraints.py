@@ -42,7 +42,7 @@ class ScopedConstraintTests(unittest.TestCase):
             Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Choose", 1),)), wrong, ledger)
         matching = self.observation("Audited report")
         Agent._prove_constraints(ledger, ActionDecision("click", 1), matching, [])
-        Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Choose", 1),)), matching, ledger)
+        Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("context", "Audited report", 1),)), matching, ledger)
         self.assertEqual(ledger["audited"].status, "proven")
 
     def test_explicit_hard_requirement_survives_empty_compiler_output(self):

@@ -1,5 +1,6 @@
 import asyncio
 import io
+import os
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -49,7 +50,8 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / ".env"
             path.write_text("# GEMINI_API_KEY=first-key\nGEMINI_API_KEY=second-key\n")
-            self.assertEqual(configured_gemini_keys(path), ["first-key", "second-key"])
+            with patch.dict(os.environ, clear=True):  # keys a loaded .env put in the environment are not this file's
+                self.assertEqual(configured_gemini_keys(path), ["first-key", "second-key"])
 
     def test_decision_validation(self) -> None:
         self.assertEqual(parse_decision('{"action":"fill","element_id":2,"text":"me@example.com"}').element_id, 2)
