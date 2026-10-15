@@ -122,10 +122,18 @@ class MemorySnapshot:
         self.directory, self.saved = directory, directory / ".snapshot"
 
     def take(self) -> None:
+        # A run killed before its row was written (the process or session died) left its snapshot
+        # pending; undo whatever it wrote before snapshotting again, or a resume would keep it.
+        if (self.saved / "pending").exists(): self.restore()
         if self.saved.exists(): shutil.rmtree(self.saved)
         self.saved.mkdir(parents=True)
         for name in self.FILES:
             if (self.directory / name).exists(): shutil.copy2(self.directory / name, self.saved / name)
+        (self.saved / "pending").touch()
+
+    def settle(self) -> None:
+        """The run's row is being written: its memory is final."""
+        (self.saved / "pending").unlink(missing_ok=True)
 
     def restore(self) -> None:
         for name in self.FILES:
@@ -243,6 +251,7 @@ class Harness:
             # The model RQ1 scores: after exploration, and after the experiment phase in active mode.
             model = directory / "action-model-v2.json"
             if model.exists(): shutil.copy2(model, directory / "model-after-exploration.json")
+        snapshot.settle()
         return row
 
     async def run(self, jobs: list[Job], shard: tuple[int, int] = (0, 1)) -> list[dict]:

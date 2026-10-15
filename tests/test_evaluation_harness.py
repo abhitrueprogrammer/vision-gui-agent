@@ -61,6 +61,19 @@ class ResumeTests(unittest.TestCase):
             self.assertEqual((root / "graph.json").read_text(), "before")
             self.assertFalse((root / "action-model-v2.json").exists())
 
+    def test_a_run_killed_before_its_row_is_undone_on_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "graph.json").write_text("before")
+            MemorySnapshot(root).take()
+            (root / "graph.json").write_text("half learned by a killed run")
+            MemorySnapshot(root).take()  # the resumed process starts the same job again
+            self.assertEqual((root / "graph.json").read_text(), "before")
+            settled = MemorySnapshot(root); settled.take()
+            (root / "graph.json").write_text("learned by a finished run"); settled.settle()
+            MemorySnapshot(root).take()
+            self.assertEqual((root / "graph.json").read_text(), "learned by a finished run")
+
     def test_service_failure_classification(self):
         for message in ("429 RESOURCE_EXHAUSTED", "TimeoutError: ", "Gemini quota exhausted on every key", "503 UNAVAILABLE"):
             self.assertTrue(SERVICE_FAILURE.search(message), message)
