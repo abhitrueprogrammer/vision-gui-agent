@@ -2,6 +2,7 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -125,6 +126,8 @@ class RateLimitTests(unittest.TestCase):
             self.assertEqual(len(granted), 5)
 
     def test_quota_storm_backs_off_then_fails_as_a_service_failure(self):
+        from vision_gui_agent import gemini
+        self.addCleanup(gemini._KEY_COOLDOWN.clear)
         pool = object.__new__(GeminiClientPool)
         pool._keys, pool._index, pool.client = ["one", "two"], 0, object()
         pool._new_client = lambda: object()
@@ -135,6 +138,39 @@ class RateLimitTests(unittest.TestCase):
         self.assertTrue(SERVICE_FAILURE.search(str(raised.exception)))
         self.assertGreater(len(pauses), 3)
         self.assertLessEqual(sum(pauses), GeminiClientPool.BACKOFF_LIMIT_S * 1.5 + 60)
+
+    def test_calls_rotate_over_keys_and_skip_one_out_of_quota(self):
+        from vision_gui_agent import gemini
+        self.addCleanup(gemini._KEY_COOLDOWN.clear)
+        pool = object.__new__(GeminiClientPool)
+        pool._keys, pool._index, pool.client = ["k1", "k2", "k3"], 0, "k1"
+        pool._new_client = lambda: pool._keys[pool._index]
+        used = [pool.generate(lambda client: client) for _ in range(6)]
+        self.assertEqual(sorted(used), ["k1", "k1", "k2", "k2", "k3", "k3"])
+        def k2_daily_quota(client):
+            if client == "k2": raise RuntimeError("429 RESOURCE_EXHAUSTED. Quota exceeded for metric: free_tier_requests. Please retry in 12h45m46.3s.")
+            return client
+        used = [pool.generate(k2_daily_quota) for _ in range(6)]
+        self.assertNotIn("k2", used)
+        self.assertGreater(gemini._KEY_COOLDOWN["k2"] - time.monotonic(), 12 * 3600)
+
+    def test_every_key_out_of_daily_quota_fails_without_waiting(self):
+        from vision_gui_agent import gemini
+        self.addCleanup(gemini._KEY_COOLDOWN.clear)
+        pool = object.__new__(GeminiClientPool)
+        pool._keys, pool._index, pool.client = ["d1", "d2"], 0, object()
+        pool._new_client = lambda: object()
+        pauses = []
+        def exhausted(_client): raise RuntimeError("429 RESOURCE_EXHAUSTED. Please retry in 3h2m.")
+        with self.assertRaises(RuntimeError):
+            pool.generate(exhausted, sleep=pauses.append)
+        self.assertEqual(pauses, [])
+
+    def test_retry_delay_is_read_from_either_error_form(self):
+        from vision_gui_agent.gemini import _retry_after
+        self.assertAlmostEqual(_retry_after(RuntimeError("Please retry in 12h45m46.5s.")), 45946.5)
+        self.assertEqual(_retry_after(RuntimeError("{'retryDelay': '37s'}")), 37)
+        self.assertEqual(_retry_after(RuntimeError("429 RESOURCE_EXHAUSTED")), 30)
 
     def test_a_temporary_overload_is_waited_out(self):
         pool = object.__new__(GeminiClientPool)

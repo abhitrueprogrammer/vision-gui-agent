@@ -21,11 +21,12 @@ uv sync
 uv run playwright install chromium
 ```
 
-Add one or two Gemini keys to `.env`. When Gemini returns `RESOURCE_EXHAUSTED`, the agent retries the request with the next key.
+Add one or more Gemini keys to `.env`. Requests rotate over the keys; a key that returns `RESOURCE_EXHAUSTED` is skipped until the retry time Gemini reports. Quota is counted per Google Cloud project, so keys from the same project share it.
 
 ```dotenv
 GEMINI_API_KEY=first-key
 GEMINI_API_KEY_2=second-key
+GEMINI_API_KEY_3=third-key
 ```
 
 OmniParser + RapidOCR grounding is the default. The parser is the `third_party/OmniParser` submodule fetched above; set `OMNIPARSER_HOME` to use a checkout elsewhere. The integration specifically expects `util/yolov9.py` exposing `YOLOv9Detector` and initializes it with `revision="refs/pr/37"`. A checkout with a different API will need an adapter; an arbitrary upstream checkout is not guaranteed to work. Detector initialization may need network access to retrieve model weights.

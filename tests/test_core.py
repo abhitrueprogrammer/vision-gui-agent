@@ -31,6 +31,8 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("href", payload)
 
     def test_gemini_pool_retries_quota_error_with_next_key(self) -> None:
+        from vision_gui_agent import gemini
+        self.addCleanup(gemini._KEY_COOLDOWN.clear)
         class Client:
             def __init__(self, key): self.key = key
         class GenAI:

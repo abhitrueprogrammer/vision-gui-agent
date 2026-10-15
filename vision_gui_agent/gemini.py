@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import itertools
 import os
 import random
+import re
 import socket
 from collections import Counter
 from contextlib import contextmanager
@@ -46,10 +48,10 @@ def configured_gemini_keys(env_path: Path = Path(".env")) -> list[str]:
                 value = line.partition("=")[2].strip().strip('"').strip("'")
                 if value:
                     keys.append(value)
-    for name in ("GEMINI_API_KEY", "GEMINI_API_KEY_2"):
-        if (value := os.getenv(name)) and value not in keys:
+    for name in sorted(name for name in os.environ if name == "GEMINI_API_KEY" or name.startswith("GEMINI_API_KEY_")):
+        if (value := os.environ[name].strip()) and value not in keys:
             keys.append(value)
-    return keys
+    return list(dict.fromkeys(keys))
 
 
 def _overloaded(error: Exception) -> bool:
@@ -61,6 +63,23 @@ def _overloaded(error: Exception) -> bool:
 def _quota_exhausted(error: Exception) -> bool:
     message = str(error).upper()
     return "RESOURCE_EXHAUSTED" in message or "429" in message
+
+
+def _retry_after(error: Exception, default: float = 30.0) -> float:
+    """Seconds until Gemini says the key may be used again ("retry in 12h45m46s", retryDelay "37s")."""
+    message = str(error)
+    if match := re.search(r"retry in ((?:\d+h)?(?:\d+m)?(?:[\d.]+s)?)", message, re.IGNORECASE):
+        parts = dict((unit, float(value)) for value, unit in re.findall(r"([\d.]+)([hms])", match.group(1)))
+        if parts: return parts.get("h", 0) * 3600 + parts.get("m", 0) * 60 + parts.get("s", 0)
+    if match := re.search(r"retryDelay['\"]?\s*:\s*['\"]?([\d.]+)s", message):
+        return float(match.group(1))
+    return default
+
+
+# Shared by every pool in the process (policy, grounder, goal compiler), so calls rotate over all keys
+# and a key that ran out of quota is skipped until Gemini's retry time instead of being retried per pool.
+_KEY_TURN = itertools.count()
+_KEY_COOLDOWN: dict[str, float] = {}
 
 
 def _temporary_dns_failure(error: BaseException) -> bool:
@@ -139,7 +158,7 @@ def shared_limiter() -> RateLimiter | None:
 
 
 class GeminiClientPool:
-    """Use the next configured key when Gemini reports quota exhaustion."""
+    """Rotate requests over the configured keys, skipping keys that ran out of quota."""
 
     def __init__(self, key_slot: int | None = None) -> None:
         load_dotenv()
@@ -158,6 +177,19 @@ class GeminiClientPool:
     def _new_client(self) -> Any:
         return self._genai.Client(api_key=self._keys[self._index], http_options=self.types.HttpOptions(timeout=60_000))
 
+    def _use(self, index: int) -> None:
+        cache = self.__dict__.setdefault("_client_cache", {self._index: self.client})
+        if index not in cache:
+            self._index = index
+            cache[index] = self._new_client()
+        self._index, self.client = index, cache[index]
+
+    def _ready_keys(self) -> list[int]:
+        """Usable key indexes in rotation order, starting at this call's turn."""
+        now, start = time.monotonic(), next(_KEY_TURN)
+        order = [(start + offset) % len(self._keys) for offset in range(len(self._keys))]
+        return [index for index in order if _KEY_COOLDOWN.get(self._keys[index], 0) <= now]
+
     # Once every key reports quota exhaustion, wait with growing, jittered delays for at most this long.
     BACKOFF_LIMIT_S = 300.0
 
@@ -169,8 +201,9 @@ class GeminiClientPool:
         dns_retries, waited, delay = 0, 0.0, 1.0
         while True:
             overloaded = False
-            for attempt in range(len(self._keys)):
+            for index in self._ready_keys():
                 if overloaded: break
+                self._use(index)
                 while True:
                     row = limiter.acquire(purpose) if limiter else None
                     try:
@@ -183,21 +216,22 @@ class GeminiClientPool:
                                 "Temporary Gemini DNS failure; retry %s/2 in %.1fs", dns_retries, pause)
                             sleep(pause)
                             continue
-                        if _overloaded(error):  # the same key will do once the server recovers
+                        if _overloaded(error):  # server-side: the same keys will do once it recovers
                             overloaded = True
                             break
                         if not _quota_exhausted(error): raise
-                        if attempt + 1 < len(self._keys):
-                            self._index = (self._index + 1) % len(self._keys)
-                            self.client = self._new_client()
+                        _KEY_COOLDOWN[self._keys[index]] = time.monotonic() + _retry_after(error)
                         break
                     usage = getattr(result, "usage_metadata", None)
                     if limiter and row is not None: limiter.record(row, purpose, getattr(usage, "total_token_count", None))
                     if getattr(result, "model_version", None): LAST_MODEL_VERSION["value"] = result.model_version
                     return result
-            if waited >= self.BACKOFF_LIMIT_S:
+            now = time.monotonic()
+            # A key free again within the backoff budget is worth waiting for; a daily quota is not.
+            soonest = min((_KEY_COOLDOWN.get(key, 0) for key in self._keys), default=0) - now
+            if waited >= self.BACKOFF_LIMIT_S or soonest > self.BACKOFF_LIMIT_S - waited:
                 raise RuntimeError("Gemini quota exhausted or unavailable after backoff (RESOURCE_EXHAUSTED/UNAVAILABLE)")
-            pause = min(delay, 60.0, self.BACKOFF_LIMIT_S - waited) * (.5 + random.random())
+            pause = min(max(delay, soonest), 60.0, self.BACKOFF_LIMIT_S - waited) * (.5 + random.random())
             logging.getLogger(__name__).warning("Gemini overloaded or out of quota; backing off %.1fs", pause)
             sleep(pause)
             waited, delay = waited + pause, delay * 2
