@@ -159,9 +159,11 @@ class Agent:
         except (OSError, ValueError):
             return 1440.0, 1000.0
 
-    def _schema_decision(self, goal: str, observation: Observation, belief: BeliefState | None = None) -> tuple[ActionDecision, ActionSchema, ActionEffect | None] | None:
+    def _schema_decision(self, goal: str, observation: Observation, belief: BeliefState | None = None,
+                         achieved: set[tuple[str, object]] | None = None) -> tuple[ActionDecision, ActionSchema, ActionEffect | None] | None:
         values = self._belief_values(observation, belief)
-        targets = self.action_model.goal_effects(goal, self.config.min_schema_confidence)
+        # Goal parts are a sequence: one already achieved stays done even if a later part undoes it.
+        targets = [target for target in self.action_model.goal_effects(goal, self.config.min_schema_confidence) if target not in (achieved or set())]
         if not targets: return None
         plan = self.functional_planner.plan_all(targets, values)
         if not plan: return None
@@ -197,7 +199,7 @@ class Agent:
                                   grounding=(EvidenceRecord("element_text", target.text, target.id),))
         return decision, schema, effect
 
-    def _unavailable_reason(self, goal: str, belief: BeliefState) -> tuple[str | None, str | None]:
+    def _unavailable_reason(self, goal: str, belief: BeliefState, achieved: set[tuple[str, object]] | None = None) -> tuple[str | None, str | None]:
         """Why the learned model says this goal cannot be done here, if it does.
 
         Returns (reason, scope key to confirm): a fact that held every time the
@@ -207,7 +209,7 @@ class Agent:
         """
         values = belief.values()
         for name, value in self.action_model.goal_effects(goal, self.config.min_schema_confidence):
-            if values.get(name) == value or self.functional_planner.plan(name, values, value) is not None: continue
+            if (name, value) in (achieved or set()) or values.get(name) == value or self.functional_planner.plan(name, values, value) is not None: continue
             for schema in self.action_model.for_effect(name, value, self.config.min_schema_confidence):
                 for condition in self.action_model.context_conditions(schema):
                     if values.get(condition.predicate) is not False: continue
@@ -794,6 +796,7 @@ class Agent:
         # can undo each other); after that the learned model sits out the rest of the run.
         learned_seen: set[str] = set()
         learned_enabled = True
+        achieved: set[tuple[str, object]] = set()
         self.functional_planner.failed = set()
         try:
             observed_at = perf_counter()
@@ -809,6 +812,7 @@ class Agent:
                     _, scope_now = self.predicates.scope(observation)
                     belief.observe(scope_now, self.predicates.read(observation, self.inventory), self.inventory)
                     belief_synced, visit_index[scope_now] = observation, len(changed_actions)
+                    achieved.update((name, True) for name, value in belief.values().items() if value is True)
                 before_values = belief.values() if belief is not None else {}
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
@@ -845,17 +849,17 @@ class Agent:
                         else:
                             decision, decision_origin = candidate, "planned"
                     if decision is None and belief is not None and not force_planner:
-                        reason, confirm_scope = self._unavailable_reason(goal, belief)
+                        reason, confirm_scope = self._unavailable_reason(goal, belief, achieved)
                         if reason is None and confirm_scope is not None and confirm_scope == self.predicates.scope(observation)[1]:
                             # Look once more before declaring anything from a single missing reading.
                             observation = await observe(page, self.config.artifact_dir / run_id, step, self.grounder)
                             belief.observe(confirm_scope, self.predicates.read(observation, self.inventory), self.inventory)
                             belief_synced, before_values = observation, belief.values()
-                            reason, _ = self._unavailable_reason(goal, belief)
+                            reason, _ = self._unavailable_reason(goal, belief, achieved)
                         if reason:
                             decision, decision_origin = self._unavailable_decision(goal, reason, ledger), "learned_unavailable"
                     if decision is None and belief is not None and not force_planner and learned_enabled:
-                        schema_choice = self._schema_decision(goal, observation, belief)
+                        schema_choice = self._schema_decision(goal, observation, belief, achieved)
                         if schema_choice:
                             repeat = f"{self.predicates.scope(observation)[1]}|{schema_choice[1].id}|{schema_choice[0].element_id}"
                             if repeat in learned_seen:
@@ -1104,6 +1108,8 @@ class Agent:
                         remembered = {name: item.value for name, item in belief.entries.items() if fact_parts(name)[0] == after_scope}
                         belief.observe(after_scope, readings, self.inventory)
                         belief_synced, after_values = next_observation, belief.values()
+                        # Every fact seen true this run: a goal part learned only later still counts as done.
+                        achieved.update((name, True) for name, value in after_values.items() if value is True)
                         evidence_id = f"{run_id}:{step}"
                         semantic, schema, outcome = None, None, "navigation"
                         if before_scope != after_scope:
