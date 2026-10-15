@@ -4,6 +4,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -86,6 +87,18 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(len(pauses), 2)
         def down(): raise OSError("Network is unreachable")
         self.assertFalse(wait_for_network(limit_s=60, pause_s=30, resolve=down, sleep=lambda _: None))
+
+    def test_the_harness_sleeps_until_a_key_is_out_of_its_daily_cooldown(self):
+        from vision_gui_agent import gemini
+        from vision_gui_agent.evaluation import wait_for_quota
+        self.addCleanup(gemini._KEY_COOLDOWN.clear)
+        pauses = []
+        with patch("vision_gui_agent.gemini.configured_gemini_keys", return_value=["q1", "q2"]):
+            self.assertEqual(wait_for_quota(sleep=pauses.append), 0.0)
+            gemini._KEY_COOLDOWN.update({"q1": time.monotonic() + 3600, "q2": time.monotonic() + 7200})
+            wait_for_quota(sleep=pauses.append)
+        self.assertEqual(len(pauses), 1)
+        self.assertAlmostEqual(pauses[0], 3605, delta=5)
 
     def test_service_failure_classification(self):
         for message in ("429 RESOURCE_EXHAUSTED", "TimeoutError: ", "Gemini quota exhausted on every key", "503 UNAVAILABLE"):

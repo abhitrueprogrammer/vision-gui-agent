@@ -39,6 +39,22 @@ SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|Time
 GEMINI_HOST = "generativelanguage.googleapis.com"
 
 
+def wait_for_quota(limit_s: float = 8 * 3600, sleep: Any = None) -> float:
+    """Sleep until a Gemini key is usable again when every key is out of quota; returns seconds waited.
+
+    Without this a daily quota failed each remaining task three times in seconds, and the
+    harness then treated those tasks as finished.
+    """
+    from .gemini import _KEY_COOLDOWN, configured_gemini_keys
+    keys = configured_gemini_keys()
+    wait = min((_KEY_COOLDOWN.get(key, 0) for key in keys), default=0) - time.monotonic()
+    if wait <= 0: return 0.0
+    wait = min(wait + 5, limit_s)
+    print(f"All Gemini keys out of quota; waiting {wait / 60:.0f} min", flush=True)
+    (sleep or time.sleep)(wait)
+    return wait
+
+
 def wait_for_network(limit_s: float = 7200.0, pause_s: float = 30.0, resolve: Any = None, sleep: Any = None) -> bool:
     """Wait until the Gemini host resolves again; an outage otherwise failed every remaining task in seconds."""
     import socket
@@ -291,7 +307,8 @@ class Harness:
                     for attempt in range(MAX_REQUEUES + 1):
                         rows = read_rows(self.out)
                         if job.key in finished_keys(rows): break
-                        if self.policy != "scripted": await asyncio.to_thread(wait_for_network)
+                        if self.policy != "scripted":
+                            await asyncio.to_thread(wait_for_network); await asyncio.to_thread(wait_for_quota)
                         if since_launch >= self.relaunch_every:
                             await browser.close(); browser, since_launch = await playwright.chromium.launch(), 0
                         context = await browser.new_context(viewport={"width": 1440, "height": 1000}, accept_downloads=True)
