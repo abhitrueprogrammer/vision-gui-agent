@@ -129,6 +129,13 @@ class ScopedConstraintTests(unittest.TestCase):
         ocr_only = Element(4, "", "text", "Documents", "", "", "text", 0, 0, 10, 10, proposal_sources=("ocr",))
         self.assertFalse(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(ocr_only)), ocr_only, Observation("", "", [ocr_only], "", "")))
 
+    def test_a_compiled_verb_is_not_an_item_restriction(self):
+        archive = GoalConstraint("c2", "", kind="target_text", expected="archive", source_span="archive it")
+        brief = GoalConstraint("c1", "", kind="target_text", expected="Launch Brief", source_span="export the Launch Brief as PDF")
+        self.assertEqual(Agent._compiled_constraints("export the Launch Brief as PDF and archive it", (archive, brief)), (brief,))
+        # Its goal part still exists, since nothing compiled covers "archive it" any more.
+        self.assertEqual([item.expected for item in Agent._goal_clauses("export the Launch Brief as PDF and archive it", {"c1": brief})], ["archive it"])
+
     def test_explicit_hard_requirement_survives_empty_compiler_output(self):
         constraints = Agent._explicit_hard_constraints("Find reports. Audited is a hard requirement.")
         self.assertEqual((constraints[0].expected, constraints[0].source_span), ("Audited", "Audited"))

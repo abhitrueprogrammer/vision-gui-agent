@@ -115,7 +115,8 @@ class GeminiPolicy:
         def generate() -> str:
             self.last_response = None
             return self._generate(lambda client: client.models.generate_content(model=self.model, contents=prompt,
-                config=self.types.GenerateContentConfig(response_mime_type="application/json", automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)))).text
+                # Temperature 0: a parsing step, so every memory mode starts from the same constraints for a goal.
+                config=self.types.GenerateContentConfig(response_mime_type="application/json", temperature=0, automatic_function_calling=self.types.AutomaticFunctionCallingConfig(disable=True)))).text
         self.last_response = await asyncio.to_thread(generate)
         try:
             return _selection_constraints(goal, parse_goal_constraints(self.last_response))

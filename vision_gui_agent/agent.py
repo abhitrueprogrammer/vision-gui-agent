@@ -473,7 +473,12 @@ class Agent:
 
     @staticmethod
     def _compiled_constraints(goal: str, constraints: tuple[GoalConstraint, ...] | list[GoalConstraint]) -> tuple[GoalConstraint, ...]:
-        return tuple(item for item in constraints if not Agent._observational_goal(goal) or item.kind == "extremum")
+        def verb_only(item: GoalConstraint) -> bool:
+            # "archive it" compiled as items containing "archive": the phrase's verb is not an item, and as a
+            # restriction it refused every later click without that word. Its goal part covers it instead.
+            span = re.findall(r"\w+", item.source_span.casefold())
+            return item.kind == "target_text" and len(span) > 1 and Agent._normal(item.expected) == span[0]
+        return tuple(item for item in constraints if (not Agent._observational_goal(goal) or item.kind == "extremum") and not verb_only(item))
 
     @staticmethod
     def _has_download(download_paths: list[str]) -> bool:
