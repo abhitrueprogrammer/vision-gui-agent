@@ -3,7 +3,7 @@ import asyncio
 
 from vision_gui_agent.agent import Agent
 from vision_gui_agent.decision import GeminiPolicy, _selection_constraints, parse_goal_constraints
-from vision_gui_agent.models import ActionDecision, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition
+from vision_gui_agent.models import ActionDecision, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition, VerificationResult
 
 
 def report(id, text, context="", actionable=True, download=""):
@@ -113,6 +113,17 @@ class ScopedConstraintTests(unittest.TestCase):
         heading = ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval, reviewers and access", 3),))
         Agent._prove_last_clause(ledger, heading, on, settings)  # settings: the screen before the latest action
         self.assertEqual(ledger["goal-part-2"].status, "unproven")
+
+    def test_a_navigation_click_proves_no_goal_part(self):
+        # Rerun: clicking the "Reports" link proved "create the Q3 Forecast report" by its name.
+        passed = VerificationResult("passed", "")
+        overview = Observation("", "", [report(2, "Reports")], "https://lab/workspace?tab=overview", "Overview")
+        reports = Observation("", "", [report(2, "Reports"), report(8, "No reports yet", actionable=False)], "https://lab/workspace?tab=reports", "Reports")
+        self.assertIsNone(Agent._click_proof(ActionDecision("click", 2), report(2, "Reports"), passed, overview, reports))
+        data = Observation("", "", [report(3, "Generate report")], "https://lab/workspace?tab=data", "Data")
+        created = Observation("", "", [report(3, "Generate report"), report(9, "Q3 Forecast report created", actionable=False)], "https://lab/workspace?tab=data", "Data")
+        shown = Agent._click_proof(ActionDecision("click", 3), report(3, "Generate report"), VerificationResult("not_requested", ""), data, created)
+        self.assertEqual([item.text for item in shown], ["Q3 Forecast report created"])
 
     def test_a_malformed_constraint_drops_only_itself(self):
         decision = ActionDecision.from_dict({"action": "click", "element_id": 1, "constraints": [

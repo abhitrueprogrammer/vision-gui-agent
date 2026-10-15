@@ -461,6 +461,17 @@ class Agent:
                                            + tuple(EvidenceRecord("element_text", item.text, item.id) for item in shown))
 
     @staticmethod
+    def _click_proof(decision: ActionDecision, target, verification, before: Observation, after: Observation) -> tuple | None:
+        """The new status a click produced, if the click can prove a goal part; None if it cannot.
+
+        A click that moved to another page is navigation: the "Reports" link proved "create the Q3
+        Forecast report" by its name alone, and done was accepted on an empty Reports page.
+        """
+        if not target or decision.action != "click" or after.url != before.url: return None
+        shown = Agent._new_status(before, after)
+        return shown if verification.status == "passed" or shown else None
+
+    @staticmethod
     def _new_status(before: Observation, after: Observation) -> tuple:
         """Status text (not a control) that appeared with this action."""
         shown = {Agent._normal(item.text) for item in before.elements}
@@ -1290,9 +1301,8 @@ class Agent:
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
                     # The policy rarely asks for a strict check, so new status text after the click is the evidence too.
-                    shown = self._new_status(observation, next_observation) if target and decision.action == "click" else ()
-                    if target and decision.action == "click" and (verification.status == "passed" or shown):
-                        self._prove_named_clause(ledger, target, shown)
+                    shown = self._click_proof(decision, target, verification, observation, next_observation)
+                    if shown is not None: self._prove_named_clause(ledger, target, shown)
                     if verification.status != "passed" or next_observation.url != observation.url:
                         planned.clear(); workflow.clear()
                     # Cross-page templates lack a functional state contract. Keep
