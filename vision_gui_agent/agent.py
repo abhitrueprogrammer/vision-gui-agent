@@ -409,15 +409,54 @@ class Agent:
     def _goal_clauses(goal: str, ledger: dict[str, GoalConstraint]) -> tuple[GoalConstraint, ...]:
         """One material constraint per goal part the compiler left uncovered.
 
-        They give the policy something to mark unavailable whatever the compiler returned; without
-        them a goal the compiler found nothing in could never be declared unavailable. They do not
-        gate done: a part's completion is not provable from a single status line in general.
+        Each part must be shown done by its own new status text, or declared unavailable, before done:
+        otherwise a run could stop after its first part, and a goal the compiler found nothing in
+        could never be declared unavailable. "Fill every field" parts are left to the completion tracker.
         """
-        parts = [" ".join(part.split()) for part in re.split(r"\b(?:and|then)\b|[,;]", goal, flags=re.IGNORECASE) if part.strip()]
+        parts = [" ".join(part.split()) for part in re.split(r"\b(?:and|then)\b|[,;]", goal, flags=re.IGNORECASE)
+                 if part.strip() and not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", part, re.IGNORECASE)]
         spans = [item.source_span for item in ledger.values() if item.source_span]
         return tuple(GoalConstraint(f"goal-part-{index}", f"Goal part: {part}", kind="goal_clause", expected=part, source_span=part)
                      for index, part in enumerate(parts, 1)
                      if not any(Agent._contains(part, span) or Agent._contains(span, part) for span in spans))
+
+    @staticmethod
+    def _clause_evidence(evidence: EvidenceRecord, observation: Observation, ledger: dict[str, GoalConstraint],
+                         initial: Observation | None) -> bool:
+        """Status evidence for one goal part: visible state, new since the run began, used by no other part."""
+        if not Agent._completion_evidence(evidence, observation): return False
+        if initial is not None and not Agent._fresh_grounding(evidence, initial, observation): return False
+        used = {Agent._normal(item.expected or "") for other in ledger.values() if other.kind == "goal_clause" for item in other.evidence}
+        return Agent._normal(evidence.expected or "") not in used
+
+    @staticmethod
+    def _prove_named_clause(ledger: dict[str, GoalConstraint], target) -> None:
+        """A goal part naming the control just clicked is shown done by that click's passed verification.
+
+        The label must start with the part's verb ("Resolve ticket" does "resolve", "Share brief" does
+        "share the launch brief", opening the "Launch Brief" document does not), or be one word the
+        part names ("Notifications" in "turn on notifications").
+        """
+        label = re.findall(r"\w+", target.text.casefold())
+        def names(part: str) -> bool:
+            words = re.findall(r"\w+", part.casefold())
+            return bool(words) and (label[0] == words[0] or len(label) == 1 and label[0] in words)
+        if len("".join(label)) < 3: return
+        part = next((item for item in ledger.values() if item.kind == "goal_clause" and item.status == "unproven" and names(item.expected)), None)
+        if part: ledger[part.id] = replace(part, status="proven", evidence=(EvidenceRecord("element_text", target.text, target.id),))
+
+    @staticmethod
+    def _prove_last_clause(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
+                           initial: Observation | None) -> None:
+        """A done's own evidence (its grounding, or the status text its verify names) proves the one part still open."""
+        open_parts = [item for item in ledger.values() if item.kind == "goal_clause" and item.status == "unproven"]
+        if len(open_parts) != 1: return
+        candidates = list(decision.grounding)
+        if decision.verify and decision.verify.kind == "element_visible" and decision.verify.pattern:
+            candidates += [EvidenceRecord("element_text", item.text, item.id) for item in observation.elements
+                           if not item.actionable and Agent._contains(item.text, decision.verify.pattern)]
+        evidence = next((item for item in candidates if Agent._clause_evidence(item, observation, ledger, initial)), None)
+        if evidence: ledger[open_parts[0].id] = replace(open_parts[0], status="proven", evidence=(evidence,))
 
     @staticmethod
     def _compiled_constraints(goal: str, constraints: tuple[GoalConstraint, ...] | list[GoalConstraint]) -> tuple[GoalConstraint, ...]:
@@ -460,7 +499,7 @@ class Agent:
 
     @staticmethod
     def _merge_constraints(ledger: dict[str, GoalConstraint], decision: ActionDecision, observation: Observation,
-                           download_paths: list[str]) -> None:
+                           download_paths: list[str], initial: Observation | None = None) -> None:
         for proposed in decision.constraints:
             old = ledger.get(proposed.id)
             if old is None and any(item.source_span for item in ledger.values()):
@@ -472,6 +511,8 @@ class Agent:
                         ledger[old.id] = replace(old, status="unavailable", evidence=(), unavailable_reason=proposed.unavailable_reason)
                     continue
                 evidence = tuple(item for item in proposed.evidence if Agent._valid_evidence(item, observation, download_paths))
+                if old.kind == "goal_clause":
+                    evidence = tuple(item for item in proposed.evidence if Agent._clause_evidence(item, observation, ledger, initial))[:1]
                 if proposed.status == "proven" and evidence:
                     ledger[old.id] = replace(old, status="proven", evidence=evidence)
                 elif proposed.status == "unavailable" and proposed.unavailable_reason:
@@ -577,10 +618,12 @@ class Agent:
             if not target or not target_evidence or not any(Agent._target_evidence_matches(item, target) for item in target_evidence):
                 raise ValueError("High-impact action lacks valid target grounding")
         if Agent._is_high_impact(decision, observation):
-            unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven" and item.kind != "goal_clause"
+            unproven = [item for item in ledger.values() if item.material and item.status == "unproven"
                         and not (item.source_span and decision.element_id is not None)]
             if unproven and not (decision.action == "done" and unavailable):
-                raise ValueError(f"High-impact action deferred; unproven constraints: {', '.join(unproven)}")
+                # Name open goal parts by their text, so the policy works on what is missing instead of repeating done.
+                raise ValueError("High-impact action deferred; unproven constraints: " + ", ".join(
+                    f"{item.id} ('{item.expected}' not yet shown done)" if item.kind == "goal_clause" else item.id for item in unproven))
 
     @staticmethod
     def _normal(value: str) -> str:
@@ -1021,7 +1064,7 @@ class Agent:
                     attempt_limit = 1 if (self._is_high_impact(decision, observation) and decision.action != "done") else self.config.max_action_attempts
                     if action_attempts.get(key, 0) >= attempt_limit:
                         raise ValueError("Retry limit reached for action")
-                    self._merge_constraints(ledger, decision, observation, download_paths)
+                    self._merge_constraints(ledger, decision, observation, download_paths, initial_observation)
                     # Item identity is pre-action visual evidence.  Record it
                     # as soon as the selected control itself names the scoped
                     # target, even if a later postcondition is overly strict
@@ -1031,13 +1074,15 @@ class Agent:
                         pending = required_fields - completed_fields
                         if pending:
                             raise ValueError(f"Submit deferred; incomplete visible fields: {', '.join(label for _, _, label in sorted(pending))}")
-                    self._guard(decision, observation, ledger, goal, download_paths)
                     if decision.action == "done" and action_executed:
                         if decision.verify and not self._fresh_verification(decision.verify, initial_observation, observation):
                             raise ValueError("done verification was already satisfied initially")
                         valid_grounding = [item for item in decision.grounding if self._valid_evidence(item, observation, [])]
                         if valid_grounding and not all(self._fresh_grounding(item, initial_observation, observation) for item in valid_grounding):
                             raise ValueError("done grounding was already satisfied initially or is not current")
+                    if decision.action == "done":
+                        self._prove_last_clause(ledger, decision, observation, initial_observation if action_executed else None)
+                    self._guard(decision, observation, ledger, goal, download_paths)
                     if selected_experiment:
                         logger.start_experiment(run_id, step, selected_experiment)
                 except ValueError as exc:
@@ -1085,7 +1130,7 @@ class Agent:
                         self.graph.add_transition(current_node, current_node, decision, success, goal, run_id, error, verification.status)
                     if self.config.verbose: print(f"[step {step}] verification: {verification.status}; {verification.reason}")
                     if success:
-                        self._merge_constraints(ledger, decision, observation, download_paths)
+                        self._merge_constraints(ledger, decision, observation, download_paths, initial_observation)
                         self.graph.mark_run_completed(run_id)
                         result = RunResult(run_id, True, step, current_node, history=history, download_paths=download_paths,
                                            constraints=list(ledger.values()))
@@ -1192,6 +1237,7 @@ class Agent:
                         attempt_replay_keys.clear()
                     if target and decision.verify and verification.status == "passed":
                         completed_fields.add(control_key(target))
+                        if decision.action == "click": self._prove_named_clause(ledger, target)
                     if verification.status != "passed" or next_observation.url != observation.url:
                         planned.clear(); workflow.clear()
                     # Cross-page templates lack a functional state contract. Keep
@@ -1204,7 +1250,7 @@ class Agent:
                     if verification.download_path and verification.download_path not in download_paths:
                         download_paths.append(verification.download_path)
                     self._prove_constraints(ledger, decision, observation, download_paths)
-                    self._merge_constraints(ledger, decision, next_observation, download_paths)
+                    self._merge_constraints(ledger, decision, next_observation, download_paths, initial_observation)
                     observation = next_observation
                     observe_ms = next_observe_ms
                 except StaleObservation as exc:

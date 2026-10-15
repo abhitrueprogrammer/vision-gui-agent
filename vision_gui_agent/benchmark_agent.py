@@ -8,6 +8,8 @@ benchmark workflow without DOM or evaluator access.
 from __future__ import annotations
 
 import asyncio
+import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -120,8 +122,38 @@ class BenchmarkTaskPolicy:
             else: return index
         return len(self.steps)
 
+    def _part_action(self, part: str) -> int | None:
+        """The scripted step that completes a goal part: the last one sharing the most words with it."""
+        stop = {"the", "a", "an", "to", "with", "it", "as", "for", "of", "on", "in", "and", "then", "your", "yourself"}
+        def stems(text: str) -> set[str]:
+            return {word[:5] for word in re.findall(r"[a-z0-9#]+", text.casefold().replace("_", " ")) if word not in stop}
+        words = stems(part)
+        scores = [(len(words & stems(f"{action} {self.app.actions[action].label} {self._evidence(action)}")), index)
+                  for index, action in enumerate(self.steps)]
+        best = max(scores, default=(0, None))
+        return best[1] if best[0] else None
+
+    def _part_proofs(self, observation: Observation, context: dict) -> tuple[GoalConstraint, ...]:
+        """Prove each open goal part whose completing step ran and whose status text is on screen now."""
+        proofs = []
+        for raw in context.get("constraints", []):
+            if raw.get("kind") != "goal_clause" or raw.get("status") != "unproven": continue
+            index = self._part_action(raw.get("expected", ""))
+            if index is None or index >= self.index: continue
+            phrase = _normal(self._evidence(self.steps[index]))
+            shown = next((item for item in observation.elements if not item.actionable and _normal(item.text) == phrase), None)
+            if shown is not None:
+                proofs.append(GoalConstraint.from_dict({**raw, "status": "proven", "evidence": [
+                    {"source": "element_text", "expected": shown.text, "element_id": shown.id}]}))
+        return tuple(proofs)
+
     async def decide(self, _goal: str, observation: Observation, _context: dict, history: list[ActionRecord]) -> list[ActionDecision]:
         self.index = self._progress(history)
+        decisions = self._decide(observation, _context)
+        proofs = self._part_proofs(observation, _context) if self.task.expected_effective else ()
+        return [replace(decisions[0], constraints=decisions[0].constraints + proofs)] + decisions[1:] if proofs else decisions
+
+    def _decide(self, observation: Observation, _context: dict) -> list[ActionDecision]:
         if self.index >= len(self.steps):
             if not self.task.expected_effective:
                 reason = f"{self.app.actions[self.task.target].label} is not available here"

@@ -53,11 +53,10 @@ class ScopedConstraintTests(unittest.TestCase):
         self.assertEqual([item.expected for item in Agent._goal_clauses("export the Launch Brief as PDF, then turn on notifications", {"brief": brief})],
                          ["turn on notifications"])
 
-    def test_goal_parts_can_be_declared_unavailable_but_do_not_gate_done(self):
+    def test_goal_parts_can_be_declared_unavailable(self):
         # Smoke run: with nothing compiled, "require approval for project changes" had nothing to mark unavailable.
         ledger = {item.id: item for item in Agent._goal_clauses("require approval for project changes", {})}
         status = Observation("", "", [report(1, "Approval required", actionable=False)], "", "Settings")
-        Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval required", 1),)), status, ledger)
         declared = ActionDecision("done", constraints=(GoalConstraint("goal-part-1", "Goal part: require approval for project changes", True, "unavailable", (),
                                                                       "Viewers have no approval control", kind="goal_clause",
                                                                       expected="require approval for project changes", source_span="require approval for project changes"),))
@@ -67,6 +66,39 @@ class ScopedConstraintTests(unittest.TestCase):
         # A clause constraint is not a selection restriction: clicking an unrelated control stays allowed.
         Agent._guard(ActionDecision("click", 2, grounding=(EvidenceRecord("element_text", "Settings", 2),)),
                      Observation("", "", [report(2, "Settings")], "", "Overview"), {item.id: item for item in Agent._goal_clauses("require approval", {})})
+
+    def test_each_goal_part_needs_its_own_new_status_before_done(self):
+        # Smoke run: "turn on notifications and save project approval with reviewers" ended after notifications alone.
+        goal = "turn on notifications and save project approval with reviewers"
+        ledger = {item.id: item for item in Agent._goal_clauses(goal, {})}
+        initial = Observation("", "", [report(1, "Notifications are off", actionable=False)], "", "Settings")
+        on = Observation("", "", [report(2, "Notifications are on", actionable=False)], "", "Settings")
+        done = ActionDecision("done", grounding=(EvidenceRecord("element_text", "Notifications are on", 2),))
+        Agent._prove_last_clause(ledger, done, on, initial)  # two parts open: done proves neither
+        with self.assertRaisesRegex(ValueError, "save project approval with reviewers' not yet shown done"):
+            Agent._guard(done, on, ledger)
+        part = lambda index, status, evidence: GoalConstraint.from_dict({**ledger[f"goal-part-{index}"].to_dict(), "status": status, "evidence": evidence})
+        # Text already on the first screen, or a control's own label, proves nothing.
+        Agent._merge_constraints(ledger, ActionDecision("click", 1, constraints=(part(1, "proven", [{"source": "element_text", "expected": "Notifications are off", "element_id": 1}]),)), initial, [], initial)
+        self.assertEqual(ledger["goal-part-1"].status, "unproven")
+        Agent._merge_constraints(ledger, ActionDecision("click", 2, constraints=(part(1, "proven", [{"source": "element_text", "expected": "Notifications are on", "element_id": 2}]),)), on, [], initial)
+        self.assertEqual(ledger["goal-part-1"].status, "proven")
+        # The same status line cannot prove the second part too.
+        Agent._prove_last_clause(ledger, done, on, initial)
+        self.assertEqual(ledger["goal-part-2"].status, "unproven")
+        saved = Observation("", "", [report(3, "Approval required · Reviewers: Alex Kim", actionable=False)], "", "Settings")
+        Agent._prove_last_clause(ledger, ActionDecision("done", verify=VerificationCondition("element_visible", pattern="Approval required")), saved, initial)
+        self.assertEqual(ledger["goal-part-2"].status, "proven")
+
+    def test_a_goal_part_naming_the_clicked_control_is_proven_by_it(self):
+        ledger = {item.id: item for item in Agent._goal_clauses("turn on notifications and archive the brief", {})}
+        Agent._prove_named_clause(ledger, report(1, "Notifications"))
+        self.assertEqual([item.status for item in ledger.values()], ["proven", "unproven"])
+        share = {item.id: item for item in Agent._goal_clauses("share the launch brief", {})}
+        Agent._prove_named_clause(share, report(2, "Launch Brief"))  # opening the document is not sharing it
+        self.assertEqual(share["goal-part-1"].status, "unproven")
+        Agent._prove_named_clause(share, report(3, "Share brief"))
+        self.assertEqual(share["goal-part-1"].status, "proven")
 
     def test_only_an_unambiguous_enabled_click_skips_refinement(self):
         def detected(id, text, enabled=True):
