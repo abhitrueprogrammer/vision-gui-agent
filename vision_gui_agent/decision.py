@@ -166,7 +166,10 @@ class GeminiPolicy:
         }
         tiles = selection_tiles(observation)
         prompt["target_tiles"] = [metadata for metadata,_ in tiles]
-        prompt["instructions"] += (" If no actionable proposal covers the intended visible target, request action:'inspect' with text describing that target and row/context; inspection dispatches no input and has a two-request budget. "
+        inspect_rule = (" If no actionable proposal covers the intended visible target, request action:'inspect' with text describing that target and row/context; inspection dispatches no input and has a two-request budget. "
+                        if graph_context.get("inspect_remaining", 2) > 0 else
+                        " The inspection budget is spent: never request inspect again. Act on a listed actionable element, navigate elsewhere, or scroll. ")
+        prompt["instructions"] += (inspect_rule +
                                     "For repeated labels include context evidence as well as element_text. Proposal uncertainty requests focused semantic confirmation before dispatch. "
                                     "Only one action runs before observing again. Generic pixel changes are supporting evidence, not completion proof. "
                                     "Native helpers require hybrid execution; unsupported control types/states must be inspected or refused.")

@@ -55,6 +55,25 @@ class ModelRequestBoundaryTests(unittest.TestCase):
         prompt = json.loads(requests[0]['contents'][-1])
         self.assertAlmostEqual(prompt['elements'][0]['source_scores']['recognition'], .9, places=6)
 
+    def test_policy_is_told_once_the_inspect_budget_is_spent(self):
+        # The smoke run's policy asked to inspect eleven times after the budget ran out, wasting every step.
+        requests = []
+        def generate(**request):
+            requests.append(request)
+            return SimpleNamespace(text='{"action":"click","element_id":1}')
+        policy = configured(GeminiPolicy, generate)
+        target = Element(1, '', 'button', 'Search', '', '', 'button', 20, 20, 40, 30)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'screen.png'
+            Image.new('RGB', (200, 100), 'white').save(path)
+            for remaining in (2, 0):
+                asyncio.run(policy.decide('Search', Observation(str(path), str(path), [target], '', ''),
+                                          {'inspect_remaining': remaining}, []))
+        available, spent = (json.loads(request['contents'][-1])['instructions'] for request in requests)
+        self.assertIn("request action:'inspect'", available)
+        self.assertNotIn("request action:'inspect'", spent)
+        self.assertIn('never request inspect again', spent)
+
     def test_network_failure_does_not_retain_previous_response(self):
         def generate(**request):
             raise ConnectionError('Temporary failure in name resolution')

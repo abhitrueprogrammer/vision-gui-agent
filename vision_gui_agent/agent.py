@@ -824,6 +824,7 @@ class Agent:
                 graph_context["execution_mode"] = self.config.execution_mode
                 graph_context["constraints"] = [item.to_dict() for item in ledger.values()]
                 graph_context["completion"] = self._completion_summary(required_fields, completed_fields)
+                graph_context["inspect_remaining"] = max(0, 2 - discovery_attempts) if hasattr(self.grounder, "discover") else 0
                 timings = {"observe_ms": observe_ms, "model_ms": 0.0, "execute_ms": 0.0}
                 try:
                     decision: ActionDecision | None = None
