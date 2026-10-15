@@ -392,6 +392,20 @@ class Agent:
         })
 
     @staticmethod
+    def _goal_clauses(goal: str, ledger: dict[str, GoalConstraint]) -> tuple[GoalConstraint, ...]:
+        """One material constraint per goal part the compiler left uncovered.
+
+        They give the policy something to mark unavailable whatever the compiler returned; without
+        them a goal the compiler found nothing in could never be declared unavailable. They do not
+        gate done: a part's completion is not provable from a single status line in general.
+        """
+        parts = [" ".join(part.split()) for part in re.split(r"\b(?:and|then)\b|[,;]", goal, flags=re.IGNORECASE) if part.strip()]
+        spans = [item.source_span for item in ledger.values() if item.source_span]
+        return tuple(GoalConstraint(f"goal-part-{index}", f"Goal part: {part}", kind="goal_clause", expected=part, source_span=part)
+                     for index, part in enumerate(parts, 1)
+                     if not any(Agent._contains(part, span) or Agent._contains(span, part) for span in spans))
+
+    @staticmethod
     def _compiled_constraints(goal: str, constraints: tuple[GoalConstraint, ...] | list[GoalConstraint]) -> tuple[GoalConstraint, ...]:
         return tuple(item for item in constraints if not Agent._observational_goal(goal) or item.kind == "extremum")
 
@@ -518,7 +532,7 @@ class Agent:
                 raise ValueError("Submit requires explicit submit intent in the goal")
             if decision.verify is None:
                 raise ValueError("Submit requires a visible success postcondition")
-        scoped = [item for item in ledger.values() if item.material and item.source_span and item.kind != "entity_quantity"]
+        scoped = [item for item in ledger.values() if item.material and item.source_span and item.kind not in {"entity_quantity", "goal_clause"}]
         if scoped and decision.element_id is not None and not Agent._is_discovery_action(decision, target, observation, scoped):
             pending = [constraint for constraint in scoped if constraint.status != "proven"]
             if pending and (not target or not target.context.strip()): raise ValueError("Constrained action requires an item context")
@@ -549,7 +563,8 @@ class Agent:
             if not target or not target_evidence or not any(Agent._target_evidence_matches(item, target) for item in target_evidence):
                 raise ValueError("High-impact action lacks valid target grounding")
         if Agent._is_high_impact(decision, observation):
-            unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven" and not (item.source_span and decision.element_id is not None)]
+            unproven = [item.id for item in ledger.values() if item.material and item.status == "unproven" and item.kind != "goal_clause"
+                        and not (item.source_span and decision.element_id is not None)]
             if unproven and not (decision.action == "done" and unavailable):
                 raise ValueError(f"High-impact action deferred; unproven constraints: {', '.join(unproven)}")
 
@@ -786,6 +801,8 @@ class Agent:
                 # an unavailable model must not make unrelated form tasks impossible.
                 if self.config.verbose: print(f"Goal compiler unavailable: {exc}")
         for constraint in self._explicit_hard_constraints(goal):
+            ledger.setdefault(constraint.id, constraint)
+        for constraint in self._goal_clauses(goal, ledger):
             ledger.setdefault(constraint.id, constraint)
         comparison = self._comparison_constraint(goal)
         if comparison: ledger[comparison.id] = comparison

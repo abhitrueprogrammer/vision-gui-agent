@@ -124,7 +124,7 @@ class GoalConstraint:
     status: ConstraintStatus = "unproven"
     evidence: tuple[EvidenceRecord, ...] = ()
     unavailable_reason: str | None = None
-    kind: Literal["target_text", "extremum", "entity_quantity"] = "target_text"
+    kind: Literal["target_text", "extremum", "entity_quantity", "goal_clause"] = "target_text"
     scope: Literal["affected_items", "final_collection"] = "affected_items"
     expected: str = ""
     source_span: str = ""
@@ -140,7 +140,7 @@ class GoalConstraint:
         if status == "unavailable" and (not isinstance(reason, str) or not reason.strip()): raise ValueError("unavailable constraints require a reason")
         if not isinstance(evidence, list): raise ValueError("constraint evidence must be a list")
         kind, scope, quantity = raw.get("kind", "target_text"), raw.get("scope", "affected_items"), raw.get("quantity")
-        if kind not in {"target_text", "extremum", "entity_quantity"} or scope not in {"affected_items", "final_collection"}:
+        if kind not in {"target_text", "extremum", "entity_quantity", "goal_clause"} or scope not in {"affected_items", "final_collection"}:
             raise ValueError("invalid constraint kind or scope")
         if kind == "entity_quantity":
             if scope != "final_collection" or not isinstance(quantity, int) or isinstance(quantity, bool) or quantity < 1:

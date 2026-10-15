@@ -45,6 +45,29 @@ class ScopedConstraintTests(unittest.TestCase):
         Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("context", "Audited report", 1),)), matching, ledger)
         self.assertEqual(ledger["audited"].status, "proven")
 
+    def test_each_goal_part_the_compiler_missed_gets_a_constraint(self):
+        parts = Agent._goal_clauses("turn on notifications and save project approval with reviewers", {})
+        self.assertEqual([(item.kind, item.expected) for item in parts],
+                         [("goal_clause", "turn on notifications"), ("goal_clause", "save project approval with reviewers")])
+        brief = GoalConstraint("brief", "", kind="target_text", expected="Launch Brief", source_span="export the Launch Brief as PDF")
+        self.assertEqual([item.expected for item in Agent._goal_clauses("export the Launch Brief as PDF, then turn on notifications", {"brief": brief})],
+                         ["turn on notifications"])
+
+    def test_goal_parts_can_be_declared_unavailable_but_do_not_gate_done(self):
+        # Smoke run: with nothing compiled, "require approval for project changes" had nothing to mark unavailable.
+        ledger = {item.id: item for item in Agent._goal_clauses("require approval for project changes", {})}
+        status = Observation("", "", [report(1, "Approval required", actionable=False)], "", "Settings")
+        Agent._guard(ActionDecision("done", grounding=(EvidenceRecord("element_text", "Approval required", 1),)), status, ledger)
+        declared = ActionDecision("done", constraints=(GoalConstraint("goal-part-1", "Goal part: require approval for project changes", True, "unavailable", (),
+                                                                      "Viewers have no approval control", kind="goal_clause",
+                                                                      expected="require approval for project changes", source_span="require approval for project changes"),))
+        Agent._merge_constraints(ledger, declared, status, [])
+        self.assertEqual(ledger["goal-part-1"].status, "unavailable")
+        Agent._guard(declared, status, ledger)
+        # A clause constraint is not a selection restriction: clicking an unrelated control stays allowed.
+        Agent._guard(ActionDecision("click", 2, grounding=(EvidenceRecord("element_text", "Settings", 2),)),
+                     Observation("", "", [report(2, "Settings")], "", "Overview"), {item.id: item for item in Agent._goal_clauses("require approval", {})})
+
     def test_explicit_hard_requirement_survives_empty_compiler_output(self):
         constraints = Agent._explicit_hard_constraints("Find reports. Audited is a hard requirement.")
         self.assertEqual((constraints[0].expected, constraints[0].source_span), ("Audited", "Audited"))

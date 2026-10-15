@@ -125,7 +125,10 @@ class BenchmarkTaskPolicy:
         if self.index >= len(self.steps):
             if not self.task.expected_effective:
                 reason = f"{self.app.actions[self.task.target].label} is not available here"
-                return [ActionDecision("done", rationale=reason, constraints=(
+                # Existing constraints are marked under their own ids, as the agent requires once any exist.
+                existing = tuple(GoalConstraint.from_dict({**item, "status": "unavailable", "evidence": [], "unavailable_reason": reason})
+                                 for item in _context.get("constraints", []) if item.get("material", True))
+                return [ActionDecision("done", rationale=reason, constraints=existing or (
                     GoalConstraint("calibration-unavailable", f"Goal: {self.task.goal}", True, "unavailable", (), reason),))]
             phrase = _normal(self._evidence(self.steps[-1]))
             target = next((item for item in observation.elements if not item.actionable and _normal(item.text) == phrase), None)

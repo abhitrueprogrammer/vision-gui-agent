@@ -145,6 +145,7 @@ class GeminiPolicy:
                 "{source:'element_text|value|role|tag|context',expected:'visible text',element_id:12}; "
                 "use {source:'comparison',comparison:{candidates:[...],direction:'min|max',attribute:'element_text',selected:...}} when applicable). "
                 "The agent normally maintains and proves constraints itself. Include constraints only to mark an existing graph_context constraint unavailable, preserving its id and definition exactly and giving a visible-state reason. Labels are predictions, not facts. "
+                "Constraints of kind goal_clause are the parts of the goal. A part that cannot be done here must be marked unavailable with a visible-state reason before done. "
                 "Optionally include verify: exactly one of {kind:'page_changed'}, "
                 "{kind:'element_visible',pattern:'Order submitted'}, {kind:'element_enabled',pattern:'Export document'}, {kind:'element_absent',pattern:'Loading'}, "
                 "{kind:'element_value',element_id:4,expected:'example'}, {kind:'element_checked',element_id:4,expected:'true'}, {kind:'element_filename',element_id:4,expected:'report.pdf'}, {kind:'element_color',element_id:4,expected:'#12ab34'}, {kind:'element_range',element_id:4,expected:'12'}, {kind:'element_changed',element_id:4}, or {kind:'download_created'}. "
