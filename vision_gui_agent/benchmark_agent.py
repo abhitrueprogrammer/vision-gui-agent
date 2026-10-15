@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .models import ActionDecision, ActionRecord, Element, EvidenceRecord, GoalConstraint, Observation, VerificationCondition
-from .perception import OmniParserVisualGrounder
+from PIL import Image
+
+from .perception import DISABLED_CONTRAST, OmniParserVisualGrounder, label_contrast
 from .visual_function_lab import APPS, TaskSpec, evidence_phrases
 
 
@@ -30,7 +32,7 @@ class CalibrationGrounder:
     """
     last_label = "Visual Function Lab"
 
-    DETECTION_VERSION = "calibration-v2"
+    DETECTION_VERSION = "calibration-v3"
 
     def __init__(self, ocr: Callable[..., Any] | None = None, cache: Any | None = None) -> None:
         if ocr is None:
@@ -59,6 +61,8 @@ class CalibrationGrounder:
             except TypeError: return self.ocr(str(screenshot))
         raw = await asyncio.to_thread(read)
         records = OmniParserVisualGrounder._records(raw)
+        with Image.open(screenshot) as source:
+            image = source.convert("RGB")
         elements: list[Element] = []
         for points, text, score in records:
             if score < .6 or not text.strip() or len(points) < 4: continue
@@ -66,8 +70,11 @@ class CalibrationGrounder:
             xs, ys = [point[0] for point in points], [point[1] for point in points]
             x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
             if normalized in self._controls:
+                # The same pixel check as the OmniParser grounder, so calibration sees greyed-out controls too.
+                contrast = label_contrast(image, (x1, y1, x2, y2))
                 elements.append(Element(len(elements) + 1, "", "button", " ".join(text.split()), "", "", "button",
-                                        x1, y1, x2 - x1, y2 - y1, actionable=True, confidence=score))
+                                        x1, y1, x2 - x1, y2 - y1, actionable=True, confidence=score,
+                                        enabled=contrast is None or contrast >= DISABLED_CONTRAST))
             elif normalized in self._nav:
                 elements.append(Element(len(elements) + 1, "", "link", " ".join(text.split()), "", "", "link",
                                         x1, y1, x2 - x1, y2 - y1, actionable=True, confidence=score))

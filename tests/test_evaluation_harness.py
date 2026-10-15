@@ -136,6 +136,17 @@ class RateLimitTests(unittest.TestCase):
         self.assertGreater(len(pauses), 3)
         self.assertLessEqual(sum(pauses), GeminiClientPool.BACKOFF_LIMIT_S * 1.5 + 60)
 
+    def test_a_temporary_overload_is_waited_out(self):
+        pool = object.__new__(GeminiClientPool)
+        pool._keys, pool._index, pool.client = ["one"], 0, object()
+        calls, pauses = [], []
+        def flaky(_client):
+            calls.append(1)
+            if len(calls) < 3: raise RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand.")
+            return SimpleNamespace(text="ok")
+        self.assertEqual(pool.generate(flaky, sleep=pauses.append).text, "ok")
+        self.assertEqual((len(calls), len(pauses)), (3, 2))
+
     def test_usage_and_model_version_are_recorded(self):
         from vision_gui_agent.gemini import LAST_MODEL_VERSION
         pool = object.__new__(GeminiClientPool)

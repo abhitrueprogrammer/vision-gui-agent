@@ -52,6 +52,12 @@ def configured_gemini_keys(env_path: Path = Path(".env")) -> list[str]:
     return keys
 
 
+def _overloaded(error: Exception) -> bool:
+    """A temporary server-side failure (overload, internal error, deadline) worth waiting out."""
+    message = str(error).upper()
+    return any(marker in message for marker in ("503", "UNAVAILABLE", "HIGH DEMAND", "OVERLOADED", "500 INTERNAL", "DEADLINE_EXCEEDED"))
+
+
 def _quota_exhausted(error: Exception) -> bool:
     message = str(error).upper()
     return "RESOURCE_EXHAUSTED" in message or "429" in message
@@ -162,7 +168,9 @@ class GeminiClientPool:
         limiter = shared_limiter()
         dns_retries, waited, delay = 0, 0.0, 1.0
         while True:
+            overloaded = False
             for attempt in range(len(self._keys)):
+                if overloaded: break
                 while True:
                     row = limiter.acquire(purpose) if limiter else None
                     try:
@@ -175,6 +183,9 @@ class GeminiClientPool:
                                 "Temporary Gemini DNS failure; retry %s/2 in %.1fs", dns_retries, pause)
                             sleep(pause)
                             continue
+                        if _overloaded(error):  # the same key will do once the server recovers
+                            overloaded = True
+                            break
                         if not _quota_exhausted(error): raise
                         if attempt + 1 < len(self._keys):
                             self._index = (self._index + 1) % len(self._keys)
@@ -185,8 +196,8 @@ class GeminiClientPool:
                     if getattr(result, "model_version", None): LAST_MODEL_VERSION["value"] = result.model_version
                     return result
             if waited >= self.BACKOFF_LIMIT_S:
-                raise RuntimeError("Gemini quota exhausted on every key after backoff (RESOURCE_EXHAUSTED)")
+                raise RuntimeError("Gemini quota exhausted or unavailable after backoff (RESOURCE_EXHAUSTED/UNAVAILABLE)")
             pause = min(delay, 60.0, self.BACKOFF_LIMIT_S - waited) * (.5 + random.random())
-            logging.getLogger(__name__).warning("Gemini quota exhausted on every key; backing off %.1fs", pause)
+            logging.getLogger(__name__).warning("Gemini overloaded or out of quota; backing off %.1fs", pause)
             sleep(pause)
             waited, delay = waited + pause, delay * 2

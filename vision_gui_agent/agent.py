@@ -794,6 +794,7 @@ class Agent:
         # can undo each other); after that the learned model sits out the rest of the run.
         learned_seen: set[str] = set()
         learned_enabled = True
+        self.functional_planner.failed = set()
         try:
             observed_at = perf_counter()
             observation = await observe(page, self.config.artifact_dir / run_id, 0, self.grounder)
@@ -1126,6 +1127,8 @@ class Agent:
                                 schema = self.action_model.ingest(semantic, before_values, after_values, outcome, evidence_id,
                                                                   run_id=run_id, texts=belief.texts())
                                 if outcome in {"effective", "provisional"}: changed_actions.append((semantic, evidence_id))
+                                # A click that did nothing: its looks (an enabled, error-style control) misled the planner.
+                                if outcome in {"ineffective", "no_change"}: self.functional_planner.failed.add(schema.id)
                                 if outcome == "effective":
                                     belief.predict((effect.predicate, effect.resulting_value, effect.evidence_text) for effect in schema.effects
                                                    if self.action_model.is_confident(effect) and fact_parts(effect.predicate)[0] != after_scope)

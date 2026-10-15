@@ -318,6 +318,11 @@ class ActionModel:
         frequency: dict[str, int] = {}
         for _, _, weights in entries:
             for stem in weights: frequency[stem] = frequency.get(stem, 0) + 1
+        known = set(frequency) | {stem for schema in self.schemas.values() for stem in self._stems(schema.semantic_name.partition("__")[2] or schema.semantic_name)}
+        # A goal word the model has never seen ("macro" before any macro was saved) means the goal
+        # involves something not yet learned; matching on the remaining words would pick the wrong target.
+        # Words with digits name instances (#1042, Q3), not kinds of action, so they are not "new" words.
+        if {word for word in words - known if not any(char.isdigit() for char in word)}: return None
         consumed = {item.predicate for schema in self.schemas.values() for item in schema.preconditions}
         # Effects nothing else depends on are what a task asks for; setup effects only match by accident.
         scored: dict[tuple[str, object], tuple[bool, float, float]] = {}
@@ -330,7 +335,9 @@ class ActionModel:
             candidate = (effect.predicate not in consumed, score, effect.confidence)
             if key not in scored or candidate > scored[key]: scored[key] = candidate
         if not scored: return None
-        ranked = sorted(scored.items(), key=lambda item: item[1], reverse=True)
+        # Relevance first: only matches close to the best are considered, then terminal effects win.
+        top = max(score for _, score, _ in scored.values())
+        ranked = sorted(((key, value) for key, value in scored.items() if value[1] >= .5 * top), key=lambda item: item[1], reverse=True)
         (best, (terminal, score, _)), rest = ranked[0], ranked[1:]
         if rest and rest[0][1][0] == terminal and rest[0][1][1] >= .9 * score: return None
         return best

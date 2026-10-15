@@ -235,9 +235,10 @@ class ContextConditionTests(unittest.TestCase):
 
 
 class PlanningTests(unittest.TestCase):
-    def model(self):
+    def model(self, confirmed: bool = False):
         effect = lambda name, value=True: ActionEffect(name, value, 2, 0, ("a", "b"))
-        need = lambda name: ActionPrecondition(name, True, "unknown", 2, 0, ("a", "b"))
+        need = lambda name: (ActionPrecondition(name, True, "required", 2, 0, ("a", "b"), 1) if confirmed
+                             else ActionPrecondition(name, True, "unknown", 2, 0, ("a", "b")))
         return ActionModel(schemas=(
             ActionSchema("s__open.v1", "s__open", "t", "s|open", "harmless_reversible", effects=(effect("s__text_open"),)),
             ActionSchema("s__report.v1", "s__report", "t", "s|report", "harmless_reversible", (need("s__text_open"),), (effect("s__text_report_created"),)),
@@ -249,8 +250,36 @@ class PlanningTests(unittest.TestCase):
         model = self.model()
         targets = model.goal_effects("create the report, then export it")
         self.assertEqual(targets, [("s__text_report_created", True), ("s__text_export_ready", True)])
-        plan = FunctionalPlanner(model, 4, .5).plan_all(targets, {"s__text_report_created": True})
+        blocked = {"s__text_report_created": True, "s__available_export": False}
+        # Export's control is seen unavailable and only unconfirmed guesses could explain it: leave it to the policy.
+        self.assertIsNone(FunctionalPlanner(model, 4, .5).plan_all(targets, blocked))
+        # A confirmed precondition explains the block, so it is planned for.
+        plan = FunctionalPlanner(self.model(confirmed=True), 4, .5).plan_all(targets, blocked)
         self.assertEqual([item.semantic_name for item in plan], ["s__open", "s__export"])
+
+    def test_an_available_or_unseen_control_is_used_without_unconfirmed_candidates(self):
+        planner = FunctionalPlanner(self.model(), 4, .5)
+        for state in ({}, {"s__available_export": True}):
+            self.assertEqual([item.semantic_name for item in planner.plan("s__text_export_ready", state)], ["s__export"])
+        planner.failed.add("s__export.v1")  # it was tried and did nothing; guesses would only add side effects
+        self.assertIsNone(planner.plan("s__text_export_ready", {}))
+
+    def test_a_blocked_control_is_made_available_through_learned_availability_effects(self):
+        effect = lambda name, value=True: ActionEffect(name, value, 2, 0, ("a", "b"))
+        spurious = ActionPrecondition("s__text_signed_in", True, "unknown", 2, 0, ("a", "b"))
+        model = ActionModel(schemas=(
+            ActionSchema("s__sign_in.v1", "s__sign_in", "t", "s|sign_in", "harmless_reversible", effects=(effect("s__text_signed_in"),)),
+            ActionSchema("s__pdf.v1", "s__pdf", "t", "s|pdf", "harmless_reversible", effects=(effect("s__available_confirm"),)),
+            ActionSchema("s__confirm.v1", "s__confirm", "t", "s|confirm", "harmless_reversible", (spurious,), (effect("s__text_ready"),)),
+        ))
+        plan = FunctionalPlanner(model, 4, .5).plan("s__text_ready", {"s__available_confirm": False})
+        # Through the availability effect, not the co-occurring sign-in candidate (a side effect).
+        self.assertEqual([item.semantic_name for item in plan], ["s__pdf", "s__confirm"])
+
+    def test_a_goal_word_never_seen_defers_to_the_policy(self):
+        model = self.model()
+        self.assertIsNone(model._match("save a reply macro", .5))  # "macro" was never learned
+        self.assertEqual(model._match("create report #1042", .5), ("s__text_report_created", True))  # identifiers are fine
 
     def test_goal_targets_are_never_disappearances(self):
         self.assertNotIn(("s__text_open", False), self.model().goal_effects("close open"))
