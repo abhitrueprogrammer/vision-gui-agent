@@ -68,6 +68,23 @@ class ScopedConstraintTests(unittest.TestCase):
         Agent._guard(ActionDecision("click", 2, grounding=(EvidenceRecord("element_text", "Settings", 2),)),
                      Observation("", "", [report(2, "Settings")], "", "Overview"), {item.id: item for item in Agent._goal_clauses("require approval", {})})
 
+    def test_only_an_unambiguous_enabled_click_skips_refinement(self):
+        def detected(id, text, enabled=True):
+            return Element(id, "", "other", text, "", "", "other", 0, 0, 10, 10, enabled=enabled, proposal_sources=("detector", "ocr"))
+        docs, data = detected(4, "Documents"), detected(1, "Data")
+        cite = lambda element: (EvidenceRecord("element_text", element.text, element.id),)
+        screen = Observation("", "", [docs, data], "", "Overview")
+        self.assertTrue(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(docs)), docs, screen))
+        # Refinement still runs for: a repeated label, a pixel-disabled control, a fill, an uncited target, OCR-only text.
+        twice = Observation("", "", [docs, detected(5, "Documents")], "", "Overview")
+        self.assertFalse(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(docs)), docs, twice))
+        disabled = detected(4, "Share brief", enabled=False)
+        self.assertFalse(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(disabled)), disabled, Observation("", "", [disabled], "", "")))
+        self.assertFalse(Agent._unambiguous_click(ActionDecision("fill", 4, text="x", grounding=cite(docs)), docs, screen))
+        self.assertFalse(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(data)), docs, screen))
+        ocr_only = Element(4, "", "text", "Documents", "", "", "text", 0, 0, 10, 10, proposal_sources=("ocr",))
+        self.assertFalse(Agent._unambiguous_click(ActionDecision("click", 4, grounding=cite(ocr_only)), ocr_only, Observation("", "", [ocr_only], "", "")))
+
     def test_explicit_hard_requirement_survives_empty_compiler_output(self):
         constraints = Agent._explicit_hard_constraints("Find reports. Audited is a hard requirement.")
         self.assertEqual((constraints[0].expected, constraints[0].source_span), ("Audited", "Audited"))

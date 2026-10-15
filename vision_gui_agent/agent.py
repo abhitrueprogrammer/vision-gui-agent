@@ -122,15 +122,29 @@ class Agent:
         return snapshot.values()
 
     @staticmethod
-    def _confirm_learned_target(observation: Observation, target) -> Observation:
+    def _confirm_learned_target(observation: Observation, target, source: str = "learned_identity") -> Observation:
         """A unique control the model already learned needs no Gemini confirmation.
 
         Marking it confirmed is what lets validate_for accept a raw detector
         element, which otherwise always needs semantic refinement.
         """
         return replace(observation, elements=[
-            replace(item, semantic_confirmed=True, uncertainties=(), proposal_sources=tuple(item.proposal_sources) + ("learned_identity",))
+            replace(item, semantic_confirmed=True, uncertainties=(), proposal_sources=tuple(item.proposal_sources) + (source,))
             if item.id == target.id else item for item in observation.elements])
+
+    @staticmethod
+    def _unambiguous_click(decision: ActionDecision, target, observation: Observation) -> bool:
+        """A click on the only control with its label, cited by that label and enabled by the pixel check.
+
+        Refinement would only re-find the same box: about half of all Gemini calls in the smoke run.
+        Fills and selects still refine, since refinement reports the field's type and editability.
+        """
+        label = control_identity(target) if target is not None else ""
+        return (decision.action == "click" and bool(label) and target.enabled is not False
+                and {"detector", "ocr"} <= set(target.proposal_sources)
+                and sum(control_identity(item) == label for item in observation.elements) == 1
+                and any(item.source == "element_text" and item.element_id == target.id and Agent._normal(item.expected or "") == Agent._normal(target.text)
+                        for item in decision.grounding))
 
     def _navigation_decision(self, key: str, observation: Observation) -> ActionDecision | None:
         """Click the visible link recorded for a section; OCR may read it as text rather than a control."""
@@ -957,6 +971,8 @@ class Agent:
                                           and sum(control_identity(item) == control_identity(target) for item in observation.elements) == 1)
                         if learned_target:
                             observation = self._confirm_learned_target(observation, target)
+                        elif target and not decision.direct_click and self._unambiguous_click(decision, target, observation):
+                            observation = self._confirm_learned_target(observation, target, "unique_label")
                         elif target and not decision.direct_click and refinement_reasons(target, observation.elements, decision):
                             with call_purpose("refine"):
                                 refined = await self.grounder.refine(Path(observation.screenshot_path), target,
