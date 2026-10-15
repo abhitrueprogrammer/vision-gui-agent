@@ -252,7 +252,7 @@ class Harness:
                                        " ".join(target.label.casefold().split()) if target else "")
                 allowance = 1 if target is not None and target.style == "error" else 0
                 row.update(run_id=result.run_id, initial_state=task.initial_state, completed=result.completed, error=result.error,
-                           steps=result.steps, passed=outcome["passed"], declared=declared, changed_outside=outcome["changed_outside"],
+                           steps=result.steps, passed=outcome["passed"], reached=outcome.get("reached"), declared=declared, changed_outside=outcome["changed_outside"],
                            invalid_attempts=outcome["invalid_attempts"], gemini_calls=stats["gemini_calls"], origins=stats["origins"],
                            declared_by_model="learned_unavailable" in stats["origins"],
                            wasted_attempts=max(0, stats["target_attempts"] - allowance) if target else None)

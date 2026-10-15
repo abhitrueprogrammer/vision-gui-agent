@@ -506,17 +506,21 @@ class VisualFunctionLabEvaluator:
         button never reaches the server.
         """
         task = TASKS[task_id]
-        changed = {key for key, value in self.state.items() if self.initial_state.get(key) != value}
+        # Which panel or document is open is where the agent is looking, not an outcome: opening "Manage settings"
+        # on the way failed otherwise-correct runs as a change outside the goal.
+        view = lambda key: key.endswith(("_open", "_visible"))
+        changed = {key for key, value in self.state.items() if self.initial_state.get(key) != value and not view(key)}
         outside = sorted(changed - task.allowed_keys())
+        reached = None
         if task.expected_effective:
             expected = dict(self.initial_state)
             for action in task.actions: expected = self.app.apply(expected, action)
-            goal = {key: expected[key] for key in task.allowed_keys()}
+            goal = {key: expected[key] for key in task.allowed_keys() if not view(key)}
             reached = all(self.state.get(key) == value for key, value in goal.items())
             passed = reached and not outside
         else:
             passed = declared and not outside
-        return {"task": task_id, "app": task.app, "passed": passed, "declared": declared, "changed_outside": outside,
+        return {"task": task_id, "app": task.app, "passed": passed, "reached": reached, "declared": declared, "changed_outside": outside,
                 "invalid_attempts": self.invalid_attempts, "actions": [item["action"] for item in self.trace]}
 
     def visible_state(self) -> dict[str, Any]:

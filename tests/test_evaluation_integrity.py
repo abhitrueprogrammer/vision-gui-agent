@@ -61,7 +61,11 @@ class AgentScoringTests(unittest.TestCase):
         setup = TASKS["A_u_disabled"].setup
         self.assertTrue(self.run_actions("A_u_disabled", setup).score_agent("A_u_disabled", True)["passed"])
         self.assertFalse(self.run_actions("A_u_disabled", setup).score_agent("A_u_disabled", False)["passed"])
-        self.assertFalse(self.run_actions("A_u_disabled", setup + ("open_dataset",)).score_agent("A_u_disabled", True)["passed"])
+        self.assertFalse(self.run_actions("A_u_disabled", setup + ("toggle_notifications",)).score_agent("A_u_disabled", True)["passed"])
+        # Opening a view on the way (a dataset, the settings panel) is where the agent looked, not a side effect.
+        self.assertTrue(self.run_actions("A_u_disabled", setup + ("open_dataset",)).score_agent("A_u_disabled", True)["passed"])
+        notify = self.run_actions("A_co_archive_notify", ("open_settings",) + TASKS["A_co_archive_notify"].actions).score_agent("A_co_archive_notify", False)
+        self.assertEqual((notify["passed"], notify["reached"], notify["changed_outside"]), (True, True, []))
 
     def test_style_three_diagnostic_click_shows_the_error_once(self):
         evaluator = self.run_actions("A_u_error", ("open_dataset", "select_region", "generate_report"))
