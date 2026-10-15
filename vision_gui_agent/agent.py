@@ -410,6 +410,10 @@ class Agent:
         })
 
     @staticmethod
+    def _goal_parts(goal: str) -> list[str]:
+        return [" ".join(part.split()) for part in re.split(r"\b(?:and|then)\b|[,;]", goal, flags=re.IGNORECASE) if part.strip()]
+
+    @staticmethod
     def _goal_clauses(goal: str, ledger: dict[str, GoalConstraint]) -> tuple[GoalConstraint, ...]:
         """One material constraint per goal part the compiler left uncovered.
 
@@ -417,8 +421,8 @@ class Agent:
         otherwise a run could stop after its first part, and a goal the compiler found nothing in
         could never be declared unavailable. "Fill every field" parts are left to the completion tracker.
         """
-        parts = [" ".join(part.split()) for part in re.split(r"\b(?:and|then)\b|[,;]", goal, flags=re.IGNORECASE)
-                 if part.strip() and not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", part, re.IGNORECASE)]
+        parts = [part for part in Agent._goal_parts(goal)
+                 if not re.search(r"\b(?:fill|complete|populate|enter|set)\s+(?:every|all)\b", part, re.IGNORECASE)]
         spans = [item.source_span for item in ledger.values() if item.source_span]
         return tuple(GoalConstraint(f"goal-part-{index}", f"Goal part: {part}", kind="goal_clause", expected=part, source_span=part)
                      for index, part in enumerate(parts, 1)
@@ -473,12 +477,15 @@ class Agent:
 
     @staticmethod
     def _compiled_constraints(goal: str, constraints: tuple[GoalConstraint, ...] | list[GoalConstraint]) -> tuple[GoalConstraint, ...]:
-        def verb_only(item: GoalConstraint) -> bool:
-            # "archive it" compiled as items containing "archive": the phrase's verb is not an item, and as a
-            # restriction it refused every later click without that word. Its goal part covers it instead.
+        verbs = {words[0] for part in Agent._goal_parts(goal) if (words := re.findall(r"\w+", part.casefold()))}
+        def action_phrase(item: GoalConstraint) -> bool:
+            # "share the launch brief" or "archive it" compiled as a restriction on items: a phrase starting with
+            # its goal part's verb describes something to do, and as a restriction it refused every later
+            # high-impact click whose row did not repeat the text. Its goal part covers it instead. Item phrases
+            # ("steel bolts", "ticket #4821") stay restrictions.
             span = re.findall(r"\w+", item.source_span.casefold())
-            return item.kind == "target_text" and len(span) > 1 and Agent._normal(item.expected) == span[0]
-        return tuple(item for item in constraints if (not Agent._observational_goal(goal) or item.kind == "extremum") and not verb_only(item))
+            return item.kind == "target_text" and len(span) > 1 and span[0] in verbs
+        return tuple(item for item in constraints if (not Agent._observational_goal(goal) or item.kind == "extremum") and not action_phrase(item))
 
     @staticmethod
     def _has_download(download_paths: list[str]) -> bool:
@@ -562,6 +569,11 @@ class Agent:
                           ("value", target.value), ("aria_label", target.aria_label))
                 source, value = next(((source, value) for source, value in fields
                                       if value and Agent._contains(value, constraint.expected)), (None, None))
+                # The item named without its type word: opening "Q3 Forecast" selects the "Q3 Forecast report",
+                # whose name no control repeats, so the restriction otherwise refused Generate report.
+                label = Agent._normal(re.sub(r"[^\w]+", " ", target.text))
+                if not source and len(label.split()) >= 2 and Agent._normal(re.sub(r"[^\w]+", " ", constraint.expected)).startswith(label + " "):
+                    source, value = "element_text", target.text
                 if source and value:
                     evidence = EvidenceRecord(source, value, target.id)
             elif constraint.kind == "extremum":

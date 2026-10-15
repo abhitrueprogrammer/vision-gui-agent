@@ -131,10 +131,21 @@ class ScopedConstraintTests(unittest.TestCase):
 
     def test_a_compiled_verb_is_not_an_item_restriction(self):
         archive = GoalConstraint("c2", "", kind="target_text", expected="archive", source_span="archive it")
-        brief = GoalConstraint("c1", "", kind="target_text", expected="Launch Brief", source_span="export the Launch Brief as PDF")
+        brief = GoalConstraint("c1", "", kind="target_text", expected="Launch Brief", source_span="Launch Brief")
         self.assertEqual(Agent._compiled_constraints("export the Launch Brief as PDF and archive it", (archive, brief)), (brief,))
+        goal = "assign ticket #4821 and reply to the customer"
+        ticket = GoalConstraint("c1", "", kind="target_text", expected="ticket #4821", source_span="ticket #4821")
+        reply = GoalConstraint("c2", "", kind="target_text", expected="reply to the customer", source_span="reply to the customer")
+        self.assertEqual(Agent._compiled_constraints(goal, (ticket, reply)), (ticket,))
         # Its goal part still exists, since nothing compiled covers "archive it" any more.
         self.assertEqual([item.expected for item in Agent._goal_clauses("export the Launch Brief as PDF and archive it", {"c1": brief})], ["archive it"])
+
+    def test_opening_the_item_named_without_its_type_word_selects_it(self):
+        report_constraint = GoalConstraint("c1", "", kind="target_text", expected="Q3 Forecast report", source_span="create the Q3 Forecast report")
+        for label, proven in (("Q3 Forecast", "proven"), ("Reports", "unproven"), ("Q3", "unproven")):
+            ledger = {"c1": report_constraint}
+            Agent._prove_constraints(ledger, ActionDecision("click", 1), Observation("", "", [report(1, label)], "", "Data"), [])
+            self.assertEqual(ledger["c1"].status, proven, label)
 
     def test_explicit_hard_requirement_survives_empty_compiler_output(self):
         constraints = Agent._explicit_hard_constraints("Find reports. Audited is a hard requirement.")
