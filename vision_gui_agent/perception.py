@@ -387,10 +387,16 @@ class GeminiVisualGrounder:
             left, top = max(0, int(target.x - pad_x)), max(0, int(target.y - pad_y))
             right, bottom = min(image.width, int(target.x + target.width + pad_x)), min(image.height, int(target.y + target.height + pad_y))
             crop = image.crop((left, top, right, bottom))
-            output = BytesIO(); crop.save(output, format="JPEG", quality=85)
+            # Outline the proposed box just outside the control, so the model confirms a marked instance
+            # instead of searching the crop; weaker models otherwise pick a highlighted neighbouring row.
+            marked = crop.copy()
+            ImageDraw.Draw(marked).rectangle((target.x - left - 3, target.y - top - 3, target.x + target.width - left + 3,
+                                              target.y + target.height - top + 3), outline=(255, 0, 255), width=2)
+            output = BytesIO(); marked.save(output, format="JPEG", quality=85)
 
         def generate() -> str:
             prompt = (f"The first image is a full-screen overview for context ONLY. The second image is the target crop ({crop.width}x{crop.height}). "
+                      "The selected control's proposed box is outlined in magenta in the SECOND image; the outline is an annotation, not part of the interface. "
                       "Locate the selected physical control in the SECOND image. Return box_2d as [top,left,bottom,right], "
                       "each normalized to 0..1000 RELATIVE TO THE SECOND IMAGE ONLY. Never return overview coordinates or widths/heights. "
                       "For example, the entire second image is [0,0,1000,1000]. "
