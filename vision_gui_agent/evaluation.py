@@ -35,7 +35,7 @@ LEARNING_APPS = ("workspace", "helpdesk")
 UNSEEN_APP = "orders"
 SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|TimeoutError|DEADLINE_EXCEEDED|UNAVAILABLE|\b50[234]\b"
                              r"|Network is unreachable|Name or service not known|name resolution|Connection (?:refused|reset|aborted)"
-                             r"|ConnectError|RemoteProtocolError", re.IGNORECASE)
+                             r"|ConnectError|RemoteProtocolError|\b499\b|CANCELLED", re.IGNORECASE)
 GEMINI_HOST = "generativelanguage.googleapis.com"
 
 

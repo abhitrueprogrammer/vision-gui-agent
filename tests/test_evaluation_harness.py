@@ -77,7 +77,8 @@ class ResumeTests(unittest.TestCase):
 
     def test_a_network_outage_is_a_service_failure_and_is_waited_out(self):
         from vision_gui_agent.evaluation import wait_for_network
-        for message in ("Decision failed: [Errno 101] Network is unreachable", "Decision failed: [Errno -2] Name or service not known"):
+        for message in ("Decision failed: [Errno 101] Network is unreachable", "Decision failed: [Errno -2] Name or service not known",
+                        "Decision failed: 499 CANCELLED. {'error': {'code': 499, 'message': 'The operation was cancelled.'}}"):
             self.assertTrue(SERVICE_FAILURE.search(message), message)
         attempts, pauses = [], []
         def resolve():
