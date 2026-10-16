@@ -1,4 +1,4 @@
-"""Planned experiments that confirm learned preconditions (active-action-model only).
+"""Planned experiments that confirm learned preconditions (active-action-model and its replay-only ablation).
 
 Runs between tasks with its own step budget and no goal, policy or Gemini call:
 
@@ -17,7 +17,8 @@ Runs between tasks with its own step budget and no goal, policy or Gemini call:
    else has diverged yet, X's facts earn causal credit as one group: facts
    that only ever appear together cannot be told apart, which matches how the
    ground truth groups them. This keeps P false and everything else as in a
-   run known to work, without a planner.
+   run known to work, without a planner. The replay-only ablation skips this
+   step, so it learns from the extra replays alone.
 """
 from __future__ import annotations
 
@@ -58,7 +59,7 @@ class ExperimentPhase:
 
     def _start(self, label: str) -> None:
         self.run_id = uuid4().hex
-        self.logger.start_run(self.run_id, f"experiment phase: {label}", "experiment", {"evaluation_track": "experiment_phase", "memory_mode": "active-action-model"})
+        self.logger.start_run(self.run_id, f"experiment phase: {label}", "experiment", {"evaluation_track": "experiment_phase", "memory_mode": self.agent.config.memory_mode})
         self.belief = BeliefState()
 
     async def _observe(self) -> tuple[Observation, str]:
@@ -255,7 +256,7 @@ class ExperimentPhase:
             for run_id, initial in exploration_runs:
                 if self.exhausted: break
                 await self.replay(run_id, initial)
-            planned = self.ablations()
+            planned = self.ablations() if self.agent.mode.ablate_steps else []
             self.report["pairs_possible"] = len(planned)
             for index, skip in planned:
                 if self.exhausted: break

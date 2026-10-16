@@ -21,6 +21,7 @@ from .capture import StaleObservation
 from .experimentation import ExperimentSelector
 from .functional_planner import FunctionalPlanner
 from .logging_store import RunLogger
+from .memory_modes import memory_mode
 from .gemini import CALL_COUNTS, call_purpose
 from .models import ActionDecision, ActionEffect, ActionRecord, ActionSchema, EvidenceRecord, ExperimentPlan, GoalConstraint, Observation, RunResult, SemanticAction, VerificationCondition, VerificationResult
 from .predicates import BeliefState, Inventory, PredicateExtractor, control_identity, fact_parts, normalize_name
@@ -70,7 +71,8 @@ class Agent:
         self.policy = policy
         self.config = config
         self.grounder = grounder
-        self.graph = StateGraph(config.hash_threshold) if config.memory_mode == "none" else StateGraph.load(config.graph_path, config.hash_threshold)
+        self.mode = memory_mode(config.memory_mode)
+        self.graph = StateGraph.load(config.graph_path, config.hash_threshold) if self.mode.persist else StateGraph(config.hash_threshold)
         self.action_model_path = config.action_model_path or config.artifact_dir / "action-model-v2.json"
         # Keep existing learned actions usable after the artifact filename change.
         if not self.action_model_path.exists():
@@ -846,7 +848,7 @@ class Agent:
     async def run(self, page: Page, goal: str) -> RunResult:
         self.config.artifact_dir.mkdir(parents=True, exist_ok=True)
         logger, run_id = RunLogger(self.config.database_path), uuid4().hex
-        if self.config.memory_mode != "none":
+        if self.mode.persist:
             self._hydrate_completed_workflows(logger.completed_workflows(goal), goal)
         logger.start_run(run_id, goal, getattr(self.policy, "model", type(self.policy).__name__), {
             "policy": type(self.policy).__name__, "grounder": type(self.grounder).__name__,
@@ -918,7 +920,7 @@ class Agent:
         comparison = self._comparison_constraint(goal)
         if comparison: ledger[comparison.id] = comparison
         current_node = ""
-        learning = self.config.memory_mode in {"passive-action-model", "active-action-model"}
+        learning = self.mode.learning
         if learning and not self.action_model.schemas and getattr(page, "url", ""):
             # A fresh model is scoped to the app it learns, by path only (never host or port).
             self.action_model.scope = "/" + (urlsplit(page.url).path.strip("/").split("/")[0] or "")
@@ -953,6 +955,9 @@ class Agent:
                 current_node, _ = self.graph.add_observation(observation)
                 path.append(current_node)
                 graph_context = self.graph.context(current_node, path)
+                if not self.mode.graph_context:
+                    # Ablation: the policy sees no remembered transitions; the graph still drives replay below.
+                    graph_context.update(neighbors=[], path=[])
                 # A persisted graph node can conservatively absorb similar
                 # screenshots from adjacent states.  The current screenshot's
                 # observed heading is authoritative for this decision.
@@ -970,7 +975,7 @@ class Agent:
                     selected_experiment: ExperimentPlan | None = None
                     current_label = observation.title or self.graph.graph.nodes[current_node]["label"]
                     force_planner = bool(history and not history[-1].success)
-                    if workflow and self.config.memory_mode != "none" and not force_planner:
+                    if workflow and self.mode.persist and not force_planner:
                         template = workflow[0]
                         candidate = self._reuse_action(template, observation, current_label)
                         if candidate is None:
@@ -1006,13 +1011,13 @@ class Agent:
                                 learned_seen.add(repeat)
                                 decision, selected_schema, selected_effect = schema_choice
                                 decision_origin = "learned_schema" if selected_effect is not None else "section_navigation"
-                    if decision is None and self.config.memory_mode != "none" and not force_planner:
+                    if decision is None and self.mode.persist and not force_planner:
                         reusable = self._reuse_workflow(templates, observation, current_label)
                         if reusable:
                             workflow = reusable
                             decision = self._reuse_action(workflow[0], observation, current_label)
                             decision_origin = "workflow_reuse"
-                    if decision is None and self.config.memory_mode != "none" and not force_planner:
+                    if decision is None and self.mode.persist and not force_planner:
                         seen = {attempt_replay_keys.get(key, key) for key, attempts in action_attempts.items()
                                 if attempts >= self.config.max_action_attempts}
                         decision = self.graph.replay(current_node, goal, seen)
@@ -1363,7 +1368,7 @@ class Agent:
             logger.finish_run(run_id, False, len(history), current_node, str(exc))
             raise
         finally:
-            if self.config.memory_mode != "none": self.graph.export(self.config.graph_path)
-            if self.config.memory_mode in {"passive-action-model", "active-action-model"}:
+            if self.mode.persist: self.graph.export(self.config.graph_path)
+            if self.mode.learning:
                 self.action_model.export(self.action_model_path)
             logger.close()

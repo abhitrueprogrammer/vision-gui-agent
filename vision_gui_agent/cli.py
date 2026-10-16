@@ -11,6 +11,7 @@ from .agent import Agent, AgentConfig
 from .decision import CascadingPolicy, GeminiPolicy, LayaPolicy
 from .gemini import DEFAULT_MODEL
 from .logging_store import RunLogger
+from .memory_modes import MEMORY_MODES, memory_mode
 from .perception import GeminiVisualGrounder, OmniParserVisualGrounder
 
 
@@ -112,7 +113,7 @@ def main() -> None:
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--desktop", action="store_true", help="control the visible desktop instead of opening a browser URL")
     parser.add_argument("--verbose", action="store_true", help="print state, action, verification, graph, and downloads per step")
-    parser.add_argument("--memory-mode", choices=["none", "graph", "passive-action-model", "active-action-model"], default="graph")
+    parser.add_argument("--memory-mode", choices=list(MEMORY_MODES), default="graph")
     parser.add_argument("--experiment-budget", type=int, default=0, help="reserved active experiments; active mode is sandbox-only")
     parser.add_argument("--min-schema-confidence", type=float, default=.6)
     parser.add_argument("--max-plan-depth", type=int, default=4)
@@ -142,8 +143,8 @@ def main() -> None:
         parser.error("--max-steps must be at least 1")
     if args.experiment_budget < 0 or not 0 <= args.min_schema_confidence <= 1 or args.max_plan_depth < 1:
         parser.error("invalid action-model bounds")
-    if args.experiment_budget and args.memory_mode != "active-action-model":
-        parser.error("--experiment-budget requires --memory-mode active-action-model")
+    if args.experiment_budget and not memory_mode(args.memory_mode).experiments:
+        parser.error("--experiment-budget requires an active-action-model memory mode")
     if args.experiment_budget and (not args.benchmark_reset or not args.benchmark_grounder):
         parser.error("active experiments require --benchmark-reset and --benchmark-grounder")
     raise SystemExit(asyncio.run(_run(args)))

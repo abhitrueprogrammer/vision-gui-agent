@@ -28,9 +28,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .memory_modes import MEMORY_MODES, memory_mode
 from .visual_function_lab import APPS, PROTOCOL_VERSION, TASK_SPLIT, TASKS, parse_entry
 
-MODES = ("none", "graph", "passive-action-model", "active-action-model")
+MODES = ("none", "graph", "passive-action-model", "active-action-model")  # the default matrix; ablations run on request
 LEARNING_APPS = ("workspace", "helpdesk")
 UNSEEN_APP = "orders"
 SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|TimeoutError|DEADLINE_EXCEEDED|UNAVAILABLE|\b50[234]\b"
@@ -116,7 +117,7 @@ def sequence_jobs(mode: str, seed: int, groups: tuple[str, ...] = tuple(TASK_SPL
             # Two fixed orders across seeds (1 and 3 one way, 2 the other) so co-occurring facts can be told apart.
             for task, layout in (exploration if seed % 2 else list(reversed(exploration))):
                 jobs.append(Job(mode, seed, app, task, layout, "exploration"))
-            if mode == "active-action-model":
+            if memory_mode(mode).experiments:
                 jobs.append(Job(mode, seed, app, PHASE, "classic", PHASE))
         for group in ("held_out", "composition", "layout_shift", "unavailable"):
             if group in groups: add(app, group)
@@ -408,7 +409,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run")
     run.add_argument("--out", default="artifacts/evaluation")
-    run.add_argument("--modes", default=",".join(MODES))
+    run.add_argument("--modes", default=",".join(MODES), help=f"comma-separated, from: {', '.join(MEMORY_MODES)}")
     run.add_argument("--seeds", default="1,2,3")
     run.add_argument("--groups", default=",".join(TASK_SPLIT))
     run.add_argument("--apps", default=",".join(APPS))
@@ -432,6 +433,8 @@ def main() -> None:
     # Every Gemini client in every shard shares one requests/tokens-per-minute budget.
     os.environ.update(VGA_RATE_DB=str(out / "rate-limit.sqlite3"), VGA_RPM=str(args.rpm), VGA_TPM=str(args.tpm))
     split = lambda value: tuple(item for item in value.split(",") if item)
+    for mode in split(args.modes):
+        if mode not in MEMORY_MODES: parser.error(f"unknown mode {mode!r}; choose from {', '.join(MEMORY_MODES)}")
     jobs = [job for mode in split(args.modes) for seed in map(int, split(args.seeds))
             for job in sequence_jobs(mode, seed, split(args.groups), split(args.apps))]
     index, count = map(int, args.shard.split("/"))
