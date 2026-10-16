@@ -88,17 +88,18 @@ class ResumeTests(unittest.TestCase):
         def down(): raise OSError("Network is unreachable")
         self.assertFalse(wait_for_network(limit_s=60, pause_s=30, resolve=down, sleep=lambda _: None))
 
-    def test_the_harness_sleeps_until_a_key_is_out_of_its_daily_cooldown(self):
+    def test_the_harness_waits_until_a_probe_finds_quota_again(self):
         from vision_gui_agent import gemini
         from vision_gui_agent.evaluation import wait_for_quota
         self.addCleanup(gemini._KEY_COOLDOWN.clear)
-        pauses = []
+        pauses, answers = [], iter([False, False, True])
         with patch("vision_gui_agent.gemini.configured_gemini_keys", return_value=["q1", "q2"]):
-            self.assertEqual(wait_for_quota(sleep=pauses.append), 0.0)
-            gemini._KEY_COOLDOWN.update({"q1": time.monotonic() + 3600, "q2": time.monotonic() + 7200})
-            wait_for_quota(sleep=pauses.append)
-        self.assertEqual(len(pauses), 1)
-        self.assertAlmostEqual(pauses[0], 3605, delta=5)
+            self.assertEqual(wait_for_quota(probe=lambda: next(answers), sleep=pauses.append), 0.0)  # nothing known: no wait
+            # Gemini's retry time named tomorrow while the quota was back in minutes: the probe decides.
+            gemini._KEY_COOLDOWN.update({"q1": time.monotonic() + 64000, "q2": time.monotonic() + 64000})
+            self.assertEqual(wait_for_quota(pause_s=900, probe=lambda: next(answers), sleep=pauses.append), 2700)
+        self.assertEqual(pauses, [900, 900, 900])
+        self.assertEqual(gemini._KEY_COOLDOWN, {})
 
     def test_service_failure_classification(self):
         for message in ("429 RESOURCE_EXHAUSTED", "TimeoutError: ", "Gemini quota exhausted on every key", "503 UNAVAILABLE"):

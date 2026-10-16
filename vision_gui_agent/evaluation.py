@@ -39,20 +39,37 @@ SERVICE_FAILURE = re.compile(r"RESOURCE_EXHAUSTED|\b429\b|quota|timed? ?out|Time
 GEMINI_HOST = "generativelanguage.googleapis.com"
 
 
-def wait_for_quota(limit_s: float = 8 * 3600, sleep: Any = None) -> float:
-    """Sleep until a Gemini key is usable again when every key is out of quota; returns seconds waited.
+def _quota_probe() -> bool:
+    """One tiny request: True if any key answers. A refusal costs no quota."""
+    from .gemini import DEFAULT_MODEL, GeminiClientPool, call_purpose
+    try:
+        with call_purpose("quota_probe"):
+            GeminiClientPool().generate(lambda client: client.models.generate_content(model=DEFAULT_MODEL, contents="Reply OK"))
+        return True
+    except Exception:  # noqa: BLE001 - still out of quota, or unreachable
+        return False
+
+
+def wait_for_quota(limit_s: float = 24 * 3600, pause_s: float = 900.0, probe: Any = None, sleep: Any = None) -> float:
+    """After every key ran out of quota, wait until one answers again; returns seconds waited.
 
     Without this a daily quota failed each remaining task three times in seconds, and the
-    harness then treated those tasks as finished.
+    harness then treated those tasks as finished. Gemini's reported retry time is not trusted:
+    it named 00:00 UTC, while the free-tier day actually resets at midnight Pacific. The wait
+    probes one key every ``pause_s`` instead.
     """
     from .gemini import _KEY_COOLDOWN, configured_gemini_keys
     keys = configured_gemini_keys()
-    wait = min((_KEY_COOLDOWN.get(key, 0) for key in keys), default=0) - time.monotonic()
-    if wait <= 0: return 0.0
-    wait = min(wait + 5, limit_s)
-    print(f"All Gemini keys out of quota; waiting {wait / 60:.0f} min", flush=True)
-    (sleep or time.sleep)(wait)
-    return wait
+    if not keys or min((_KEY_COOLDOWN.get(key, 0) for key in keys), default=0) <= time.monotonic(): return 0.0
+    probe, sleep, waited = probe or _quota_probe, sleep or time.sleep, 0.0
+    print(f"All Gemini keys out of quota; checking every {pause_s / 60:.0f} min", flush=True)
+    while waited < limit_s:
+        sleep(pause_s); waited += pause_s
+        if probe():
+            _KEY_COOLDOWN.clear()
+            print(f"Gemini quota available again after {waited / 60:.0f} min", flush=True)
+            return waited
+    return waited
 
 
 def wait_for_network(limit_s: float = 7200.0, pause_s: float = 30.0, resolve: Any = None, sleep: Any = None) -> bool:
