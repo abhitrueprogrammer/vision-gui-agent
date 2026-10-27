@@ -291,8 +291,9 @@ class ActionModelTests(unittest.TestCase):
             self.assertNotIn("invalid_attempts", page)
             for leaked in ("open_document", "document_open", "export_completed", ": true", ": false"):
                 self.assertNotIn(leaked, page.casefold())
-            admin = urlopen(url.rsplit("/", 1)[0] + "/admin").read().decode()
-            self.assertIn("Visual Function Lab controls", admin); self.assertNotIn("Launch Brief", admin)
+            admin = urlopen(url.rsplit("/", 1)[0] + "/admin").read().decode()  # redirects to the index page
+            self.assertIn("resets <strong>Acme Project Workspace</strong>", admin); self.assertIn("reset('compact')", admin)
+            self.assertNotIn("Launch Brief", admin)
             body = json.dumps({"token": ACTION_TOKENS["open_document"]}).encode()
             urlopen(Request(url, data=body, method="POST")).read()
             after = urlopen(url).read().decode()

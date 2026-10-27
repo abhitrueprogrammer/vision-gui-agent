@@ -83,7 +83,9 @@
       e.edgeLabel = e.count > 1 ? `${e.summary} ×${e.count}` : e.summary;
       e.dim = Boolean(run) && !e.on_path;
     }
-    status.textContent = `${graph.nodes.length}/${graph.total_nodes} states · ${graph.edges.length} edges from ${graph.total_edges} recorded transitions` +
+    status.textContent = graph.run_missing && !graph.nodes.length
+      ? "This run is not in the state graph (runs with --memory-mode none do not save one). Show whole graph to see the folder's other runs."
+      : `${graph.nodes.length}/${graph.total_nodes} states · ${graph.edges.length} edges from ${graph.total_edges} recorded transitions` +
       (graph.filtered ? " · filtered to this run and its neighbours" : "");
     if (cy) cy.destroy();
     cy = cytoscape({

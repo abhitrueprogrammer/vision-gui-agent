@@ -96,6 +96,9 @@ class ViewerTests(unittest.TestCase):
         self.assertIn(slug, [root.slug for root in data.discover_roots(self.base)])
         self.assertIn("Calibrated goal", self.client.get(f"/?root={slug}").text)
         self.assertEqual(self.client.get(f"/api/graph/{slug}").status_code, 200)
+        # evaluation.py names the same pair runs.sqlite3 / graph.json.
+        (task / "state-graph.json").rename(task / "graph.json")
+        self.assertEqual(self.client.get(f"/api/graph/{slug}").status_code, 200)
         (task / "runs-v2.sqlite3").touch()
         self.assertEqual(next(root for root in data.discover_roots(self.base) if root.slug == slug).database_name, "runs-v2.sqlite3")
 
@@ -212,6 +215,11 @@ class ViewerTests(unittest.TestCase):
         expanded = self.client.get(f"/api/graph/exp1?run={RUN}&expand=true").json()
         self.assertEqual(len(expanded["edges"]), 3)
         self.assertTrue(all(node["data"]["screenshot"].startswith(f"/file/exp1/run/{RUN}/") for node in graph["nodes"]))
+        self.assertFalse(graph["run_missing"])
+        missing = self.client.get("/api/graph/exp1?run=not-in-graph").json()
+        self.assertEqual((missing["nodes"], missing["edges"], missing["run_missing"]), ([], [], True))
+        whole = self.client.get("/api/graph/exp1?run=not-in-graph&all=true").json()
+        self.assertEqual(len(whole["nodes"]), whole["total_nodes"])
         (self.root / "state-graph-v2.json").unlink()
         self.assertEqual(self.client.get("/api/graph/exp1").status_code, 404)
 

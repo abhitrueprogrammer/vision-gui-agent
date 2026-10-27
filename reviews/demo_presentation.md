@@ -42,7 +42,7 @@ Run every command in this guide from the repository root.
 4. Open these browser tabs in order:
    - the slides
    - `http://127.0.0.1:4200/helpdesk`
-   - `http://127.0.0.1:4200/admin`
+   - `http://127.0.0.1:4200/` (the lab's start page, with the reset buttons)
    - the Part 3 links
 
 ## Part 1: slides (8 min)
@@ -72,7 +72,7 @@ In the `helpdesk` tab, click "Ticket #4821" and point out:
 - All state is shown as status lines on screen ("Agent tier: supervisor", "Priority: urgent").
 - "Escalate #4821" in Escalations stays greyed out until the ticket is marked urgent. Nobody tells the agent that; it has to find out.
 
-In the `admin` tab, click "Compact". The menu moves to the top and the labels stay the same; the agent identifies controls by label, not position. Click "Classic" before continuing. These buttons also reset the app.
+On the lab's start page (`http://127.0.0.1:4200/`), click "Compact" and reopen the help desk. The menu moves to the top and the labels stay the same; the agent identifies controls by label, not position. Click "Classic" before continuing. These buttons also reset the app.
 
 ### 2b. Without memory (about 2–3 min)
 ```bash

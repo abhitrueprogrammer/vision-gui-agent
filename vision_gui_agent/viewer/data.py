@@ -20,7 +20,8 @@ from ..logging_store import metrics as completion_metrics, model_metrics
 
 # The CLI writes the -v2 names; the calibration harness (benchmark_calibration.py) writes the plain names
 # with the same RunLogger schema. Prefer -v2 when a directory has both.
-DATABASES = {"runs-v2.sqlite3": "state-graph-v2.json", "runs.sqlite3": "state-graph.json"}
+# The evaluation harness names its graph graph.json; the calibration and older runs use state-graph.json.
+DATABASES = {"runs-v2.sqlite3": ("state-graph-v2.json",), "runs.sqlite3": ("state-graph.json", "graph.json")}
 RUN_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 RUN_DIRECTORY = re.compile(r"[0-9a-f]{32}")
 # Real download names contain spaces ("Launch brief.pdf"), so only separators and NUL are excluded.
@@ -40,7 +41,8 @@ class Root:
 
     @property
     def graph(self) -> Path:
-        return self.path / DATABASES[self.database_name]
+        candidates = [self.path / name for name in DATABASES[self.database_name]]
+        return next((path for path in candidates if path.exists()), candidates[0])
 
     @property
     def snapshots(self) -> Path:
@@ -262,7 +264,9 @@ def graph_elements(root: Root, run_id: str | None = None, show_all: bool = False
              if isinstance(edge, dict) and edge.get("source") in nodes and edge.get("target") in nodes]
     path_nodes = {endpoint for edge in edges if run_id and edge.get("run_id") == run_id
                   for endpoint in (edge["source"], edge["target"])}
-    keep = set(nodes)
+    # A run absent from the graph (memory mode none saves none) shows nothing, not the folder's other runs.
+    run_missing = bool(run_id) and not path_nodes
+    keep = set() if run_missing and not show_all else set(nodes)
     if run_id and path_nodes and not show_all:
         keep = set(path_nodes)
         for edge in edges:
@@ -295,6 +299,7 @@ def graph_elements(root: Root, run_id: str | None = None, show_all: bool = False
                   for node_id in nodes if node_id in keep],
         "edges": [{"data": group} for group in grouped.values()],
         "total_nodes": len(nodes), "total_edges": len(edges), "filtered": keep != set(nodes),
+        "run_missing": run_missing,
     }
 
 

@@ -58,6 +58,7 @@ class GraphResponse(BaseModel):
     total_nodes: int
     total_edges: int
     filtered: bool
+    run_missing: bool = False
 
 
 class MetricsResponse(BaseModel):

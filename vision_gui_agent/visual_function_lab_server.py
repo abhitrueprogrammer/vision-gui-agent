@@ -68,8 +68,8 @@ class _Handler(BaseHTTPRequestHandler):
             report.update(protocol=PROTOCOL_VERSION, symbolic=self.evaluator.score_symbolic(task), layout=self.evaluator.layout,
                           state=self.evaluator.visible_state())
             self._send(json.dumps(report), "application/json"); return
-        if parsed.path == "/admin":
-            self._send(self.admin_page()); return
+        if parsed.path == "/admin":  # the controls moved to the index page; old links still work
+            self._redirect("/"); return
         for app in APPS.values():
             for action, (url, filename) in app.downloads.items():
                 if parsed.path == url:
@@ -140,19 +140,16 @@ else{{location.reload()}}}}
 </script>'''
 
     def index_page(self) -> str:
-        links = "".join(f'<li><a href="/{app.id}">{escape(app.title)}</a></li>' for app in APPS.values())
-        return ('<!doctype html><title>Visual Function Lab</title><style>body{font:16px sans-serif;margin:4rem;color:#1f2937}'
-                f'a{{color:#2563eb}}</style><h1>Visual Function Lab</h1><ul>{links}</ul>')
-
-    def admin_page(self) -> str:
-        """Evaluator controls for people running the benchmark; agents start on the app pages."""
+        """The apps and the evaluator controls for people running the benchmark; agents start on the app pages."""
         app = self.evaluator.app
+        links = "".join(f'<li><a href="/{item.id}">{escape(item.title)}</a></li>' for item in APPS.values())
         buttons = "".join(f'<button onclick="reset(\'{name}\')">{name.title()}</button>' for name in LAYOUTS)
-        return (f'<!doctype html><title>Visual Function Lab controls</title><style>body{{font:18px sans-serif;margin:3rem}}'
-                f'button{{margin:.25rem;padding:.7rem 1rem}}</style><h1>Visual Function Lab controls</h1>'
-                f'<p>Current app: <strong>{escape(app.id)}</strong>, layout: <strong>{self.evaluator.layout}</strong></p>{buttons}'
-                f'<p><a href="/{app.id}">Open {escape(app.title)}</a></p>'
-                f'<script>async function reset(layout){{await fetch(\'/reset?state=blank&app={app.id}&layout=\'+layout);location.reload()}}</script>')
+        return ('<!doctype html><title>Visual Function Lab</title><style>body{font:18px sans-serif;margin:3rem;color:#1f2937}'
+                'a{color:#2563eb}li{margin:.4rem 0}button{margin:.25rem;padding:.7rem 1rem}</style>'
+                f'<h1>Visual Function Lab</h1><ul>{links}</ul><p>Opening a different app starts it from a clean state.</p>'
+                f'<h2>Layout</h2><p>Current: <strong>{self.evaluator.layout}</strong> (all apps). '
+                f'A button sets the layout and resets <strong>{escape(app.title)}</strong>, the app last opened.</p>{buttons}'
+                f"<script>async function reset(layout){{await fetch('/reset?state=blank&app={app.id}&layout='+layout);location.reload()}}</script>")
 
 
 _CSS = '''
