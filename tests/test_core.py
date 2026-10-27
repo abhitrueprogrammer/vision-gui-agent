@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from playwright.async_api import Error as PlaywrightError
 from vision_gui_agent.agent import Agent, AgentConfig
+from vision_gui_agent.cli import benchmark_reset_url
 from vision_gui_agent.decision import _compact_elements, configured_gemini_keys, parse_decision, parse_decisions
 from vision_gui_agent.gemini import GeminiClientPool
 from vision_gui_agent.desktop import DesktopPage
@@ -21,6 +22,13 @@ from vision_gui_agent.state_graph import StateGraph
 from vision_gui_agent.verification import already_satisfied, verify
 
 class CoreTests(unittest.TestCase):
+
+    def test_benchmark_reset_url_keeps_query_separator(self) -> None:
+        # urljoin(url, "/reset?") drops the '?', which turned the reset into a visit to the lab's index page.
+        self.assertEqual(benchmark_reset_url("http://127.0.0.1:4200/helpdesk?tab=queue", "blank", "classic", "helpdesk"),
+                         "http://127.0.0.1:4200/reset?state=blank&layout=classic&app=helpdesk")
+        self.assertEqual(benchmark_reset_url("http://127.0.0.1:4200/fullsuite", "standard", "compact"),
+                         "http://127.0.0.1:4200/reset?state=standard&layout=compact")
 
     def test_policy_elements_omit_perception_only_fields(self) -> None:
         element = Element(1, "[data-id=1]", "link", "Report", "Open report", "", "link", 10.4, 20.5, 30.6, 40.7,

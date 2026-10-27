@@ -27,6 +27,13 @@ def friendly_error(error: Exception, url: str | None = None) -> str:
     return message.split("\n", 1)[0] or error.__class__.__name__
 
 
+def benchmark_reset_url(url: str, state: str, layout: str, app: str | None = None) -> str:
+    """The lab's reset endpoint on the server that serves url; urljoin drops a bare trailing '?'."""
+    reset = {"state": state, "layout": layout}
+    if app: reset["app"] = app
+    return urljoin(url, "/reset") + "?" + urlencode(reset)
+
+
 async def _close(context: BrowserContext | None, browser: Browser | None) -> None:
     if context is not None:
         try:
@@ -81,9 +88,8 @@ async def _run(args: argparse.Namespace) -> int:
                 context = await browser.new_context(ignore_https_errors=True, viewport={"width": 1440, "height": 1000})
                 page = await context.new_page()
                 if args.benchmark_reset:
-                    reset = {"state": args.benchmark_reset, "layout": args.benchmark_layout}
-                    if args.benchmark_app: reset["app"] = args.benchmark_app
-                    await page.goto(urljoin(args.url, "/reset?") + urlencode(reset), wait_until="domcontentloaded")
+                    reset = benchmark_reset_url(args.url, args.benchmark_reset, args.benchmark_layout, args.benchmark_app)
+                    await page.goto(reset, wait_until="domcontentloaded")
                 await page.goto(args.url, wait_until="domcontentloaded")
                 result = await Agent(policy, config, grounder).run(page, args.goal)
         print(f"run_id={result.run_id} completed={result.completed} steps={result.steps} final_node={result.final_node_id}")
