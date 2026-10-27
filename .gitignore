@@ -19,3 +19,6 @@ the-internet/
 
 # Stray session files written for in-memory databases
 :memory:*
+
+
+.~lock*

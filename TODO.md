@@ -1,0 +1,1 @@
+1. Give a way to navigate from one app to another from the home screen only

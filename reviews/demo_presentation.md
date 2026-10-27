@@ -35,7 +35,7 @@ Run every command in this guide from the repository root.
    # T2: viewer for the live runs
    uv run vision-gui-viewer --artifacts artifacts --port 8765
    # T3: viewer for the recorded evaluation
-   uv run vision-gui-viewer --artifacts artifacts/evaluation-v13 --port 8766
+   uv run vision-gui-viewer --artifacts artifacts/evaluation-v13 --port 8766  
    # T4: agent commands (Part 2)
    ```
 3. Do one full run of Part 2. It loads the detector and OCR models and confirms the quota.
